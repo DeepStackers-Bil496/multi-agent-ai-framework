@@ -1,43 +1,46 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { Tool, DynamicStructuredTool } from "@langchain/core/tools";
+import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { Runnable } from "@langchain/core/runnables";
-import { z } from "zod";
-import { ThermometerSunIcon } from "lucide-react";
+import { MainAgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
+import { MainAgentChatMessage, APILLMImpl } from "@/lib/types";
+import { AgentConfig } from "../agentConfig";
+import { MainAgentConfig } from "./config";
+import { BaseAgent } from "../baseAgent";
 
-type ChatRole = "user" | "assistant";
-type ChatMessage = { role: ChatRole; content: string };
+class MainAgent extends BaseAgent<APILLMImpl> {
 
-class MainAgent {
-
-    private readonly providerModelID: string;
-    private readonly providerModelSystemInstruction: string;
     private readonly mainAgentLLM: Runnable;
     private readonly mainAgentGraph: Runnable;
-    private readonly mainAgentStateGraph: StateGraph<typeof MessagesAnnotation>;
-    private readonly providerAPIKey: string;
-
     private readonly mainAgentTools: DynamicStructuredTool[];
 
-    constructor(providerModelID: string, providerModelSystemInstruction: string) {
-        this.providerModelID = providerModelID;
-        this.providerModelSystemInstruction = providerModelSystemInstruction;
-        this.providerAPIKey = process.env.GOOGLE_API_KEY || "";
+    /**
+     * @param mainAgentConfig Main agent configuration
+     */
+    constructor(mainAgentConfig: AgentConfig<APILLMImpl>) {
+        super(mainAgentConfig);
         this.mainAgentTools = [];
         this.mainAgentLLM = new ChatGoogleGenerativeAI({
-            model: this.providerModelID,
-            apiKey: this.providerAPIKey,
+            model: this.implementation.modelID,
+            apiKey: this.implementation.apiKey,
         }).bindTools(this.mainAgentTools);
 
-        this.mainAgentStateGraph = new StateGraph(MessagesAnnotation)
-        this.mainAgentGraph = this.mainAgentStateGraph.compile();
+        const mainAgentGraph = new StateGraph(MessagesAnnotation)
+            .addNode("MainAgentNode", this.agentNode.bind(this))
+            .addEdge(START, "MainAgentNode")
+            .addConditionalEdges("MainAgentNode", this.MainAgentRoute);
+        this.mainAgentGraph = mainAgentGraph.compile();
     }
 
-    private async MainAgentNode(state: typeof MessagesAnnotation.State) {
+    /**
+     * @param state Agent state
+     * @returns Agent node implementation
+     */
+    protected async agentNode(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const messagesToSend = [
-            new SystemMessage(this.providerModelSystemInstruction),
+            new SystemMessage(this.implementation.systemInstruction),
             ...messages
         ]
 
@@ -47,6 +50,11 @@ class MainAgent {
         }
     }
 
+    /**
+     * This method is used to route the agent to the correct tool.
+     * @param state Agent state
+     * @returns Agent route
+     */
     private MainAgentRoute(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const lastMessage = messages[messages.length - 1] as AIMessage;
@@ -57,20 +65,19 @@ class MainAgent {
         return toolName;
     }
 
-    public async run(currentMessage: string, messages: ChatMessage[]): Promise<Response> {
-        const history = messages.slice(0, -1).map((message) => {
-            if (message.role === "user") {
-                return new HumanMessage(message.content);
-            } else {
-                return new AIMessage(message.content);
-            }
-        });
-
-        const inputMessages = [...history, new HumanMessage(currentMessage)];
+    /**
+     * @param inputMessages Input messages
+     * @returns Response
+     */
+    public async run(inputMessages: MainAgentChatMessage[]): Promise<Response> {
+        const history = inputMessages.map((message) => {
+            return message.role == MainAgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
+        }
+        );
 
         const eventStream = this.mainAgentGraph.streamEvents(
-            { messages: inputMessages },
-            { version: "v2" }
+            { messages: history },
+            { version: "v2" } // Arkadaşlar kendi websitemde v2 versioyonunu kullandım ama değiştirsekte sorun olacağını sanmıyorum.
         );
 
 
@@ -85,7 +92,7 @@ class MainAgent {
 
                 try {
                     enqueueJson({
-                        type: "agent_start",
+                        type: AGENT_STARTED,
                         payload: {
                             name: "MainAgent",
                             content: JSON.stringify(inputMessages),
@@ -93,9 +100,9 @@ class MainAgent {
                         }
                     });
                     for await (const event of eventStream) {
-                        if (event.event === "on_chain_start" && event.name && event.name.endsWith("_worker")) {
+                        if (event.event === AGENT_START_EVENT && event.name && event.name.endsWith("_worker")) {
                             enqueueJson({
-                                type: "agent_start",
+                                type: AGENT_STARTED,
                                 payload: {
                                     name: event.name,
                                     content: JSON.stringify(event.data.input),
@@ -103,16 +110,15 @@ class MainAgent {
                                 }
                             });
                         }
-                        else if (event.event === "on_chain_end" && event.name && event.name.endsWith("_worker")) {
+                        else if (event.event === AGENT_END_EVENT && event.name && event.name.endsWith("_worker")) {
 
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
                                 output = output.messages[output.messages.length - 1].content;
-                                //output = output.messages[0].content; //or it can be the first message
                             }
 
                             enqueueJson({
-                                type: "agent_end",
+                                type: AGENT_ENDED,
                                 payload: {
                                     name: event.name,
                                     content: JSON.stringify(output),
@@ -120,9 +126,9 @@ class MainAgent {
                                 }
                             });
                         }
-                        else if (event.event === "on_chat_model_stream") {
+                        else if (event.event === ON_CHAT_MODEL_STREAM_EVENT) {
                             enqueueJson({
-                                type: "chunk",
+                                type: AGENT_STREAM,
                                 payload: {
                                     name: event.name,
                                     content: event.data.chunk,
@@ -136,7 +142,7 @@ class MainAgent {
                     console.error("[AGENT API] CRITICAL ERROR inside stream loop:", error);
                     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred inside the stream.";
                     enqueueJson({
-                        type: "error",
+                        type: AGENT_ERROR,
                         payload: {
                             name: "MainAgent",
                             content: errorMessage,
@@ -146,7 +152,7 @@ class MainAgent {
                 }
                 finally {
                     enqueueJson({
-                        type: "agent_end",
+                        type: AGENT_ENDED,
                         payload: {
                             name: "MainAgent",
                             content: "",
@@ -168,3 +174,5 @@ class MainAgent {
     }
 
 }
+
+export const mainAgent = new MainAgent(MainAgentConfig);

@@ -56,3 +56,55 @@ export type Attachment = {
   url: string;
   contentType: string;
 };
+
+import {
+  MainAgentUserRole,
+  MainAgentAssistantRole,
+  API_MODEL_TYPE,
+  LOCAL_MODEL_TYPE,
+  LOCAL_VISION_MODEL_TYPE,
+  API_VISION_MODEL_TYPE
+} from "./constants";
+
+/**
+ * We will be using this types at the main agent's chat messages.
+ */
+export type MainAgentChatRole = typeof MainAgentUserRole | typeof MainAgentAssistantRole;
+export type MainAgentChatMessage = { role: MainAgentChatRole; content: string };
+
+
+/**
+ * We will be using this types at the agent implementations.
+ */
+export type APILLMImpl = {
+  type: typeof API_MODEL_TYPE;
+  modelID: string;
+  systemInstruction: string;
+  apiKey: string;
+};
+
+export type LocalLLMImpl = {
+  type: typeof LOCAL_MODEL_TYPE;
+  modelPath: string;
+  contextWindow: number;
+  hfSpaceID?: string;
+  systemInstruction: string;
+};
+
+export type LocalVisionModelImpl = {
+  type: typeof LOCAL_VISION_MODEL_TYPE;
+  modelID: string;
+  systemInstruction: string;
+};
+
+export type APIVisionModelImpl = {
+  type: typeof API_VISION_MODEL_TYPE;
+  modelID: string;
+  systemInstruction: string;
+};
+
+export type AgentImplementation =
+  | APILLMImpl
+  | LocalLLMImpl
+  | LocalVisionModelImpl
+  | APIVisionModelImpl;
