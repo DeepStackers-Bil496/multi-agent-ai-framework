@@ -9,7 +9,7 @@ import { MainAgentChatMessage } from "@/lib/types";
 
 async function testMainAgent() {
     // Dynamic import to ensure environment variables are loaded first
-    const { mainAgent } = await import("./mainAgent");
+    const { mainAgent } = await import("../../lib/agents/mainAgent/mainAgent");
     const { MainAgentUserRole } = await import("@/lib/constants");
 
     console.log("--- Agent Inspection ---");

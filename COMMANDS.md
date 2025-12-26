@@ -17,6 +17,7 @@ This file contains a list of frequently used commands for development, database 
 | Command | Description |
 | :--- | :--- |
 | `npx tsx scripts/fetch_issues.ts` | Fetch and display GitHub issues in a human-readable format. |
+| `npx tsx tests/mainAgent/test-main-agent.ts` | Test the main agent. |
 
 ### 🗄️ Database Management
 | Command | Description |
