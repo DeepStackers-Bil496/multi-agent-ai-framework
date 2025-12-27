@@ -392,6 +392,7 @@ export function Chat({
         messages={messages}
         regenerate={regenerate}
         selectedModelId={currentModelId}
+        onModelChange={setCurrentModelId}
         selectedVisibilityType={visibilityType}
         sendMessage={sendMessage}
         setAttachments={setAttachments}

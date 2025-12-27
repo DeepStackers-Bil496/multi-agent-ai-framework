@@ -5,12 +5,12 @@ import { AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/con
 // Load environment variables from .env.local as early as possible
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
-import { MainAgentChatMessage } from "@/lib/types";
+import { AgentChatMessage } from "@/lib/types";
 
 async function testMainAgent() {
     // Dynamic import to ensure environment variables are loaded first
     const { mainAgent } = await import("../../lib/agents/mainAgent/mainAgent");
-    const { MainAgentUserRole } = await import("@/lib/constants");
+    const { AgentUserRole } = await import("@/lib/constants");
 
     console.log("--- Agent Inspection ---");
     console.log(mainAgent); // Custom inspect
@@ -20,8 +20,8 @@ async function testMainAgent() {
 
     console.log("--- Testing MainAgent ---");
 
-    const messages: MainAgentChatMessage[] = [
-        { role: MainAgentUserRole, content: "Hello! Who are you and what can you do?" }
+    const messages: AgentChatMessage[] = [
+        { role: AgentUserRole, content: "Hello! Who are you and what can you do?" }
     ];
 
     try {

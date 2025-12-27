@@ -1,17 +1,17 @@
-import { AgentConfig, AgentMetadata } from "./agentConfig";
-import { AgentImplementation } from "../types";
+import { AgentConfig } from "./agentConfig";
+import { AgentImplMetadata, AgentUserMetadata } from "../types";
 import { MessagesAnnotation } from "@langchain/langgraph";
 
-export abstract class BaseAgent<T extends AgentImplementation = AgentImplementation, M extends AgentMetadata = AgentMetadata> {
-    protected readonly metadata: M;
-    protected readonly implementation: T;
+export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata, M extends AgentUserMetadata = AgentUserMetadata> {
+    protected readonly userMetadata: M;
+    protected readonly implementationMetadata: T;
 
     /**
      * @param config Agent configuration
      */
     constructor(config: AgentConfig<T, M>) {
-        this.metadata = config.metadata;
-        this.implementation = config.implementation;
+        this.userMetadata = config.user_metadata;
+        this.implementationMetadata = config.implementation_metadata;
     }
 
     /**
@@ -19,8 +19,8 @@ export abstract class BaseAgent<T extends AgentImplementation = AgentImplementat
      */
     public toJSON() {
         return {
-            metadata: this.metadata,
-            implementation_type: this.implementation.type
+            user_metadata: this.userMetadata,
+            implementation_metadata: this.implementationMetadata
         };
     }
 

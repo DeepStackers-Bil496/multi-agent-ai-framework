@@ -1,14 +1,7 @@
 
-import { AgentImplementation } from "../types";
+import { AgentImplMetadata, AgentUserMetadata } from "../types";
 
-export interface AgentMetadata {
-    id: string;
-    name: string;
-    description: string;
-    icon?: React.ComponentType<{ className?: string }>;
-}
-
-export interface AgentConfig<T extends AgentImplementation = AgentImplementation, M extends AgentMetadata = AgentMetadata> {
-    metadata: M;
-    implementation: T;
+export interface AgentConfig<T extends AgentImplMetadata = AgentImplMetadata, M extends AgentUserMetadata = AgentUserMetadata> {
+    user_metadata: M;
+    implementation_metadata: T;
 }

@@ -3,8 +3,8 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { Runnable } from "@langchain/core/runnables";
-import { MainAgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
-import { MainAgentChatMessage, APILLMImpl } from "@/lib/types";
+import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
+import { AgentChatMessage, APILLMImpl } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { MainAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
@@ -22,8 +22,8 @@ class MainAgent extends BaseAgent<APILLMImpl> {
         super(mainAgentConfig);
         this.mainAgentTools = [];
         this.mainAgentLLM = new ChatGoogleGenerativeAI({
-            model: this.implementation.modelID,
-            apiKey: this.implementation.apiKey,
+            model: this.implementationMetadata.modelID,
+            apiKey: this.implementationMetadata.apiKey,
         }).bindTools(this.mainAgentTools);
 
         const mainAgentGraph = new StateGraph(MessagesAnnotation)
@@ -40,7 +40,7 @@ class MainAgent extends BaseAgent<APILLMImpl> {
     protected async agentNode(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const messagesToSend = [
-            new SystemMessage(this.implementation.systemInstruction),
+            new SystemMessage(this.implementationMetadata.systemInstruction),
             ...messages
         ]
 
@@ -69,9 +69,9 @@ class MainAgent extends BaseAgent<APILLMImpl> {
      * @param inputMessages Input messages
      * @returns Response
      */
-    public async run(inputMessages: MainAgentChatMessage[]): Promise<Response> {
+    public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
         const history = inputMessages.map((message) => {
-            return message.role == MainAgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
+            return message.role == AgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
         }
         );
 

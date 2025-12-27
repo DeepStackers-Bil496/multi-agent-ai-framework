@@ -61,8 +61,8 @@ export type Attachment = {
  * These are the constants that I defined to use both at frontend and backend.
  */
 import {
-  MainAgentUserRole,
-  MainAgentAssistantRole,
+  AgentUserRole,
+  AgentAssistantRole,
   API_MODEL_TYPE,
   LOCAL_MODEL_TYPE,
   LOCAL_VISION_MODEL_TYPE,
@@ -74,10 +74,10 @@ import {
 } from "./constants";
 
 /**
- * We will be using this types at the main agent's chat messages.
+ * We will be using this types at the agent's chat messages.
  */
-export type MainAgentChatRole = typeof MainAgentUserRole | typeof MainAgentAssistantRole;
-export type MainAgentChatMessage = { role: MainAgentChatRole; content: string };
+export type AgentChatRole = typeof AgentUserRole | typeof AgentAssistantRole;
+export type AgentChatMessage = { role: AgentChatRole; content: string };
 
 
 /**
@@ -110,11 +110,20 @@ export type APIVisionModelImpl = {
   systemInstruction: string;
 };
 
-export type AgentImplementation =
+export type AgentImplMetadata =
   | APILLMImpl
   | LocalLLMImpl
   | LocalVisionModelImpl
   | APIVisionModelImpl;
+
+
+export type AgentUserMetadata = {
+  id: string;
+  name: string;
+  short_description: string;
+  long_description?: string;
+  icon?: React.ComponentType<{ className?: string; size?: number }>;
+}
 
 /**
  * Stream event types from MainAgent

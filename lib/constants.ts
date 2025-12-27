@@ -13,10 +13,10 @@ export const guestRegex = /^guest-\d+$/;
 export const DUMMY_PASSWORD = generateDummyPassword();
 
 /**
- * Add peredefined roles for the main agent not to hard code them.
+ * Add peredefined roles for the agents not to hard code them.
  */
-export const MainAgentUserRole = "user";
-export const MainAgentAssistantRole = "assistant";
+export const AgentUserRole = "user";
+export const AgentAssistantRole = "assistant";
 
 /**
  * Add peredefined model types for the agents not to hard code them.

@@ -4,13 +4,14 @@ import { API_MODEL_TYPE } from "../../constants";
 import { APILLMImpl } from "../../types";
 
 export const MainAgentConfig: AgentConfig<APILLMImpl> = {
-    metadata: {
+    user_metadata: {
         id: "main-agent",
         name: "Main Agent",
-        description: "Main Agent",
+        short_description: "Main Agent that is used as orchestrator.",
+        long_description: "Main Agent that handles the conversation.",
         icon: FiCpu,
     },
-    implementation: {
+    implementation_metadata: {
         type: API_MODEL_TYPE,
         modelID: "gemini-2.5-flash",
         systemInstruction: "You are a helpful assistant.",

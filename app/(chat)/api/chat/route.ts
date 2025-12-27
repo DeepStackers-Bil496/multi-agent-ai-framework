@@ -39,13 +39,13 @@ import {
 } from "@/lib/db/queries";
 import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import type { ChatMessage, MainAgentChatMessage } from "@/lib/types";
+import type { ChatMessage, AgentChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
-import { mainAgent } from "@/lib/agents/mainAgent/mainAgent";
-import { MainAgentUserRole, MainAgentAssistantRole } from "@/lib/constants";
+import { getAgentById } from "@/lib/agents";
+import { AgentUserRole, AgentAssistantRole, AGENT_STREAM } from "@/lib/constants";
 
 
 export const maxDuration = 60;
@@ -301,10 +301,10 @@ export async function POST(request: Request) {
     // ============================================================
 
     // ============================================================
-    // MAIN AGENT INTEGRATION - NEW CODE
+    // AGENT INTEGRATION - NEW CODE
     // ============================================================
-    // Convert UI messages to MainAgent format
-    const mainAgentMessages: MainAgentChatMessage[] = uiMessages.map((msg) => {
+    // Convert UI messages to Agent format
+    const agentMessages: AgentChatMessage[] = uiMessages.map((msg) => {
       // Extract text content from message parts
       const textContent = msg.parts
         ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
@@ -312,16 +312,19 @@ export async function POST(request: Request) {
         .join("") || "";
 
       return {
-        role: msg.role === "user" ? MainAgentUserRole : MainAgentAssistantRole,
+        role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,
         content: textContent,
       };
     });
 
-    // Call MainAgent and get its streaming response
-    const agentResponse = await mainAgent.run(mainAgentMessages);
+    // Get the selected agent
+    const agent = getAgentById(selectedChatModel);
+
+    // Call the selected agent and get its streaming response
+    const agentResponse = await agent.instance.run(agentMessages);
 
     if (!agentResponse.body) {
-      throw new Error("No response body from MainAgent");
+      throw new Error("No response body from Agent");
     }
 
     // Create a passthrough stream that captures content for persistence
@@ -349,7 +352,7 @@ export async function POST(request: Request) {
             for (const line of lines) {
               try {
                 const data = JSON.parse(line);
-                if (data.type === "agent_stream" && data.payload?.content) {
+                if (data.type === AGENT_STREAM && data.payload?.content) {
                   const content = data.payload.content;
                   if (typeof content === "string") {
                     accumulatedContent += content;
@@ -395,7 +398,7 @@ export async function POST(request: Request) {
       },
     });
     // ============================================================
-    // END OF MAIN AGENT INTEGRATION
+    // END OF AGENT INTEGRATION
     // ============================================================
 
 
