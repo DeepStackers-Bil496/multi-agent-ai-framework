@@ -12,7 +12,7 @@ export const MainAgentConfig: AgentConfig<APILLMImpl> = {
     },
     implementation: {
         type: API_MODEL_TYPE,
-        modelID: "gemini-flash-latest",
+        modelID: "gemini-2.5-flash",
         systemInstruction: "You are a helpful assistant.",
         apiKey: process.env.GEMINI_API_KEY || ""
     }

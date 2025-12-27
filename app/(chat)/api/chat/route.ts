@@ -39,11 +39,14 @@ import {
 } from "@/lib/db/queries";
 import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, MainAgentChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
+import { mainAgent } from "@/lib/agents/mainAgent/mainAgent";
+import { MainAgentUserRole, MainAgentAssistantRole } from "@/lib/constants";
+
 
 export const maxDuration = 60;
 
@@ -175,108 +178,112 @@ export async function POST(request: Request) {
     const streamId = generateUUID();
     await createStreamId({ streamId, chatId: id });
 
-    let finalMergedUsage: AppUsage | undefined;
+    // ============================================================
+    // ORIGINAL VERCEL AI SDK STREAMING CODE - COMMENTED OUT
+    // Uncomment below to restore original streamText behavior
+    // ============================================================
+    // let finalMergedUsage: AppUsage | undefined;
 
-    const stream = createUIMessageStream({
-      execute: ({ writer: dataStream }) => {
-        const result = streamText({
-          model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel, requestHints }),
-          messages: convertToModelMessages(uiMessages),
-          stopWhen: stepCountIs(5),
-          experimental_activeTools:
-            selectedChatModel === "chat-model-reasoning"
-              ? []
-              : [
-                  "getWeather",
-                  "createDocument",
-                  "updateDocument",
-                  "requestSuggestions",
-                ],
-          experimental_transform: smoothStream({ chunking: "word" }),
-          tools: {
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({
-              session,
-              dataStream,
-            }),
-          },
-          experimental_telemetry: {
-            isEnabled: isProductionEnvironment,
-            functionId: "stream-text",
-          },
-          onFinish: async ({ usage }) => {
-            try {
-              const providers = await getTokenlensCatalog();
-              const modelId =
-                myProvider.languageModel(selectedChatModel).modelId;
-              if (!modelId) {
-                finalMergedUsage = usage;
-                dataStream.write({
-                  type: "data-usage",
-                  data: finalMergedUsage,
-                });
-                return;
-              }
+    // const stream = createUIMessageStream({
+    //   execute: ({ writer: dataStream }) => {
+    //     const result = streamText({
+    //       model: myProvider.languageModel(selectedChatModel),
+    //       system: systemPrompt({ selectedChatModel, requestHints }),
+    //       messages: convertToModelMessages(uiMessages),
+    //       stopWhen: stepCountIs(5),
+    //       experimental_activeTools:
+    //         selectedChatModel === "chat-model-reasoning"
+    //           ? []
+    //           : [
+    //             "getWeather",
+    //             "createDocument",
+    //             "updateDocument",
+    //             "requestSuggestions",
+    //           ],
+    //       experimental_transform: smoothStream({ chunking: "word" }),
+    //       tools: {
+    //         getWeather,
+    //         createDocument: createDocument({ session, dataStream }),
+    //         updateDocument: updateDocument({ session, dataStream }),
+    //         requestSuggestions: requestSuggestions({
+    //           session,
+    //           dataStream,
+    //         }),
+    //       },
+    //       experimental_telemetry: {
+    //         isEnabled: isProductionEnvironment,
+    //         functionId: "stream-text",
+    //       },
+    //       onFinish: async ({ usage }) => {
+    //         try {
+    //           const providers = await getTokenlensCatalog();
+    //           const modelId =
+    //             myProvider.languageModel(selectedChatModel).modelId;
+    //           if (!modelId) {
+    //             finalMergedUsage = usage;
+    //             dataStream.write({
+    //               type: "data-usage",
+    //               data: finalMergedUsage,
+    //             });
+    //             return;
+    //           }
 
-              if (!providers) {
-                finalMergedUsage = usage;
-                dataStream.write({
-                  type: "data-usage",
-                  data: finalMergedUsage,
-                });
-                return;
-              }
+    //           if (!providers) {
+    //             finalMergedUsage = usage;
+    //             dataStream.write({
+    //               type: "data-usage",
+    //               data: finalMergedUsage,
+    //             });
+    //             return;
+    //           }
 
-              const summary = getUsage({ modelId, usage, providers });
-              finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
-              dataStream.write({ type: "data-usage", data: finalMergedUsage });
-            } catch (err) {
-              console.warn("TokenLens enrichment failed", err);
-              finalMergedUsage = usage;
-              dataStream.write({ type: "data-usage", data: finalMergedUsage });
-            }
-          },
-        });
+    //           const summary = getUsage({ modelId, usage, providers });
+    //           finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
+    //           dataStream.write({ type: "data-usage", data: finalMergedUsage });
+    //         } catch (err) {
+    //           console.warn("TokenLens enrichment failed", err);
+    //           finalMergedUsage = usage;
+    //           dataStream.write({ type: "data-usage", data: finalMergedUsage });
+    //         }
+    //       },
+    //     });
 
-        result.consumeStream();
+    //     result.consumeStream();
 
-        dataStream.merge(
-          result.toUIMessageStream({
-            sendReasoning: true,
-          })
-        );
-      },
-      generateId: generateUUID,
-      onFinish: async ({ messages }) => {
-        await saveMessages({
-          messages: messages.map((currentMessage) => ({
-            id: currentMessage.id,
-            role: currentMessage.role,
-            parts: currentMessage.parts,
-            createdAt: new Date(),
-            attachments: [],
-            chatId: id,
-          })),
-        });
+    //     dataStream.merge(
+    //       result.toUIMessageStream({
+    //         sendReasoning: true,
+    //       })
+    //     );
+    //   },
+    //   generateId: generateUUID,
+    //   onFinish: async ({ messages }) => {
+    //     await saveMessages({
+    //       messages: messages.map((currentMessage) => ({
+    //         id: currentMessage.id,
+    //         role: currentMessage.role,
+    //         parts: currentMessage.parts,
+    //         createdAt: new Date(),
+    //         attachments: [],
+    //         chatId: id,
+    //       })),
+    //     });
 
-        if (finalMergedUsage) {
-          try {
-            await updateChatLastContextById({
-              chatId: id,
-              context: finalMergedUsage,
-            });
-          } catch (err) {
-            console.warn("Unable to persist last usage for chat", id, err);
-          }
-        }
-      },
-      onError: () => {
-        return "Oops, an error occurred!";
-      },
-    });
+    //     if (finalMergedUsage) {
+    //       try {
+    //         await updateChatLastContextById({
+    //           chatId: id,
+    //           context: finalMergedUsage,
+    //         });
+    //       } catch (err) {
+    //         console.warn("Unable to persist last usage for chat", id, err);
+    //       }
+    //     }
+    //   },
+    //   onError: () => {
+    //     return "Oops, an error occurred!";
+    //   },
+    // });
 
     // const streamContext = getStreamContext();
 
@@ -288,7 +295,110 @@ export async function POST(request: Request) {
     //   );
     // }
 
-    return new Response(stream.pipeThrough(new JsonToSseTransformStream()));
+    // return new Response(stream.pipeThrough(new JsonToSseTransformStream()));
+    // ============================================================
+    // END OF ORIGINAL VERCEL AI SDK STREAMING CODE
+    // ============================================================
+
+    // ============================================================
+    // MAIN AGENT INTEGRATION - NEW CODE
+    // ============================================================
+    // Convert UI messages to MainAgent format
+    const mainAgentMessages: MainAgentChatMessage[] = uiMessages.map((msg) => {
+      // Extract text content from message parts
+      const textContent = msg.parts
+        ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
+        .map((part) => part.text)
+        .join("") || "";
+
+      return {
+        role: msg.role === "user" ? MainAgentUserRole : MainAgentAssistantRole,
+        content: textContent,
+      };
+    });
+
+    // Call MainAgent and get its streaming response
+    const agentResponse = await mainAgent.run(mainAgentMessages);
+
+    if (!agentResponse.body) {
+      throw new Error("No response body from MainAgent");
+    }
+
+    // Create a passthrough stream that captures content for persistence
+    const assistantMessageId = generateUUID();
+    let accumulatedContent = "";
+
+    const originalStream = agentResponse.body;
+    const reader = originalStream.getReader();
+    const decoder = new TextDecoder();
+
+    const passthroughStream = new ReadableStream({
+      async start(controller) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            // Pass through to client
+            controller.enqueue(value);
+
+            // Also capture content for persistence
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n").filter(line => line.trim() !== "");
+
+            for (const line of lines) {
+              try {
+                const data = JSON.parse(line);
+                if (data.type === "agent_stream" && data.payload?.content) {
+                  const content = data.payload.content;
+                  if (typeof content === "string") {
+                    accumulatedContent += content;
+                  } else if (content?.kwargs?.content) {
+                    accumulatedContent += content.kwargs.content;
+                  } else if (content?.lc_kwargs?.content) {
+                    accumulatedContent += content.lc_kwargs.content;
+                  } else if (content?.content) {
+                    accumulatedContent += content.content;
+                  }
+                }
+              } catch {
+                // Not JSON, ignore
+              }
+            }
+          }
+
+          controller.close();
+
+          // Save assistant message to database after stream ends
+          if (accumulatedContent) {
+            await saveMessages({
+              messages: [{
+                id: assistantMessageId,
+                role: "assistant",
+                parts: [{ type: "text", text: accumulatedContent }],
+                createdAt: new Date(),
+                attachments: [],
+                chatId: id,
+              }],
+            });
+          }
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    });
+
+    return new Response(passthroughStream, {
+      headers: {
+        "Content-Type": "application/json",
+        "charset": "utf-8",
+      },
+    });
+    // ============================================================
+    // END OF MAIN AGENT INTEGRATION
+    // ============================================================
+
+
   } catch (error) {
     const vercelId = request.headers.get("x-vercel-id");
 

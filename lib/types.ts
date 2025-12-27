@@ -57,13 +57,20 @@ export type Attachment = {
   contentType: string;
 };
 
+/**
+ * These are the constants that I defined to use both at frontend and backend.
+ */
 import {
   MainAgentUserRole,
   MainAgentAssistantRole,
   API_MODEL_TYPE,
   LOCAL_MODEL_TYPE,
   LOCAL_VISION_MODEL_TYPE,
-  API_VISION_MODEL_TYPE
+  API_VISION_MODEL_TYPE,
+  AGENT_ENDED,
+  AGENT_STARTED,
+  AGENT_STREAM,
+  AGENT_ERROR,
 } from "./constants";
 
 /**
@@ -108,3 +115,16 @@ export type AgentImplementation =
   | LocalLLMImpl
   | LocalVisionModelImpl
   | APIVisionModelImpl;
+
+/**
+ * Stream event types from MainAgent
+ */
+export type AgentStreamEvent = {
+  type: typeof AGENT_STARTED | typeof AGENT_ENDED | typeof AGENT_STREAM | typeof AGENT_ERROR;
+  payload: {
+    name: string;
+    content: string | Record<string, unknown>;
+    id: string;
+  };
+};
+
