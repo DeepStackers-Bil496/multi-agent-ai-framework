@@ -123,6 +123,7 @@ export type AgentUserMetadata = {
   short_description: string;
   long_description?: string;
   icon?: React.ComponentType<{ className?: string; size?: number }>;
+  suggestedActions?: string[];
 }
 
 /**

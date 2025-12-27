@@ -10,6 +10,7 @@ import { useDataStream } from "./data-stream-provider";
 import { Conversation, ConversationContent } from "./elements/conversation";
 import { Greeting } from "./greeting";
 import { PreviewMessage, ThinkingMessage } from "./message";
+import { agentUserMetadataList } from "@/lib/agents/user_metadata";
 
 type MessagesProps = {
   chatId: string;
@@ -67,7 +68,18 @@ function PureMessages({
     >
       <Conversation className="mx-auto flex min-w-0 max-w-4xl flex-col gap-4 md:gap-6">
         <ConversationContent className="flex flex-col gap-4 px-2 py-4 md:gap-6 md:px-4">
-          {messages.length === 0 && <Greeting />}
+          {messages.length === 0 && (
+            <Greeting
+              agentName={
+                agentUserMetadataList.find((m) => m.id === selectedModelId)
+                  ?.name || "Main Agent"
+              }
+              agentDescription={
+                agentUserMetadataList.find((m) => m.id === selectedModelId)
+                  ?.short_description || "How can I help you today?"
+              }
+            />
+          )}
 
           {messages.map((message, index) => (
             <PreviewMessage

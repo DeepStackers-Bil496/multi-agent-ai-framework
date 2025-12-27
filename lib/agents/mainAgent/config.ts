@@ -10,6 +10,12 @@ export const MainAgentConfig: AgentConfig<APILLMImpl> = {
         short_description: "Main Agent that is used as orchestrator.",
         long_description: "Main Agent that handles the conversation.",
         icon: FiCpu,
+        suggestedActions: [
+            "What are the advantages of using Next.js?",
+            "Who found the DeepStackers AI Studio?",
+            "What is Mustafa Kemal Atatürk?",
+            "What is Model Context Protocol"
+        ],
     },
     implementation_metadata: {
         type: API_MODEL_TYPE,
