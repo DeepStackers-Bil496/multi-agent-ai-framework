@@ -12,7 +12,7 @@ const githubAgentUserMetadata: AgentUserMetadata = {
     suggestedActions: [
         "Show my recent commits on the Evangeline project.",
         "List open issues in my repo",
-        "What's in the README?",
+        "What's in the README at the Zeki-ChatBot repository?",
         "Search for TypeScript repositories"
     ],
 }

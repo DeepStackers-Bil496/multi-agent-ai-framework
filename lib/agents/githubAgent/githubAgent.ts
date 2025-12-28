@@ -1,4 +1,5 @@
 import { ChatGroq } from "@langchain/groq";
+import { ChatOllama } from "@langchain/ollama";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
@@ -27,30 +28,49 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
 
     /**
      * Lazily initialize the LLM and graph at runtime.
-     * This ensures environment variables are available.
+     * Uses Ollama for local development, Groq for production.
      */
     private ensureInitialized(): void {
         if (this.isInitialized) {
             return;
         }
 
-        // Get API key at runtime
-        const apiKey = process.env.GROQ_API_KEY;
-        if (!apiKey) {
-            throw new Error("GROQ_API_KEY environment variable is not set. Please add it to your .env.local file.");
-        }
-
-        console.log("[GitHubAgent] Initializing with Groq Llama...");
-
         // Create GitHub MCP tool
         this.githubAgentTools = [createGitHubMCPTool()];
 
-        // Initialize Groq LLM with Llama model
-        this.githubAgentLLM = new ChatGroq({
-            model: this.implementationMetadata.modelID,
-            apiKey: apiKey,
-            temperature: 0.1,
-        }).bindTools(this.githubAgentTools);
+        // Check if we should use Ollama (local development)
+        const useOllama = process.env.USE_OLLAMA === "true";
+        const isDev = process.env.NODE_ENV === "development";
+
+        if (useOllama && isDev) {
+            // Use Ollama for local development - FREE and no rate limits!
+            console.log("[GitHubAgent] Initializing with Ollama (local)...");
+
+            const ollamaModel = process.env.OLLAMA_MODEL || "llama3.2";
+            const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+
+            this.githubAgentLLM = new ChatOllama({
+                model: ollamaModel,
+                baseUrl: ollamaBaseUrl,
+                temperature: 0.1,
+            }).bindTools(this.githubAgentTools);
+
+            console.log(`[GitHubAgent] Using Ollama model: ${ollamaModel} at ${ollamaBaseUrl}`);
+        } else {
+            // Use Groq for production or when Ollama is not enabled
+            const apiKey = process.env.GROQ_API_KEY;
+            if (!apiKey) {
+                throw new Error("GROQ_API_KEY environment variable is not set. Please add it to your .env.local file.");
+            }
+
+            console.log("[GitHubAgent] Initializing with Groq (cloud)...");
+
+            this.githubAgentLLM = new ChatGroq({
+                model: this.implementationMetadata.modelID,
+                apiKey: apiKey,
+                temperature: 0.1,
+            }).bindTools(this.githubAgentTools);
+        }
 
         // Create tool node for executing tools
         const toolNode = new ToolNode(this.githubAgentTools);
@@ -65,7 +85,7 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
 
         this.githubAgentGraph = githubAgentGraph.compile();
         this.isInitialized = true;
-        console.log("[GitHubAgent] Initialized successfully with Groq");
+        console.log("[GitHubAgent] Initialized successfully");
     }
 
     /**
