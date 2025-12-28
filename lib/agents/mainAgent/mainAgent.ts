@@ -4,12 +4,12 @@ import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { Runnable } from "@langchain/core/runnables";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
-import { AgentChatMessage, APILLMImpl } from "@/lib/types";
+import { AgentChatMessage, APILLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { MainAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
 
-class MainAgent extends BaseAgent<APILLMImpl> {
+class MainAgent extends BaseAgent<APILLMImplMetadata> {
 
     private readonly mainAgentLLM: Runnable;
     private readonly mainAgentGraph: Runnable;
@@ -18,7 +18,7 @@ class MainAgent extends BaseAgent<APILLMImpl> {
     /**
      * @param mainAgentConfig Main agent configuration
      */
-    constructor(mainAgentConfig: AgentConfig<APILLMImpl>) {
+    constructor(mainAgentConfig: AgentConfig<APILLMImplMetadata>) {
         super(mainAgentConfig);
         this.mainAgentTools = [];
         this.mainAgentLLM = new ChatGoogleGenerativeAI({

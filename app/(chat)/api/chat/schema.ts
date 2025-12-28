@@ -23,6 +23,7 @@ export const postRequestBodySchema = z.object({
   }),
   selectedChatModel: z.enum([
     "main-agent",
+    "github-agent",
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
 });

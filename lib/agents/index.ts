@@ -1,10 +1,23 @@
 
 import { mainAgent } from "./mainAgent/mainAgent";
+import { githubAgent } from "./githubAgent/githubAgent";
 import { agentUserMetadataList } from "./user_metadata";
+import { AgentChatMessage } from "../types";
+
+// Common interface for all runnable agents
+interface RunnableAgent {
+    run(inputMessages: AgentChatMessage[]): Promise<Response>;
+}
+
+// Map agent IDs to their instances
+const agentInstances: Record<string, RunnableAgent> = {
+    "main-agent": mainAgent,
+    "github-agent": githubAgent,
+};
 
 export const agents = agentUserMetadataList.map(m => ({
     ...m,
-    instance: mainAgent
+    instance: agentInstances[m.id] || mainAgent
 }));
 
 export function getAgentById(id: string) {

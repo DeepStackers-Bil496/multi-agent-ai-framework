@@ -83,14 +83,14 @@ export type AgentChatMessage = { role: AgentChatRole; content: string };
 /**
  * We will be using this types at the agent implementations.
  */
-export type APILLMImpl = {
+export type APILLMImplMetadata = {
   type: typeof API_MODEL_TYPE;
   modelID: string;
   systemInstruction: string;
   apiKey: string;
 };
 
-export type LocalLLMImpl = {
+export type LocalLLMImplMetadata = {
   type: typeof LOCAL_MODEL_TYPE;
   modelPath: string;
   contextWindow: number;
@@ -98,23 +98,23 @@ export type LocalLLMImpl = {
   systemInstruction: string;
 };
 
-export type LocalVisionModelImpl = {
+export type LocalVisionModelImplMetadata = {
   type: typeof LOCAL_VISION_MODEL_TYPE;
   modelID: string;
   systemInstruction: string;
 };
 
-export type APIVisionModelImpl = {
+export type APIVisionModelImplMetadata = {
   type: typeof API_VISION_MODEL_TYPE;
   modelID: string;
   systemInstruction: string;
 };
 
 export type AgentImplMetadata =
-  | APILLMImpl
-  | LocalLLMImpl
-  | LocalVisionModelImpl
-  | APIVisionModelImpl;
+  | APILLMImplMetadata
+  | LocalLLMImplMetadata
+  | LocalVisionModelImplMetadata
+  | APIVisionModelImplMetadata;
 
 
 export type AgentUserMetadata = {
