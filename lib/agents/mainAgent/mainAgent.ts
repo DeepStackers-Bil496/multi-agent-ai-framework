@@ -1,7 +1,6 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { Runnable } from "@langchain/core/runnables";
 import { z } from "zod";
@@ -11,38 +10,67 @@ import { AgentConfig } from "../agentConfig";
 import { MainAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
 import { githubAgent } from "../githubAgent/githubAgent";
+import { codingAgent } from "../codingAgent/codingAgent";
+import { webScraperAgent } from "../webScraperAgent/webScraperAgent";
+
+// Routing decisions
+const ROUTE_GITHUB = "GitHubAgentSubgraph";
+const ROUTE_CODING = "CodingAgentSubgraph";
+const ROUTE_WEBSCRAPER = "WebScraperAgentSubgraph";
 
 /**
- * Create the GitHub Agent tool that delegates to the GitHubAgent subgraph
+ * Create delegation tools for routing to sub-agents.
+ * These tools don't execute anything - they signal the router where to go.
  */
-function createGitHubAgentTool(): DynamicStructuredTool {
-    return new DynamicStructuredTool({
-        name: "github_agent",
-        description: `Delegate GitHub-related tasks to the specialized GitHub Agent. 
-Use this for ANY GitHub operations including:
-- Viewing commits, branches, tags, files
-- Creating/updating issues
-- Reading/reviewing pull requests
-- Searching repositories or code
-- Any other GitHub API operations
-
-The GitHub Agent has access to 20+ specialized GitHub tools and will handle the task autonomously.`,
-        schema: z.object({
-            task: z.string().describe("The complete task description for the GitHub agent. Be specific about what you need."),
+function createDelegationTools(): DynamicStructuredTool[] {
+    return [
+        // GitHub delegation tool
+        new DynamicStructuredTool({
+            name: "delegate_to_github",
+            description: `Route the task to the GitHub Agent for processing.
+Use this when the user asks about:
+- GitHub repositories, commits, branches, tags, files
+- Issues (list, create, update, comment)
+- Pull requests (list, view, diff, reviews)
+- Searching code or repositories
+- Any GitHub API operation`,
+            schema: z.object({
+                task: z.string().describe("The task to delegate to the GitHub agent."),
+            }),
+            func: async ({ task }) => `Delegating to GitHub Agent: ${task}`,
         }),
-        func: async ({ task }) => {
-            console.log("[MainAgent] Delegating to GitHub Agent:", task);
-            try {
-                const result = await githubAgent.invoke(task);
-                console.log("[MainAgent] GitHub Agent completed");
-                return result;
-            } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : "Unknown error";
-                console.error("[MainAgent] GitHub Agent error:", errorMsg);
-                return `GitHub Agent encountered an error: ${errorMsg}`;
-            }
-        },
-    });
+
+        // Coding delegation tool
+        new DynamicStructuredTool({
+            name: "delegate_to_coding",
+            description: `Route the task to the Coding Agent for code execution.
+Use this when the user asks to:
+- Execute or run Python, JavaScript, or shell code
+- Write and test code snippets
+- Perform file operations in a sandbox
+- Debug or analyze code by running it
+- Any task that requires actual code execution`,
+            schema: z.object({
+                task: z.string().describe("The coding task to delegate."),
+            }),
+            func: async ({ task }) => `Delegating to Coding Agent: ${task}`,
+        }),
+
+        // Web Scraper delegation tool
+        new DynamicStructuredTool({
+            name: "delegate_to_webscraper",
+            description: `Route the task to the Web Scraper Agent for web content extraction.
+Use this when the user asks to:
+- Fetch or scrape content from a URL
+- Extract text, links, or metadata from a webpage
+- Get information from a website
+- Analyze web page content`,
+            schema: z.object({
+                task: z.string().describe("The web scraping task to delegate."),
+            }),
+            func: async ({ task }) => `Delegating to Web Scraper Agent: ${task}`,
+        }),
+    ];
 }
 
 class MainAgent extends BaseAgent<APILLMImplMetadata> {
@@ -57,78 +85,167 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
     constructor(mainAgentConfig: AgentConfig<APILLMImplMetadata>) {
         super(mainAgentConfig);
 
-        // Create tools - including sub-agent tools
-        this.mainAgentTools = [
-            createGitHubAgentTool(),
-            // Add more sub-agent tools here as needed:
-            // createWebAgentTool(),
-            // createCodeAgentTool(),
-        ];
+        // Create delegation tools for all sub-agents
+        this.mainAgentTools = createDelegationTools();
 
         this.mainAgentLLM = new ChatGoogleGenerativeAI({
             model: this.implementationMetadata.modelID,
             apiKey: this.implementationMetadata.apiKey,
         }).bindTools(this.mainAgentTools);
 
-        // Create tool node for executing sub-agent tools
-        const toolNode = new ToolNode(this.mainAgentTools);
-
+        // Build the orchestrator graph with subgraph nodes
         const mainAgentGraph = new StateGraph(MessagesAnnotation)
-            .addNode("MainAgentNode", this.agentNode.bind(this))
-            .addNode("tools", toolNode)
-            .addEdge(START, "MainAgentNode")
-            .addConditionalEdges("MainAgentNode", this.MainAgentRoute.bind(this))
-            .addEdge("tools", "MainAgentNode"); // Loop back after tool execution
+            // Orchestrator node - decides what to do
+            .addNode("OrchestratorNode", this.agentNode.bind(this))
+            // Preprocessing nodes - extract task and create HumanMessage
+            .addNode("PrepareGitHubTask", this.prepareGitHubTask.bind(this))
+            .addNode("PrepareCodingTask", this.prepareCodingTask.bind(this))
+            .addNode("PrepareWebScraperTask", this.prepareWebScraperTask.bind(this))
+            // Sub-agent subgraphs
+            .addNode(ROUTE_GITHUB, githubAgent.getCompiledGraph())
+            .addNode(ROUTE_CODING, codingAgent.getCompiledGraph())
+            .addNode(ROUTE_WEBSCRAPER, webScraperAgent.getCompiledGraph())
+            // Entry point
+            .addEdge(START, "OrchestratorNode")
+            // Conditional routing from orchestrator
+            .addConditionalEdges("OrchestratorNode", this.orchestratorRoute.bind(this))
+            // Preprocessing -> Subgraph edges
+            .addEdge("PrepareGitHubTask", ROUTE_GITHUB)
+            .addEdge("PrepareCodingTask", ROUTE_CODING)
+            .addEdge("PrepareWebScraperTask", ROUTE_WEBSCRAPER)
+            // Subgraph -> Orchestrator edges (return after completion)
+            .addEdge(ROUTE_GITHUB, "OrchestratorNode")
+            .addEdge(ROUTE_CODING, "OrchestratorNode")
+            .addEdge(ROUTE_WEBSCRAPER, "OrchestratorNode");
 
         this.mainAgentGraph = mainAgentGraph.compile();
     }
 
     /**
+     * Orchestrator node - decides whether to answer directly or delegate
      * @param state Agent state
-     * @returns Agent node implementation
+     * @returns Updated state with response
      */
     protected async agentNode(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const messagesToSend = [
             new SystemMessage(this.implementationMetadata.systemInstruction),
             ...messages
-        ]
+        ];
 
         try {
             const response = await this.mainAgentLLM.invoke(messagesToSend);
             return {
                 messages: [response]
-            }
+            };
         } catch (error) {
             console.error("[MainAgent] Error in agentNode:", error);
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
             return {
                 messages: [new AIMessage(`Error: ${errorMessage}`)]
-            }
+            };
         }
     }
 
     /**
-     * This method is used to route the agent to the correct tool or end.
+     * Route based on the orchestrator's decision
      * @param state Agent state
-     * @returns Agent route
+     * @returns Routing decision
      */
-    private MainAgentRoute(state: typeof MessagesAnnotation.State) {
+    private orchestratorRoute(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
-        // If no tool calls, we're done
+        // No tool calls = done
         if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
             return END;
         }
 
-        // Route to tools node
-        return "tools";
+        // Check for GitHub delegation
+        if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_github")) {
+            console.log("[MainAgent] Routing to PrepareGitHubTask");
+            return "PrepareGitHubTask";
+        }
+
+        // Check for Coding delegation
+        if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_coding")) {
+            console.log("[MainAgent] Routing to PrepareCodingTask");
+            return "PrepareCodingTask";
+        }
+
+        // Check for Web Scraper delegation
+        if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_webscraper")) {
+            console.log("[MainAgent] Routing to PrepareWebScraperTask");
+            return "PrepareWebScraperTask";
+        }
+
+        // Default: end
+        return END;
     }
 
     /**
+     * Prepare task for GitHub Agent
+     */
+    private prepareGitHubTask(state: typeof MessagesAnnotation.State) {
+        const { messages } = state;
+        const lastMessage = messages[messages.length - 1] as AIMessage;
+
+        const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_github");
+        const task = delegation?.args?.task as string || "Help with GitHub";
+
+        console.log("[MainAgent] Preparing task for GitHub Agent:", task);
+
+        return {
+            messages: [new HumanMessage(`[GitHub Task] ${task}`)]
+        };
+    }
+
+    /**
+     * Prepare task for Coding Agent
+     */
+    private prepareCodingTask(state: typeof MessagesAnnotation.State) {
+        const { messages } = state;
+        const lastMessage = messages[messages.length - 1] as AIMessage;
+
+        const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_coding");
+        const task = delegation?.args?.task as string || "Help with coding";
+
+        console.log("[MainAgent] Preparing task for Coding Agent:", task);
+
+        return {
+            messages: [new HumanMessage(`[Coding Task] ${task}`)]
+        };
+    }
+
+    /**
+     * Prepare task for Web Scraper Agent
+     */
+    private prepareWebScraperTask(state: typeof MessagesAnnotation.State) {
+        const { messages } = state;
+        const lastMessage = messages[messages.length - 1] as AIMessage;
+
+        const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_webscraper");
+        const task = delegation?.args?.task as string || "Help with web scraping";
+
+        console.log("[MainAgent] Preparing task for Web Scraper Agent:", task);
+
+        return {
+            messages: [new HumanMessage(`[Web Scraper Task] ${task}`)]
+        };
+    }
+
+    /**
+     * Get the compiled graph for this agent
+     * @returns Compiled LangGraph Runnable
+     */
+    public getCompiledGraph(): Runnable {
+        return this.mainAgentGraph;
+    }
+
+    /**
+     * Run the agent with streaming response
      * @param inputMessages Input messages
-     * @returns Response
+     * @returns Streaming Response
      */
     public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
         const history = inputMessages.map((message) => {
@@ -160,18 +277,46 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
                     });
 
                     for await (const event of eventStream) {
-                        // Tool execution started (sub-agent called)
-                        if (event.event === AGENT_START_EVENT && event.name === "tools") {
+                        // Subgraph started
+                        if (event.event === AGENT_START_EVENT && (event.name === ROUTE_GITHUB || event.name === ROUTE_CODING)) {
+                            const agentName = event.name === ROUTE_GITHUB ? "GitHubAgent" : "CodingAgent";
                             enqueueJson({
                                 type: AGENT_STARTED,
                                 payload: {
-                                    name: "sub_agent_tool",
+                                    name: agentName,
                                     content: JSON.stringify(event.data.input),
                                     id: event.run_id
                                 }
                             });
                         }
-                        // Tool execution ended
+                        // Subgraph ended
+                        else if (event.event === AGENT_END_EVENT && (event.name === ROUTE_GITHUB || event.name === ROUTE_CODING)) {
+                            const agentName = event.name === ROUTE_GITHUB ? "GitHubAgent" : "CodingAgent";
+                            let output = event.data.output;
+                            if (output && output.messages && output.messages.length > 0) {
+                                output = output.messages[output.messages.length - 1].content;
+                            }
+
+                            enqueueJson({
+                                type: AGENT_ENDED,
+                                payload: {
+                                    name: agentName,
+                                    content: JSON.stringify(output),
+                                    id: event.run_id
+                                }
+                            });
+                        }
+                        // Tool execution in subgraphs
+                        else if (event.event === AGENT_START_EVENT && event.name === "tools") {
+                            enqueueJson({
+                                type: AGENT_STARTED,
+                                payload: {
+                                    name: "tool",
+                                    content: JSON.stringify(event.data.input),
+                                    id: event.run_id
+                                }
+                            });
+                        }
                         else if (event.event === AGENT_END_EVENT && event.name === "tools") {
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
@@ -181,7 +326,7 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
                             enqueueJson({
                                 type: AGENT_ENDED,
                                 payload: {
-                                    name: "sub_agent_tool",
+                                    name: "tool",
                                     content: JSON.stringify(output),
                                     id: event.run_id
                                 }

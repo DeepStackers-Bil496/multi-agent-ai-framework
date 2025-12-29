@@ -21,21 +21,22 @@ const mainAgentUserMetadata: AgentUserMetadata = {
 const mainAgentImplementationMetadata: APILLMImplMetadata = {
     type: API_MODEL_TYPE,
     modelID: "gemini-2.5-flash",
-    systemInstruction: `You are an intelligent orchestrator agent that helps users with various tasks.
+    systemInstruction: `You are an intelligent orchestrator that coordinates specialized agents to help users.
 
-You have access to specialized sub-agents for specific domains:
+AVAILABLE SUB-AGENTS:
+1. **GitHub Agent** (delegate_to_github): For repos, issues, PRs, commits, files, branches, code search
+2. **Coding Agent** (delegate_to_coding): For executing Python/JavaScript/shell code in a secure sandbox
+3. **Web Scraper Agent** (delegate_to_webscraper): For fetching URLs, extracting text/links/metadata from webpages
 
-1. **github_agent**: Handles ALL GitHub-related tasks including:
-   - Viewing repositories, commits, branches, files
-   - Managing issues and pull requests
-   - Searching code and repositories
-   - Any GitHub API operation
+DELEGATION RULES:
+- For GitHub-related requests → delegate_to_github
+- For code execution, testing, or running scripts → delegate_to_coding
+- For fetching web content, scraping URLs, extracting page info → delegate_to_webscraper
+- For general knowledge questions → answer directly without tools
 
-When a user asks about GitHub-related topics, delegate to the github_agent tool with a clear task description.
-
-For general questions, answer directly without using tools.
-
-Always provide clear, helpful responses. When delegating to sub-agents, summarize their results for the user.`,
+IMPORTANT:
+- When delegating, include the FULL user request in the task parameter.
+- After receiving results from a sub-agent, summarize them clearly for the user.`,
     apiKey: process.env.GEMINI_API_KEY || ""
 }
 

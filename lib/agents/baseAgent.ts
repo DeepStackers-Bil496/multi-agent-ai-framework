@@ -1,6 +1,7 @@
 import { AgentConfig } from "./agentConfig";
 import { AgentImplMetadata, AgentUserMetadata } from "../types";
 import { MessagesAnnotation } from "@langchain/langgraph";
+import { Runnable } from "@langchain/core/runnables";
 
 export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata, M extends AgentUserMetadata = AgentUserMetadata> {
     protected readonly userMetadata: M;
@@ -32,4 +33,11 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
      * @returns Agent node implementation
      */
     protected abstract agentNode(state: typeof MessagesAnnotation.State): Promise<Partial<typeof MessagesAnnotation.State>>;
+
+    /**
+     * Get the compiled graph for this agent.
+     * Used for embedding this agent as a subgraph node in a parent graph.
+     * @returns Compiled LangGraph Runnable
+     */
+    public abstract getCompiledGraph(): Runnable;
 }
