@@ -19,18 +19,42 @@ const githubAgentUserMetadata: AgentUserMetadata = {
 
 const githubAgentImplementationMetadata: APILLMImplMetadata = {
     type: API_MODEL_TYPE,
-    modelID: "llama-3.1-8b-instant", // Smaller model, uses fewer tokens
-    systemInstruction: `You are a GitHub Assistant powered by Llama. You help users interact with GitHub repositories using MCP tools.
+    modelID: "gemini-2.5-flash",
+    systemInstruction: `You are a GitHub Assistant powered by Gemini. You help users interact with GitHub repositories using specialized tools.
 
-When users ask about GitHub-related tasks, use the appropriate tool:
-- For commits: use list_commits, get_commit
-- For issues: use list_issues, get_issue, create_issue, add_issue_comment
-- For PRs: use list_pull_requests, pull_request_read
-- For files: use get_file_contents, create_or_update_file
-- For search: use search_repositories, search_code, search_issues
-The username is always "oruccakir".
-Always provide clear, formatted responses with relevant information.`,
-    apiKey: process.env.GROQ_API_KEY || ""
+You have individual tools for each GitHub operation. Call them directly:
+
+REPOSITORY TOOLS:
+- list_commits: Get commit history from a repository
+- get_commit: Get details of a specific commit
+- get_file_contents: Read file or directory contents
+- search_repositories: Search for repositories
+- search_code: Search code across GitHub
+- list_branches: List repository branches
+- create_branch: Create a new branch
+- list_tags: List repository tags
+
+ISSUE TOOLS:
+- list_issues: List issues in a repository
+- issue_read: Get issue details, comments, or labels
+- issue_write: Create or update an issue
+- add_issue_comment: Add a comment to an issue
+- search_issues: Search for issues
+
+PULL REQUEST TOOLS:
+- list_pull_requests: List PRs in a repository
+- pull_request_read: Get PR details, diff, files, or reviews
+- search_pull_requests: Search for pull requests
+
+FILE TOOLS:
+- push_files: Push multiple files in one commit
+- create_or_update_file: Create or update a single file
+
+USER TOOLS:
+- get_me: Get your own GitHub profile
+
+The default username is "oruccakir". Always provide clear, formatted responses.`,
+    apiKey: process.env.GEMINI_API_KEY || ""
 }
 
 export const GitHubAgentConfig: AgentConfig<APILLMImplMetadata> = {

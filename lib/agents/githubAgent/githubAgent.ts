@@ -10,7 +10,8 @@ import { AgentChatMessage, APILLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { GitHubAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
-import { createGitHubMCPTool } from "./tools";
+import { createAllGitHubMCPTools } from "./tools";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
 
@@ -35,8 +36,8 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
             return;
         }
 
-        // Create GitHub MCP tool
-        this.githubAgentTools = [createGitHubMCPTool()];
+        // Create all GitHub MCP tools (individual tools for each operation)
+        this.githubAgentTools = createAllGitHubMCPTools();
 
         // Check if we should use Ollama (local development)
         const useOllama = process.env.USE_OLLAMA === "true";
@@ -58,18 +59,23 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
             console.log(`[GitHubAgent] Using Ollama model: ${ollamaModel} at ${ollamaBaseUrl}`);
         } else {
             // Use Groq for production or when Ollama is not enabled
-            const apiKey = process.env.GROQ_API_KEY;
+            /*const apiKey = process.env.GROQ_API_KEY;
             if (!apiKey) {
                 throw new Error("GROQ_API_KEY environment variable is not set. Please add it to your .env.local file.");
-            }
+            }*/
 
             console.log("[GitHubAgent] Initializing with Groq (cloud)...");
 
-            this.githubAgentLLM = new ChatGroq({
+            this.githubAgentLLM = new ChatGoogleGenerativeAI({
+                model: this.implementationMetadata.modelID,
+                apiKey: this.implementationMetadata.apiKey,
+            }).bindTools(this.githubAgentTools);
+
+            /*this.githubAgentLLM = new ChatGroq({
                 model: this.implementationMetadata.modelID,
                 apiKey: apiKey,
                 temperature: 0.1,
-            }).bindTools(this.githubAgentTools);
+            }).bindTools(this.githubAgentTools);*/
         }
 
         // Create tool node for executing tools
@@ -276,6 +282,35 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
                 "charset": "utf-8"
             }
         });
+    }
+    /**
+     * Invoke the GitHub agent directly (for use as a sub-agent tool).
+     * Returns the final text response from the agent.
+     * @param task The task/query to process
+     * @returns Final response string
+     */
+    public async invoke(task: string): Promise<string> {
+        this.ensureInitialized();
+
+        const messages = [new HumanMessage(task)];
+
+        try {
+            console.log("[GitHubAgent] Invoking with task:", task);
+            const result = await this.githubAgentGraph!.invoke({ messages });
+
+            // Extract the final AI message content
+            const lastMessage = result.messages[result.messages.length - 1];
+            if (lastMessage && typeof lastMessage.content === 'string') {
+                return lastMessage.content;
+            } else if (lastMessage && lastMessage.content) {
+                return JSON.stringify(lastMessage.content);
+            }
+
+            return "GitHub agent completed but returned no response.";
+        } catch (error) {
+            console.error("[GitHubAgent] Invoke error:", error);
+            return `GitHub agent error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        }
     }
 }
 
