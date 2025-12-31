@@ -22,9 +22,6 @@ export const AgentAssistantRole = "assistant";
  * Add peredefined model types for the agents not to hard code them.
 */
 export const API_MODEL_TYPE = "api";
-export const LOCAL_MODEL_TYPE = "local";
-export const LOCAL_VISION_MODEL_TYPE = "local-vision";
-export const API_VISION_MODEL_TYPE = "api-vision";
 
 /**
  * Add predefined agent internal working signals suitable with the langgraph events.

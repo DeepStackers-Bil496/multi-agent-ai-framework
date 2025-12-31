@@ -1,7 +1,7 @@
 import { AgentConfig } from "../agentConfig";
 import { FaGithub } from "react-icons/fa";
 import { API_MODEL_TYPE } from "../../constants";
-import { APILLMImplMetadata, AgentUserMetadata } from "../../types";
+import { LLMImplMetadata, AgentUserMetadata } from "../../types";
 
 const githubAgentUserMetadata: AgentUserMetadata = {
     id: "github-agent",
@@ -17,8 +17,9 @@ const githubAgentUserMetadata: AgentUserMetadata = {
     ],
 }
 
-const githubAgentImplementationMetadata: APILLMImplMetadata = {
+const githubAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
+    provider: "google",
     modelID: "gemini-2.5-flash",
     systemInstruction: `You are a GitHub Assistant powered by Gemini. You help users interact with GitHub repositories using specialized tools.
 
@@ -57,7 +58,7 @@ The default username is "oruccakir". Always provide clear, formatted responses.`
     apiKey: process.env.GEMINI_API_KEY || ""
 }
 
-export const GitHubAgentConfig: AgentConfig<APILLMImplMetadata> = {
+export const GitHubAgentConfig: AgentConfig<LLMImplMetadata> = {
     user_metadata: githubAgentUserMetadata,
     implementation_metadata: githubAgentImplementationMetadata,
 }

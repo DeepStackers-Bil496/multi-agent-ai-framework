@@ -1,124 +1,53 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { Runnable } from "@langchain/core/runnables";
-import { z } from "zod";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
-import { AgentChatMessage, APILLMImplMetadata } from "@/lib/types";
+import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { MainAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
 import { githubAgent } from "../githubAgent/githubAgent";
-import { codingAgent } from "../codingAgent/codingAgent";
 import { webScraperAgent } from "../webScraperAgent/webScraperAgent";
+import { createDelegationTools } from "./tools";
 
-// Routing decisions
-const ROUTE_GITHUB = "GitHubAgentSubgraph";
-const ROUTE_CODING = "CodingAgentSubgraph";
-const ROUTE_WEBSCRAPER = "WebScraperAgentSubgraph";
-
-/**
- * Create delegation tools for routing to sub-agents.
- * These tools don't execute anything - they signal the router where to go.
- */
-function createDelegationTools(): DynamicStructuredTool[] {
-    return [
-        // GitHub delegation tool
-        new DynamicStructuredTool({
-            name: "delegate_to_github",
-            description: `Route the task to the GitHub Agent for processing.
-Use this when the user asks about:
-- GitHub repositories, commits, branches, tags, files
-- Issues (list, create, update, comment)
-- Pull requests (list, view, diff, reviews)
-- Searching code or repositories
-- Any GitHub API operation`,
-            schema: z.object({
-                task: z.string().describe("The task to delegate to the GitHub agent."),
-            }),
-            func: async ({ task }) => `Delegating to GitHub Agent: ${task}`,
-        }),
-
-        // Coding delegation tool
-        new DynamicStructuredTool({
-            name: "delegate_to_coding",
-            description: `Route the task to the Coding Agent for code execution.
-Use this when the user asks to:
-- Execute or run Python, JavaScript, or shell code
-- Write and test code snippets
-- Perform file operations in a sandbox
-- Debug or analyze code by running it
-- Any task that requires actual code execution`,
-            schema: z.object({
-                task: z.string().describe("The coding task to delegate."),
-            }),
-            func: async ({ task }) => `Delegating to Coding Agent: ${task}`,
-        }),
-
-        // Web Scraper delegation tool
-        new DynamicStructuredTool({
-            name: "delegate_to_webscraper",
-            description: `Route the task to the Web Scraper Agent for web content extraction.
-Use this when the user asks to:
-- Fetch or scrape content from a URL
-- Extract text, links, or metadata from a webpage
-- Get information from a website
-- Analyze web page content`,
-            schema: z.object({
-                task: z.string().describe("The web scraping task to delegate."),
-            }),
-            func: async ({ task }) => `Delegating to Web Scraper Agent: ${task}`,
-        }),
-    ];
-}
-
-class MainAgent extends BaseAgent<APILLMImplMetadata> {
-
-    private readonly mainAgentLLM: Runnable;
-    private readonly mainAgentGraph: Runnable;
-    private readonly mainAgentTools: DynamicStructuredTool[];
+class MainAgent extends BaseAgent<LLMImplMetadata> {
 
     /**
      * @param mainAgentConfig Main agent configuration
      */
-    constructor(mainAgentConfig: AgentConfig<APILLMImplMetadata>) {
+    constructor(mainAgentConfig: AgentConfig<LLMImplMetadata>) {
         super(mainAgentConfig);
 
         // Create delegation tools for all sub-agents
-        this.mainAgentTools = createDelegationTools();
+        this.agentTools = createDelegationTools();
 
-        this.mainAgentLLM = new ChatGoogleGenerativeAI({
-            model: this.implementationMetadata.modelID,
-            apiKey: this.implementationMetadata.apiKey,
-        }).bindTools(this.mainAgentTools);
+        // Use factory method to create LLM based on config provider
+        const llm = this.createLLMFromConfig();
+        this.agentLLM = llm.bindTools!(this.agentTools);
 
         // Build the orchestrator graph with subgraph nodes
         const mainAgentGraph = new StateGraph(MessagesAnnotation)
             // Orchestrator node - decides what to do
-            .addNode("OrchestratorNode", this.agentNode.bind(this))
+            .addNode("MainAgentNode", this.agentNode.bind(this))
             // Preprocessing nodes - extract task and create HumanMessage
             .addNode("PrepareGitHubTask", this.prepareGitHubTask.bind(this))
-            .addNode("PrepareCodingTask", this.prepareCodingTask.bind(this))
             .addNode("PrepareWebScraperTask", this.prepareWebScraperTask.bind(this))
             // Sub-agent subgraphs
-            .addNode(ROUTE_GITHUB, githubAgent.getCompiledGraph())
-            .addNode(ROUTE_CODING, codingAgent.getCompiledGraph())
-            .addNode(ROUTE_WEBSCRAPER, webScraperAgent.getCompiledGraph())
+            .addNode("GitHubAgentSubgraph", githubAgent.getCompiledGraph())
+            .addNode("WebScraperAgentSubgraph", webScraperAgent.getCompiledGraph())
             // Entry point
-            .addEdge(START, "OrchestratorNode")
+            .addEdge(START, "MainAgentNode")
             // Conditional routing from orchestrator
-            .addConditionalEdges("OrchestratorNode", this.orchestratorRoute.bind(this))
+            .addConditionalEdges("MainAgentNode", this.orchestratorRoute.bind(this))
             // Preprocessing -> Subgraph edges
-            .addEdge("PrepareGitHubTask", ROUTE_GITHUB)
-            .addEdge("PrepareCodingTask", ROUTE_CODING)
-            .addEdge("PrepareWebScraperTask", ROUTE_WEBSCRAPER)
+            .addEdge("PrepareGitHubTask", "GitHubAgentSubgraph")
+            .addEdge("PrepareWebScraperTask", "WebScraperAgentSubgraph")
             // Subgraph -> Orchestrator edges (return after completion)
-            .addEdge(ROUTE_GITHUB, "OrchestratorNode")
-            .addEdge(ROUTE_CODING, "OrchestratorNode")
-            .addEdge(ROUTE_WEBSCRAPER, "OrchestratorNode");
+            .addEdge("GitHubAgentSubgraph", "MainAgentNode")
+            .addEdge("WebScraperAgentSubgraph", "MainAgentNode");
 
-        this.mainAgentGraph = mainAgentGraph.compile();
+        this.agentGraph = mainAgentGraph.compile();
     }
 
     /**
@@ -134,7 +63,7 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
         ];
 
         try {
-            const response = await this.mainAgentLLM.invoke(messagesToSend);
+            const response = await this.agentLLM!.invoke(messagesToSend);
             return {
                 messages: [response]
             };
@@ -239,7 +168,7 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
      * @returns Compiled LangGraph Runnable
      */
     public getCompiledGraph(): Runnable {
-        return this.mainAgentGraph;
+        return this.agentGraph!;
     }
 
     /**
@@ -252,7 +181,7 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
             return message.role == AgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
         });
 
-        const eventStream = this.mainAgentGraph.streamEvents(
+        const eventStream = this.agentGraph!.streamEvents(
             { messages: history },
             { version: "v2" }
         );
@@ -278,8 +207,8 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
 
                     for await (const event of eventStream) {
                         // Subgraph started
-                        if (event.event === AGENT_START_EVENT && (event.name === ROUTE_GITHUB || event.name === ROUTE_CODING)) {
-                            const agentName = event.name === ROUTE_GITHUB ? "GitHubAgent" : "CodingAgent";
+                        if (event.event === AGENT_START_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebScraperAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? "GitHubAgent" : "WebScraperAgent";
                             enqueueJson({
                                 type: AGENT_STARTED,
                                 payload: {
@@ -290,8 +219,8 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
                             });
                         }
                         // Subgraph ended
-                        else if (event.event === AGENT_END_EVENT && (event.name === ROUTE_GITHUB || event.name === ROUTE_CODING)) {
-                            const agentName = event.name === ROUTE_GITHUB ? "GitHubAgent" : "CodingAgent";
+                        else if (event.event === AGENT_END_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebScraperAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? "GitHubAgent" : "WebScraperAgent";
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
                                 output = output.messages[output.messages.length - 1].content;

@@ -1,24 +1,20 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { Runnable } from "@langchain/core/runnables";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
-import { AgentChatMessage, APILLMImplMetadata } from "@/lib/types";
+import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { WebScraperAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
 import { createAllWebScraperTools } from "./tools";
 
-class WebScraperAgent extends BaseAgent<APILLMImplMetadata> {
+class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
 
-    private webScraperAgentLLM: Runnable | null = null;
-    private webScraperAgentGraph: Runnable | null = null;
-    private webScraperAgentTools: DynamicStructuredTool[] = [];
     private isInitialized = false;
 
-    constructor(webScraperAgentConfig: AgentConfig<APILLMImplMetadata>) {
+    constructor(webScraperAgentConfig: AgentConfig<LLMImplMetadata>) {
         super(webScraperAgentConfig);
     }
 
@@ -27,16 +23,14 @@ class WebScraperAgent extends BaseAgent<APILLMImplMetadata> {
             return;
         }
 
-        this.webScraperAgentTools = createAllWebScraperTools();
+        this.agentTools = createAllWebScraperTools();
 
-        console.log("[WebScraperAgent] Initializing with Gemini...");
+        // Use factory method to create LLM based on config provider
+        console.log(`[WebScraperAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
+        const llm = this.createLLMFromConfig();
+        this.agentLLM = llm.bindTools!(this.agentTools);
 
-        this.webScraperAgentLLM = new ChatGoogleGenerativeAI({
-            model: this.implementationMetadata.modelID,
-            apiKey: this.implementationMetadata.apiKey,
-        }).bindTools(this.webScraperAgentTools);
-
-        const toolNode = new ToolNode(this.webScraperAgentTools);
+        const toolNode = new ToolNode(this.agentTools);
 
         const webScraperAgentGraph = new StateGraph(MessagesAnnotation)
             .addNode("WebScraperAgentNode", this.agentNode.bind(this))
@@ -45,7 +39,7 @@ class WebScraperAgent extends BaseAgent<APILLMImplMetadata> {
             .addConditionalEdges("WebScraperAgentNode", this.WebScraperAgentRoute.bind(this))
             .addEdge("tools", "WebScraperAgentNode");
 
-        this.webScraperAgentGraph = webScraperAgentGraph.compile();
+        this.agentGraph = webScraperAgentGraph.compile();
         this.isInitialized = true;
         console.log("[WebScraperAgent] Initialized successfully");
     }
@@ -59,7 +53,7 @@ class WebScraperAgent extends BaseAgent<APILLMImplMetadata> {
 
         try {
             console.log("[WebScraperAgent] Invoking LLM with", messages.length, "messages");
-            const response = await this.webScraperAgentLLM!.invoke(messagesToSend);
+            const response = await this.agentLLM!.invoke(messagesToSend);
 
             const aiResponse = response as AIMessage;
             console.log("[WebScraperAgent] Response received:", {
@@ -94,7 +88,7 @@ class WebScraperAgent extends BaseAgent<APILLMImplMetadata> {
 
     public getCompiledGraph(): Runnable {
         this.ensureInitialized();
-        return this.webScraperAgentGraph!;
+        return this.agentGraph!;
     }
 
     public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
@@ -121,7 +115,7 @@ class WebScraperAgent extends BaseAgent<APILLMImplMetadata> {
                 : new AIMessage(message.content);
         });
 
-        const eventStream = this.webScraperAgentGraph!.streamEvents(
+        const eventStream = this.agentGraph!.streamEvents(
             { messages: history },
             { version: "v2" }
         );

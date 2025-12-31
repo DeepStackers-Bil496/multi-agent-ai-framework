@@ -1,29 +1,24 @@
-import { ChatGroq } from "@langchain/groq";
-import { ChatOllama } from "@langchain/ollama";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { Runnable } from "@langchain/core/runnables";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
-import { AgentChatMessage, APILLMImplMetadata } from "@/lib/types";
+import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { GitHubAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
 import { createAllGitHubMCPTools } from "./tools";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
-class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
+class GitHubAgent extends BaseAgent<LLMImplMetadata> {
 
-    private githubAgentLLM: Runnable | null = null;
-    private githubAgentGraph: Runnable | null = null;
-    private githubAgentTools: DynamicStructuredTool[] = [];
+
     private isInitialized = false;
 
     /**
      * @param githubAgentConfig GitHub agent configuration
      */
-    constructor(githubAgentConfig: AgentConfig<APILLMImplMetadata>) {
+    constructor(githubAgentConfig: AgentConfig<LLMImplMetadata>) {
         super(githubAgentConfig);
     }
 
@@ -37,49 +32,16 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
         }
 
         // Create all GitHub MCP tools (individual tools for each operation)
-        this.githubAgentTools = createAllGitHubMCPTools();
+        this.agentTools = createAllGitHubMCPTools();
 
-        // Check if we should use Ollama (local development)
-        const useOllama = process.env.USE_OLLAMA === "true";
-        const isDev = process.env.NODE_ENV === "development";
 
-        if (useOllama && isDev) {
-            // Use Ollama for local development - FREE and no rate limits!
-            console.log("[GitHubAgent] Initializing with Ollama (local)...");
-
-            const ollamaModel = process.env.OLLAMA_MODEL || "llama3.2";
-            const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-
-            this.githubAgentLLM = new ChatOllama({
-                model: ollamaModel,
-                baseUrl: ollamaBaseUrl,
-                temperature: 0.1,
-            }).bindTools(this.githubAgentTools);
-
-            console.log(`[GitHubAgent] Using Ollama model: ${ollamaModel} at ${ollamaBaseUrl}`);
-        } else {
-            // Use Groq for production or when Ollama is not enabled
-            /*const apiKey = process.env.GROQ_API_KEY;
-            if (!apiKey) {
-                throw new Error("GROQ_API_KEY environment variable is not set. Please add it to your .env.local file.");
-            }*/
-
-            console.log("[GitHubAgent] Initializing with Groq (cloud)...");
-
-            this.githubAgentLLM = new ChatGoogleGenerativeAI({
-                model: this.implementationMetadata.modelID,
-                apiKey: this.implementationMetadata.apiKey,
-            }).bindTools(this.githubAgentTools);
-
-            /*this.githubAgentLLM = new ChatGroq({
-                model: this.implementationMetadata.modelID,
-                apiKey: apiKey,
-                temperature: 0.1,
-            }).bindTools(this.githubAgentTools);*/
-        }
+        // Use factory method to create LLM based on config provider
+        console.log(`[GitHubAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
+        const llm = this.createLLMFromConfig();
+        this.agentLLM = llm.bindTools!(this.agentTools);
 
         // Create tool node for executing tools
-        const toolNode = new ToolNode(this.githubAgentTools);
+        const toolNode = new ToolNode(this.agentTools);
 
         // Build the agent graph (same pattern as MainAgent)
         const githubAgentGraph = new StateGraph(MessagesAnnotation)
@@ -89,7 +51,7 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
             .addConditionalEdges("GitHubAgentNode", this.GitHubAgentRoute.bind(this))
             .addEdge("tools", "GitHubAgentNode"); // Loop back after tool execution
 
-        this.githubAgentGraph = githubAgentGraph.compile();
+        this.agentGraph = githubAgentGraph.compile();
         this.isInitialized = true;
         console.log("[GitHubAgent] Initialized successfully");
     }
@@ -107,7 +69,7 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
 
         try {
             console.log("[GitHubAgent] Invoking LLM with", messages.length, "messages");
-            const response = await this.githubAgentLLM!.invoke(messagesToSend);
+            const response = await this.agentLLM!.invoke(messagesToSend);
 
             // Debug: log what we got back
             const aiResponse = response as AIMessage;
@@ -185,7 +147,7 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
                 : new AIMessage(message.content);
         });
 
-        const eventStream = this.githubAgentGraph!.streamEvents(
+        const eventStream = this.agentGraph!.streamEvents(
             { messages: history },
             { version: "v2" }
         );
@@ -291,7 +253,7 @@ class GitHubAgent extends BaseAgent<APILLMImplMetadata> {
      */
     public getCompiledGraph(): Runnable {
         this.ensureInitialized();
-        return this.githubAgentGraph!;
+        return this.agentGraph!;
     }
 }
 

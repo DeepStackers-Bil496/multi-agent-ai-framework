@@ -3,7 +3,6 @@ import { mainAgent } from "./mainAgent/mainAgent";
 import { githubAgent } from "./githubAgent/githubAgent";
 import { agentUserMetadataList } from "./user_metadata";
 import { AgentChatMessage } from "../types";
-import { codingAgent } from "./codingAgent/codingAgent";
 import { webScraperAgent } from "./webScraperAgent/webScraperAgent";
 
 // Common interface for all runnable agents
@@ -15,7 +14,6 @@ interface RunnableAgent {
 const agentInstances: Record<string, RunnableAgent> = {
     "main-agent": mainAgent,
     "github-agent": githubAgent,
-    "coding-agent": codingAgent,
     "webscraper-agent": webScraperAgent,
 };
 

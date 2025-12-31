@@ -1,7 +1,7 @@
 import { AgentConfig } from "../agentConfig";
 import { FiCpu } from "react-icons/fi";
 import { API_MODEL_TYPE } from "../../constants";
-import { APILLMImplMetadata, AgentUserMetadata } from "../../types";
+import { LLMImplMetadata, AgentUserMetadata } from "../../types";
 
 
 const mainAgentUserMetadata: AgentUserMetadata = {
@@ -18,8 +18,9 @@ const mainAgentUserMetadata: AgentUserMetadata = {
     ],
 }
 
-const mainAgentImplementationMetadata: APILLMImplMetadata = {
+const mainAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
+    provider: "google",
     modelID: "gemini-2.5-flash",
     systemInstruction: `You are an intelligent orchestrator that coordinates specialized agents to help users.
 
@@ -40,7 +41,7 @@ IMPORTANT:
     apiKey: process.env.GEMINI_API_KEY || ""
 }
 
-export const MainAgentConfig: AgentConfig<APILLMImplMetadata> = {
+export const MainAgentConfig: AgentConfig<LLMImplMetadata> = {
     user_metadata: mainAgentUserMetadata,
     implementation_metadata: mainAgentImplementationMetadata,
 }

@@ -1,7 +1,7 @@
 import { AgentConfig } from "../agentConfig";
 import { FiGlobe } from "react-icons/fi";
 import { API_MODEL_TYPE } from "../../constants";
-import { APILLMImplMetadata, AgentUserMetadata } from "../../types";
+import { LLMImplMetadata, AgentUserMetadata } from "../../types";
 
 const webScraperAgentUserMetadata: AgentUserMetadata = {
     id: "webscraper-agent",
@@ -17,8 +17,9 @@ const webScraperAgentUserMetadata: AgentUserMetadata = {
     ],
 }
 
-const webScraperAgentImplementationMetadata: APILLMImplMetadata = {
+const webScraperAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
+    provider: "google",
     modelID: "gemini-2.5-flash",
     systemInstruction: `You are a Web Scraper Agent that helps users extract information from web pages.
 
@@ -37,7 +38,7 @@ GUIDELINES:
     apiKey: process.env.GEMINI_API_KEY || ""
 }
 
-export const WebScraperAgentConfig: AgentConfig<APILLMImplMetadata> = {
+export const WebScraperAgentConfig: AgentConfig<LLMImplMetadata> = {
     user_metadata: webScraperAgentUserMetadata,
     implementation_metadata: webScraperAgentImplementationMetadata,
 }
