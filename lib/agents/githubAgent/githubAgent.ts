@@ -12,28 +12,14 @@ import { createAllGitHubMCPTools } from "./tools";
 
 class GitHubAgent extends BaseAgent<LLMImplMetadata> {
 
-
-    private isInitialized = false;
-
     /**
      * @param githubAgentConfig GitHub agent configuration
      */
     constructor(githubAgentConfig: AgentConfig<LLMImplMetadata>) {
         super(githubAgentConfig);
-    }
-
-    /**
-     * Lazily initialize the LLM and graph at runtime.
-     * Uses Ollama for local development, Groq for production.
-     */
-    private ensureInitialized(): void {
-        if (this.isInitialized) {
-            return;
-        }
 
         // Create all GitHub MCP tools (individual tools for each operation)
         this.agentTools = createAllGitHubMCPTools();
-
 
         // Use factory method to create LLM based on config provider
         console.log(`[GitHubAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
@@ -43,7 +29,7 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
         // Create tool node for executing tools
         const toolNode = new ToolNode(this.agentTools);
 
-        // Build the agent graph (same pattern as MainAgent)
+        // Build the agent graph
         const githubAgentGraph = new StateGraph(MessagesAnnotation)
             .addNode("GitHubAgentNode", this.agentNode.bind(this))
             .addNode("tools", toolNode)
@@ -52,7 +38,6 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
             .addEdge("tools", "GitHubAgentNode"); // Loop back after tool execution
 
         this.agentGraph = githubAgentGraph.compile();
-        this.isInitialized = true;
         console.log("[GitHubAgent] Initialized successfully");
     }
 
@@ -123,24 +108,6 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
      * @returns Response
      */
     public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
-        // Initialize lazily at runtime
-        try {
-            this.ensureInitialized();
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Initialization failed";
-            console.error("[GitHubAgent] Initialization error:", errorMessage);
-
-            const encoder = new TextEncoder();
-            const errorResponse = JSON.stringify({
-                type: AGENT_ERROR,
-                payload: { name: "GitHubAgent", content: errorMessage, id: "GitHubAgent" }
-            }) + "\n";
-
-            return new Response(encoder.encode(errorResponse), {
-                headers: { "Content-Type": "application/json" }
-            });
-        }
-
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole
                 ? new HumanMessage(message.content)
@@ -246,15 +213,6 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
         });
     }
 
-    /**
-     * Get the compiled graph for this agent.
-     * Used for embedding this agent as a subgraph node in a parent graph.
-     * @returns Compiled LangGraph Runnable
-     */
-    public getCompiledGraph(): Runnable {
-        this.ensureInitialized();
-        return this.agentGraph!;
-    }
 }
 
 export const githubAgent = new GitHubAgent(GitHubAgentConfig);

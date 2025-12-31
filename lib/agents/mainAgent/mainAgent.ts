@@ -8,7 +8,7 @@ import { AgentConfig } from "../agentConfig";
 import { MainAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
 import { githubAgent } from "../githubAgent/githubAgent";
-import { webScraperAgent } from "../webScraperAgent/webScraperAgent";
+import { webAgent } from "../webAgent/webAgent";
 import { createDelegationTools } from "./tools";
 
 class MainAgent extends BaseAgent<LLMImplMetadata> {
@@ -23,6 +23,7 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
         this.agentTools = createDelegationTools();
 
         // Use factory method to create LLM based on config provider
+        console.log(`[MainAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
         const llm = this.createLLMFromConfig();
         this.agentLLM = llm.bindTools!(this.agentTools);
 
@@ -32,20 +33,20 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             .addNode("MainAgentNode", this.agentNode.bind(this))
             // Preprocessing nodes - extract task and create HumanMessage
             .addNode("PrepareGitHubTask", this.prepareGitHubTask.bind(this))
-            .addNode("PrepareWebScraperTask", this.prepareWebScraperTask.bind(this))
+            .addNode("PrepareWebTask", this.prepareWebTask.bind(this))
             // Sub-agent subgraphs
             .addNode("GitHubAgentSubgraph", githubAgent.getCompiledGraph())
-            .addNode("WebScraperAgentSubgraph", webScraperAgent.getCompiledGraph())
+            .addNode("WebAgentSubgraph", webAgent.getCompiledGraph())
             // Entry point
             .addEdge(START, "MainAgentNode")
             // Conditional routing from orchestrator
             .addConditionalEdges("MainAgentNode", this.orchestratorRoute.bind(this))
             // Preprocessing -> Subgraph edges
             .addEdge("PrepareGitHubTask", "GitHubAgentSubgraph")
-            .addEdge("PrepareWebScraperTask", "WebScraperAgentSubgraph")
+            .addEdge("PrepareWebTask", "WebAgentSubgraph")
             // Subgraph -> Orchestrator edges (return after completion)
             .addEdge("GitHubAgentSubgraph", "MainAgentNode")
-            .addEdge("WebScraperAgentSubgraph", "MainAgentNode");
+            .addEdge("WebAgentSubgraph", "MainAgentNode");
 
         this.agentGraph = mainAgentGraph.compile();
     }
@@ -104,8 +105,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
 
         // Check for Web Scraper delegation
         if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_webscraper")) {
-            console.log("[MainAgent] Routing to PrepareWebScraperTask");
-            return "PrepareWebScraperTask";
+            console.log("[MainAgent] Routing to PrepareWebTask");
+            return "PrepareWebTask";
         }
 
         // Default: end
@@ -149,7 +150,7 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     /**
      * Prepare task for Web Scraper Agent
      */
-    private prepareWebScraperTask(state: typeof MessagesAnnotation.State) {
+    private prepareWebTask(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
@@ -219,8 +220,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                             });
                         }
                         // Subgraph ended
-                        else if (event.event === AGENT_END_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebScraperAgentSubgraph")) {
-                            const agentName = event.name === "GitHubAgentSubgraph" ? "GitHubAgent" : "WebScraperAgent";
+                        else if (event.event === AGENT_END_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? "GitHubAgent" : "WebAgent";
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
                                 output = output.messages[output.messages.length - 1].content;

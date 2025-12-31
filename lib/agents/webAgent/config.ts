@@ -3,9 +3,9 @@ import { FiGlobe } from "react-icons/fi";
 import { API_MODEL_TYPE } from "../../constants";
 import { LLMImplMetadata, AgentUserMetadata } from "../../types";
 
-const webScraperAgentUserMetadata: AgentUserMetadata = {
-    id: "webscraper-agent",
-    name: "Web Scraper Agent",
+const webAgentUserMetadata: AgentUserMetadata = {
+    id: "web-agent",
+    name: "Web Agent",
     short_description: "Web content extraction and scraping",
     long_description: "Fetch and parse web pages to extract text, links, and metadata.",
     icon: FiGlobe,
@@ -17,11 +17,11 @@ const webScraperAgentUserMetadata: AgentUserMetadata = {
     ],
 }
 
-const webScraperAgentImplementationMetadata: LLMImplMetadata = {
+const webAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
     provider: "google",
     modelID: "gemini-2.5-flash",
-    systemInstruction: `You are a Web Scraper Agent that helps users extract information from web pages.
+    systemInstruction: `You are a Web Agent that helps users extract information from web pages.
 
 AVAILABLE TOOLS:
 - fetch_url: Get the raw HTML content from a URL
@@ -38,7 +38,7 @@ GUIDELINES:
     apiKey: process.env.GEMINI_API_KEY || ""
 }
 
-export const WebScraperAgentConfig: AgentConfig<LLMImplMetadata> = {
-    user_metadata: webScraperAgentUserMetadata,
-    implementation_metadata: webScraperAgentImplementationMetadata,
+export const WebAgentConfig: AgentConfig<LLMImplMetadata> = {
+    user_metadata: webAgentUserMetadata,
+    implementation_metadata: webAgentImplementationMetadata,
 }

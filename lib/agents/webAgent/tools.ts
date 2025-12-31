@@ -251,9 +251,9 @@ export function createExtractMetadataTool() {
 }
 
 /**
- * Create all Web Scraper tools
+ * Create all Web tools
  */
-export function createAllWebScraperTools(): DynamicStructuredTool[] {
+export function createAllWebAgentTools(): DynamicStructuredTool[] {
     return [
         createFetchUrlTool(),
         createScrapeTextTool(),

@@ -1,47 +1,36 @@
-import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { Runnable } from "@langchain/core/runnables";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
-import { WebScraperAgentConfig } from "./config";
+import { WebAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
-import { createAllWebScraperTools } from "./tools";
+import { createAllWebAgentTools } from "./tools";
 
-class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
+class WebAgent extends BaseAgent<LLMImplMetadata> {
 
-    private isInitialized = false;
+    constructor(webAgentConfig: AgentConfig<LLMImplMetadata>) {
+        super(webAgentConfig);
 
-    constructor(webScraperAgentConfig: AgentConfig<LLMImplMetadata>) {
-        super(webScraperAgentConfig);
-    }
-
-    private ensureInitialized(): void {
-        if (this.isInitialized) {
-            return;
-        }
-
-        this.agentTools = createAllWebScraperTools();
+        this.agentTools = createAllWebAgentTools();
 
         // Use factory method to create LLM based on config provider
-        console.log(`[WebScraperAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
+        console.log(`[WebAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
         const llm = this.createLLMFromConfig();
         this.agentLLM = llm.bindTools!(this.agentTools);
 
         const toolNode = new ToolNode(this.agentTools);
 
-        const webScraperAgentGraph = new StateGraph(MessagesAnnotation)
-            .addNode("WebScraperAgentNode", this.agentNode.bind(this))
+        const webAgentGraph = new StateGraph(MessagesAnnotation)
+            .addNode("WebAgentNode", this.agentNode.bind(this))
             .addNode("tools", toolNode)
-            .addEdge(START, "WebScraperAgentNode")
-            .addConditionalEdges("WebScraperAgentNode", this.WebScraperAgentRoute.bind(this))
-            .addEdge("tools", "WebScraperAgentNode");
+            .addEdge(START, "WebAgentNode")
+            .addConditionalEdges("WebAgentNode", this.WebAgentRoute.bind(this))
+            .addEdge("tools", "WebAgentNode");
 
-        this.agentGraph = webScraperAgentGraph.compile();
-        this.isInitialized = true;
-        console.log("[WebScraperAgent] Initialized successfully");
+        this.agentGraph = webAgentGraph.compile();
+        console.log("[WebAgent] Initialized successfully");
     }
 
     protected async agentNode(state: typeof MessagesAnnotation.State) {
@@ -52,11 +41,11 @@ class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
         ];
 
         try {
-            console.log("[WebScraperAgent] Invoking LLM with", messages.length, "messages");
+            console.log("[WebAgent] Invoking LLM with", messages.length, "messages");
             const response = await this.agentLLM!.invoke(messagesToSend);
 
             const aiResponse = response as AIMessage;
-            console.log("[WebScraperAgent] Response received:", {
+            console.log("[WebAgent] Response received:", {
                 hasContent: !!aiResponse.content,
                 hasToolCalls: !!(aiResponse.tool_calls && aiResponse.tool_calls.length > 0),
                 toolCallsCount: aiResponse.tool_calls?.length || 0
@@ -70,13 +59,13 @@ class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
 
             return { messages: [response] };
         } catch (error) {
-            console.error("[WebScraperAgent] Error in agentNode:", error);
+            console.error("[WebAgent] Error in agentNode:", error);
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
             return { messages: [new AIMessage(`Error: ${errorMessage}`)] };
         }
     }
 
-    private WebScraperAgentRoute(state: typeof MessagesAnnotation.State) {
+    private WebAgentRoute(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
@@ -86,29 +75,7 @@ class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
         return "tools";
     }
 
-    public getCompiledGraph(): Runnable {
-        this.ensureInitialized();
-        return this.agentGraph!;
-    }
-
     public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
-        try {
-            this.ensureInitialized();
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Initialization failed";
-            console.error("[WebScraperAgent] Initialization error:", errorMessage);
-
-            const encoder = new TextEncoder();
-            const errorResponse = JSON.stringify({
-                type: AGENT_ERROR,
-                payload: { name: "WebScraperAgent", content: errorMessage, id: "WebScraperAgent" }
-            }) + "\n";
-
-            return new Response(encoder.encode(errorResponse), {
-                headers: { "Content-Type": "application/json" }
-            });
-        }
-
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole
                 ? new HumanMessage(message.content)
@@ -131,14 +98,14 @@ class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
                 try {
                     enqueueJson({
                         type: AGENT_STARTED,
-                        payload: { name: "WebScraperAgent", content: JSON.stringify(inputMessages), id: "WebScraperAgent" }
+                        payload: { name: "WebAgent", content: JSON.stringify(inputMessages), id: "WebAgent" }
                     });
 
                     for await (const event of eventStream) {
                         if (event.event === AGENT_START_EVENT && event.name === "tools") {
                             enqueueJson({
                                 type: AGENT_STARTED,
-                                payload: { name: "webscraper_tool", content: JSON.stringify(event.data.input), id: event.run_id }
+                                payload: { name: "web_tool", content: JSON.stringify(event.data.input), id: event.run_id }
                             });
                         }
                         else if (event.event === AGENT_END_EVENT && event.name === "tools") {
@@ -148,7 +115,7 @@ class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
                             }
                             enqueueJson({
                                 type: AGENT_ENDED,
-                                payload: { name: "webscraper_tool", content: JSON.stringify(output), id: event.run_id }
+                                payload: { name: "web_tool", content: JSON.stringify(output), id: event.run_id }
                             });
                         }
                         else if (event.event === ON_CHAT_MODEL_STREAM_EVENT) {
@@ -162,12 +129,12 @@ class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
                     console.error("[WebScraperAgent] CRITICAL ERROR:", error);
                     enqueueJson({
                         type: AGENT_ERROR,
-                        payload: { name: "WebScraperAgent", content: error instanceof Error ? error.message : "Unknown error", id: "WebScraperAgent" }
+                        payload: { name: "WebAgent", content: error instanceof Error ? error.message : "Unknown error", id: "WebAgent" }
                     });
                 } finally {
                     enqueueJson({
                         type: AGENT_ENDED,
-                        payload: { name: "WebScraperAgent", content: "", id: "WebScraperAgent" }
+                        payload: { name: "WebAgent", content: "", id: "WebAgent" }
                     });
                     controller.close();
                 }
@@ -180,4 +147,4 @@ class WebScraperAgent extends BaseAgent<LLMImplMetadata> {
     }
 }
 
-export const webScraperAgent = new WebScraperAgent(WebScraperAgentConfig);
+export const webAgent = new WebAgent(WebAgentConfig);

@@ -63,5 +63,7 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
      * Used for embedding this agent as a subgraph node in a parent graph.
      * @returns Compiled LangGraph Runnable
      */
-    public abstract getCompiledGraph(): Runnable;
+    public getCompiledGraph(): Runnable {
+        return this.agentGraph!;
+    }
 }

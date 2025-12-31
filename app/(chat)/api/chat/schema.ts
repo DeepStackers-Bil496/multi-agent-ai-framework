@@ -24,7 +24,6 @@ export const postRequestBodySchema = z.object({
   selectedChatModel: z.enum([
     "main-agent",
     "github-agent",
-    "coding-agent",
     "webscraper-agent",
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
