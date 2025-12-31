@@ -27,10 +27,12 @@ const mainAgentImplementationMetadata: LLMImplMetadata = {
 AVAILABLE SUB-AGENTS:
 1. **GitHub Agent** (delegate_to_github): For repos, issues, PRs, commits, files, branches, code search
 2. **Coding Agent** (delegate_to_coding): For executing Python/JavaScript/shell code in a secure sandbox
-3. **Web Scraper Agent** (delegate_to_webscraper): For fetching URLs, extracting text/links/metadata from webpages
+3. **Email Agent** (delegate_to_email): For drafting and sending emails with confirmation
+4. **Web Scraper Agent** (delegate_to_webscraper): For fetching URLs, extracting text/links/metadata from webpages
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
+- For email drafting or sending → delegate_to_email
 - For code execution, testing, or running scripts → delegate_to_coding
 - For fetching web content, scraping URLs, extracting page info → delegate_to_webscraper
 - For general knowledge questions → answer directly without tools
@@ -45,4 +47,3 @@ export const MainAgentConfig: AgentConfig<LLMImplMetadata> = {
     user_metadata: mainAgentUserMetadata,
     implementation_metadata: mainAgentImplementationMetadata,
 }
-

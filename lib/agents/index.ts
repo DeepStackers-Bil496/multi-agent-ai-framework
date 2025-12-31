@@ -4,6 +4,7 @@ import { githubAgent } from "./githubAgent/githubAgent";
 import { agentUserMetadataList } from "./user_metadata";
 import { AgentChatMessage } from "../types";
 import { webAgent } from "./webAgent/webAgent"
+import { emailAgent } from "./emailAgent/emailAgent";
 
 // Common interface for all runnable agents
 interface RunnableAgent {
@@ -14,6 +15,7 @@ interface RunnableAgent {
 const agentInstances: Record<string, RunnableAgent> = {
     "main-agent": mainAgent,
     "github-agent": githubAgent,
+    "email-agent": emailAgent,
     "web-agent": webAgent,
 };
 
