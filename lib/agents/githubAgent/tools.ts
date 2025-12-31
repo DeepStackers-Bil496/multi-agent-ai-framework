@@ -60,6 +60,7 @@ async function callMCPTool(toolName: string, args: Record<string, unknown>): Pro
 
 /**
  * Extract content from MCP response format
+ * Prioritizes text content, but for simple text responses
  */
 function extractContent(result: unknown): unknown {
     if (!result || typeof result !== "object") return result;
@@ -76,6 +77,36 @@ function extractContent(result: unknown): unknown {
         }
     }
     return result;
+}
+
+/**
+ * Extract resource content from MCP response (for file contents)
+ * The GitHub MCP server returns file content in a "resource" type with the actual text
+ */
+function extractResourceContent(result: unknown): { text: string; mimeType: string } | null {
+    if (!result || typeof result !== "object") return null;
+
+    const mcpResult = result as {
+        content?: Array<{
+            type: string;
+            resource?: {
+                text?: string;
+                mimeType?: string;
+                uri?: string;
+            }
+        }>
+    };
+
+    if (mcpResult.content && Array.isArray(mcpResult.content)) {
+        const resourceContent = mcpResult.content.find(c => c.type === "resource");
+        if (resourceContent?.resource?.text) {
+            return {
+                text: resourceContent.resource.text,
+                mimeType: resourceContent.resource.mimeType || "text/plain"
+            };
+        }
+    }
+    return null;
 }
 
 /**
@@ -169,6 +200,104 @@ export function createGetFileContentsTool() {
                     owner, repo, path,
                     ...(ref && { ref }),
                 });
+
+                // First, try to extract resource content (this is where file text is stored)
+                const resourceContent = extractResourceContent(result);
+                if (resourceContent) {
+                    // Get file extension for syntax highlighting
+                    const ext = path.split(".").pop()?.toLowerCase() || "";
+                    const langMap: Record<string, string> = {
+                        "ts": "typescript", "tsx": "typescript",
+                        "js": "javascript", "jsx": "javascript",
+                        "py": "python", "rb": "ruby",
+                        "rs": "rust", "go": "go",
+                        "java": "java", "c": "c", "cpp": "cpp", "h": "c",
+                        "cs": "csharp", "swift": "swift", "kt": "kotlin",
+                        "md": "markdown", "json": "json", "yaml": "yaml", "yml": "yaml",
+                        "html": "html", "css": "css", "scss": "scss",
+                        "sh": "bash", "bash": "bash", "zsh": "bash",
+                        "sql": "sql", "xml": "xml", "toml": "toml",
+                    };
+                    const lang = langMap[ext] || "";
+
+                    return `**File: ${path}**\n\n\`\`\`${lang}\n${resourceContent.text}\n\`\`\``;
+                }
+
+                // Fall back to extractContent for other response types (like directory listings)
+                const content = extractContent(result);
+
+                if (!content) {
+                    return `No content found at path: ${path}`;
+                }
+
+                // Handle different response types
+                if (typeof content === "string") {
+                    // Check if it's just a status message, not actual content
+                    if (content.includes("successfully downloaded")) {
+                        return `File downloaded but content not available. Path: ${path}`;
+                    }
+                    return content;
+                }
+
+                // The content might be an object with file info
+                if (typeof content === "object") {
+                    const fileContent = content as Record<string, unknown>;
+
+                    // Check if it's a directory listing (array of items)
+                    if (Array.isArray(content)) {
+                        const items = content.map((item: { name?: string; type?: string; path?: string }) => {
+                            const icon = item.type === "dir" ? "📁" : "📄";
+                            return `${icon} ${item.name || item.path}`;
+                        });
+                        return `**Directory: ${path}**\n\n${items.join("\n")}`;
+                    }
+
+                    // Check for base64 encoded content (GitHub API format)
+                    if (fileContent.content && fileContent.encoding === "base64") {
+                        try {
+                            const decodedContent = Buffer.from(
+                                String(fileContent.content).replace(/\n/g, ""),
+                                "base64"
+                            ).toString("utf-8");
+
+                            // Get file extension for syntax highlighting
+                            const ext = path.split(".").pop()?.toLowerCase() || "";
+                            const langMap: Record<string, string> = {
+                                "ts": "typescript", "tsx": "typescript",
+                                "js": "javascript", "jsx": "javascript",
+                                "py": "python", "rb": "ruby",
+                                "rs": "rust", "go": "go",
+                                "java": "java", "c": "c", "cpp": "cpp", "h": "c",
+                                "cs": "csharp", "swift": "swift", "kt": "kotlin",
+                                "md": "markdown", "json": "json", "yaml": "yaml", "yml": "yaml",
+                                "html": "html", "css": "css", "scss": "scss",
+                                "sh": "bash", "bash": "bash", "zsh": "bash",
+                                "sql": "sql", "xml": "xml", "toml": "toml",
+                            };
+                            const lang = langMap[ext] || "";
+
+                            return `**File: ${path}**\n\n\`\`\`${lang}\n${decodedContent}\n\`\`\``;
+                        } catch (decodeError) {
+                            return `Error decoding file content: ${decodeError instanceof Error ? decodeError.message : 'Unknown error'}`;
+                        }
+                    }
+
+                    // If content is directly available (not base64)
+                    if (fileContent.content && typeof fileContent.content === "string") {
+                        const ext = path.split(".").pop()?.toLowerCase() || "";
+                        return `**File: ${path}**\n\n\`\`\`${ext}\n${fileContent.content}\n\`\`\``;
+                    }
+
+                    // Check if it's already decoded text content
+                    if (fileContent.text && typeof fileContent.text === "string") {
+                        const ext = path.split(".").pop()?.toLowerCase() || "";
+                        return `**File: ${path}**\n\n\`\`\`${ext}\n${fileContent.text}\n\`\`\``;
+                    }
+
+                    // Fallback: return as JSON
+                    return `**File: ${path}**\n\n\`\`\`json\n${JSON.stringify(content, null, 2)}\n\`\`\``;
+                }
+
                 return formatResult("get_file_contents", result);
             } catch (error) {
                 return `Error in get_file_contents: ${error instanceof Error ? error.message : 'Unknown error'}`;
