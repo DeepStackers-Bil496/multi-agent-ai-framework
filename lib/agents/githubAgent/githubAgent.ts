@@ -1,9 +1,8 @@
-import { DynamicStructuredTool } from "@langchain/core/tools";
+
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { Runnable } from "@langchain/core/runnables";
-import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
+import { AgentUserRole, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR, TOOL_ENDED, TOOL_STARTED, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { GitHubAgentConfig } from "./config";
@@ -119,6 +118,10 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
             { version: "v2" }
         );
 
+        // Capture metadata before callback (callback has different 'this' context)
+        const agentName = this.userMetadata.name;
+        const agentId = this.userMetadata.id;
+
         const encoder = new TextEncoder();
         const responseStream = new ReadableStream({
             async start(controller) {
@@ -132,35 +135,53 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_STARTED,
                         payload: {
-                            name: "GitHubAgent",
+                            name: agentName,
                             content: JSON.stringify(inputMessages),
-                            id: "GitHubAgent"
+                            id: agentId
                         }
                     });
 
                     for await (const event of eventStream) {
                         // Tool execution started
-                        if (event.event === AGENT_START_EVENT && event.name === "tools") {
+                        if (event.event === TOOL_STARTED_EVENT && event.name === "tools") {
+                            // Extract actual tool name from input messages
+                            let toolName = "github_tool";
+                            const inputMsgs = event.data.input?.messages;
+                            if (inputMsgs && inputMsgs.length > 0) {
+                                const lastMsg = inputMsgs[inputMsgs.length - 1];
+                                if (lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
+                                    toolName = lastMsg.tool_calls[0].name;
+                                }
+                            }
+                            console.log("[GitHubAgent] Tool name:", toolName);
+
                             enqueueJson({
-                                type: AGENT_STARTED,
+                                type: TOOL_STARTED,
                                 payload: {
-                                    name: "github_mcp_tool",
+                                    name: toolName,
                                     content: JSON.stringify(event.data.input),
                                     id: event.run_id
                                 }
                             });
                         }
                         // Tool execution ended
-                        else if (event.event === AGENT_END_EVENT && event.name === "tools") {
+                        else if (event.event === TOOL_ENDED_EVENT && event.name === "tools") {
+                            // Extract tool name from output
+                            let toolName = "github_tool";
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
-                                output = output.messages[output.messages.length - 1].content;
+                                const toolMsg = output.messages[output.messages.length - 1];
+                                if (toolMsg.name) {
+                                    toolName = toolMsg.name;
+                                }
+                                output = toolMsg.content;
                             }
+                            console.log("[GitHubAgent] Tool name:", toolName);
 
                             enqueueJson({
-                                type: AGENT_ENDED,
+                                type: TOOL_ENDED,
                                 payload: {
-                                    name: "github_mcp_tool",
+                                    name: toolName,
                                     content: JSON.stringify(output),
                                     id: event.run_id
                                 }
@@ -185,9 +206,9 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_ERROR,
                         payload: {
-                            name: "GitHubAgent",
+                            name: agentName,
                             content: errorMessage,
-                            id: "GitHubAgent"
+                            id: agentId
                         }
                     });
                 }
@@ -195,9 +216,9 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_ENDED,
                         payload: {
-                            name: "GitHubAgent",
+                            name: agentName,
                             content: "",
-                            id: "GitHubAgent"
+                            id: agentId
                         }
                     });
                     controller.close();

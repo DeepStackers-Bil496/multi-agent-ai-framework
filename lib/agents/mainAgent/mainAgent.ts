@@ -1,8 +1,6 @@
-import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { Runnable } from "@langchain/core/runnables";
-import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
+import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT, TOOL_ENDED, TOOL_STARTED } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { MainAgentConfig } from "./config";
@@ -32,8 +30,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             // Orchestrator node - decides what to do
             .addNode("MainAgentNode", this.agentNode.bind(this))
             // Preprocessing nodes - extract task and create HumanMessage
-            .addNode("PrepareGitHubTask", this.prepareGitHubTask.bind(this))
-            .addNode("PrepareWebTask", this.prepareWebTask.bind(this))
+            .addNode("PrepareGitHubAgentTask", this.PrepareGitHubAgentTask.bind(this))
+            .addNode("PrepareWebAgentTask", this.PrepareWebAgentTask.bind(this))
             // Sub-agent subgraphs
             .addNode("GitHubAgentSubgraph", githubAgent.getCompiledGraph())
             .addNode("WebAgentSubgraph", webAgent.getCompiledGraph())
@@ -42,8 +40,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             // Conditional routing from orchestrator
             .addConditionalEdges("MainAgentNode", this.orchestratorRoute.bind(this))
             // Preprocessing -> Subgraph edges
-            .addEdge("PrepareGitHubTask", "GitHubAgentSubgraph")
-            .addEdge("PrepareWebTask", "WebAgentSubgraph")
+            .addEdge("PrepareGitHubAgentTask", "GitHubAgentSubgraph")
+            .addEdge("PrepareWebAgentTask", "WebAgentSubgraph")
             // Subgraph -> Orchestrator edges (return after completion)
             .addEdge("GitHubAgentSubgraph", "MainAgentNode")
             .addEdge("WebAgentSubgraph", "MainAgentNode");
@@ -93,20 +91,13 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
 
         // Check for GitHub delegation
         if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_github")) {
-            console.log("[MainAgent] Routing to PrepareGitHubTask");
-            return "PrepareGitHubTask";
+            console.log("[MainAgent] Routing to PrepareGitHubAgentTask");
+            return "PrepareGitHubAgentTask";
         }
-
-        // Check for Coding delegation
-        if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_coding")) {
-            console.log("[MainAgent] Routing to PrepareCodingTask");
-            return "PrepareCodingTask";
-        }
-
         // Check for Web Scraper delegation
         if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_webscraper")) {
-            console.log("[MainAgent] Routing to PrepareWebTask");
-            return "PrepareWebTask";
+            console.log("[MainAgent] Routing to PrepareWebAgentTask");
+            return "PrepareWebAgentTask";
         }
 
         // Default: end
@@ -116,7 +107,7 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     /**
      * Prepare task for GitHub Agent
      */
-    private prepareGitHubTask(state: typeof MessagesAnnotation.State) {
+    private PrepareGitHubAgentTask(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
@@ -131,45 +122,20 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     }
 
     /**
-     * Prepare task for Coding Agent
+     * Prepare task for Web Agent
      */
-    private prepareCodingTask(state: typeof MessagesAnnotation.State) {
-        const { messages } = state;
-        const lastMessage = messages[messages.length - 1] as AIMessage;
-
-        const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_coding");
-        const task = delegation?.args?.task as string || "Help with coding";
-
-        console.log("[MainAgent] Preparing task for Coding Agent:", task);
-
-        return {
-            messages: [new HumanMessage(`[Coding Task] ${task}`)]
-        };
-    }
-
-    /**
-     * Prepare task for Web Scraper Agent
-     */
-    private prepareWebTask(state: typeof MessagesAnnotation.State) {
+    private PrepareWebAgentTask(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
         const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_webscraper");
         const task = delegation?.args?.task as string || "Help with web scraping";
 
-        console.log("[MainAgent] Preparing task for Web Scraper Agent:", task);
+        console.log("[MainAgent] Preparing task for Web Agent:", task);
 
         return {
-            messages: [new HumanMessage(`[Web Scraper Task] ${task}`)]
+            messages: [new HumanMessage(`[Web Task] ${task}`)]
         };
-    }
-
-    /**
-     * Get the compiled graph for this agent
-     * @returns Compiled LangGraph Runnable
-     */
-    public getCompiledGraph(): Runnable {
-        return this.agentGraph!;
     }
 
     /**
@@ -187,6 +153,9 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             { version: "v2" }
         );
 
+        const agentName = this.name;
+        const agentId = this.id;
+
         const encoder = new TextEncoder();
         const responseStream = new ReadableStream({
             async start(controller) {
@@ -200,28 +169,31 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_STARTED,
                         payload: {
-                            name: "MainAgent",
+                            name: agentName,
                             content: JSON.stringify(inputMessages),
-                            id: "MainAgent"
+                            id: agentId
                         }
                     });
 
                     for await (const event of eventStream) {
                         // Subgraph started
-                        if (event.event === AGENT_START_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebScraperAgentSubgraph")) {
-                            const agentName = event.name === "GitHubAgentSubgraph" ? "GitHubAgent" : "WebScraperAgent";
+                        if (event.event === AGENT_START_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : webAgent.name;
+                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : webAgent.id;
                             enqueueJson({
                                 type: AGENT_STARTED,
                                 payload: {
                                     name: agentName,
                                     content: JSON.stringify(event.data.input),
-                                    id: event.run_id
+                                    id: agentId
                                 }
                             });
+                            console.log("[MainAgent] Subgraph started:", agentName);
                         }
                         // Subgraph ended
                         else if (event.event === AGENT_END_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph")) {
-                            const agentName = event.name === "GitHubAgentSubgraph" ? "GitHubAgent" : "WebAgent";
+                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : webAgent.name;
+                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : webAgent.id;
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
                                 output = output.messages[output.messages.length - 1].content;
@@ -232,31 +204,49 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                                 payload: {
                                     name: agentName,
                                     content: JSON.stringify(output),
-                                    id: event.run_id
+                                    id: agentId
                                 }
                             });
+                            console.log("[MainAgent] Subgraph ended:", agentName);
                         }
-                        // Tool execution in subgraphs
-                        else if (event.event === AGENT_START_EVENT && event.name === "tools") {
+                        // Tool execution
+                        else if (event.event === TOOL_STARTED_EVENT && event.name === "tools") {
+                            // Extract actual tool name from input messages
+                            let toolName = "tool";
+                            const inputMsgs = event.data.input?.messages;
+                            if (inputMsgs && inputMsgs.length > 0) {
+                                const lastMsg = inputMsgs[inputMsgs.length - 1];
+                                if (lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
+                                    toolName = lastMsg.tool_calls[0].name;
+                                }
+                            }
+
                             enqueueJson({
-                                type: AGENT_STARTED,
+                                type: TOOL_STARTED,
                                 payload: {
-                                    name: "tool",
+                                    name: toolName,
                                     content: JSON.stringify(event.data.input),
                                     id: event.run_id
                                 }
                             });
+                            console.log("[MainAgent] Tool started:", toolName);
                         }
-                        else if (event.event === AGENT_END_EVENT && event.name === "tools") {
+                        else if (event.event === TOOL_ENDED_EVENT && event.name === "tools") {
+                            // Extract tool name from output
+                            let toolName = "tool";
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
-                                output = output.messages[output.messages.length - 1].content;
+                                const toolMsg = output.messages[output.messages.length - 1];
+                                if (toolMsg.name) {
+                                    toolName = toolMsg.name;
+                                }
+                                output = toolMsg.content;
                             }
 
                             enqueueJson({
-                                type: AGENT_ENDED,
+                                type: TOOL_ENDED,
                                 payload: {
-                                    name: "tool",
+                                    name: toolName,
                                     content: JSON.stringify(output),
                                     id: event.run_id
                                 }
@@ -281,9 +271,9 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_ERROR,
                         payload: {
-                            name: "MainAgent",
+                            name: agentName,
                             content: errorMessage,
-                            id: "MainAgent"
+                            id: agentId
                         }
                     });
                 }
@@ -291,9 +281,9 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_ENDED,
                         payload: {
-                            name: "MainAgent",
+                            name: agentName,
                             content: "",
-                            id: "MainAgent"
+                            id: agentId
                         }
                     });
                     controller.close();

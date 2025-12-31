@@ -22,23 +22,6 @@ Use this when the user asks about:
             }),
             func: async ({ task }) => `Delegating to GitHub Agent: ${task}`,
         }),
-
-        // Coding delegation tool
-        new DynamicStructuredTool({
-            name: "delegate_to_coding",
-            description: `Route the task to the Coding Agent for code execution.
-Use this when the user asks to:
-- Execute or run Python, JavaScript, or shell code
-- Write and test code snippets
-- Perform file operations in a sandbox
-- Debug or analyze code by running it
-- Any task that requires actual code execution`,
-            schema: z.object({
-                task: z.string().describe("The coding task to delegate."),
-            }),
-            func: async ({ task }) => `Delegating to Coding Agent: ${task}`,
-        }),
-
         // Web Scraper delegation tool
         new DynamicStructuredTool({
             name: "delegate_to_webscraper",

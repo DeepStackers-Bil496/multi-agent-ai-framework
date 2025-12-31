@@ -39,3 +39,10 @@ export const AGENT_STARTED = "agent_started";
 export const AGENT_ENDED = "agent_ended";
 export const AGENT_STREAM = "agent_stream";
 export const AGENT_ERROR = "agent_error";
+
+
+export const TOOL_STARTED_EVENT = "on_chain_start";
+export const TOOL_ENDED_EVENT = "on_chain_end";
+
+export const TOOL_STARTED = "tool_started";
+export const TOOL_ENDED = "tool_ended";

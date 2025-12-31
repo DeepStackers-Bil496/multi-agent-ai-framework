@@ -1,7 +1,7 @@
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
+import { AgentUserRole, ON_CHAT_MODEL_STREAM_EVENT, TOOL_STARTED, TOOL_ENDED, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT, AGENT_STARTED, AGENT_STREAM, AGENT_ERROR, AGENT_ENDED } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { WebAgentConfig } from "./config";
@@ -87,6 +87,9 @@ class WebAgent extends BaseAgent<LLMImplMetadata> {
             { version: "v2" }
         );
 
+        const agentName = this.name;
+        const agentId = this.id;
+
         const encoder = new TextEncoder();
         const responseStream = new ReadableStream({
             async start(controller) {
@@ -98,43 +101,83 @@ class WebAgent extends BaseAgent<LLMImplMetadata> {
                 try {
                     enqueueJson({
                         type: AGENT_STARTED,
-                        payload: { name: "WebAgent", content: JSON.stringify(inputMessages), id: "WebAgent" }
+                        payload: {
+                            name: agentName,
+                            content: JSON.stringify(inputMessages),
+                            id: agentId
+                        }
                     });
 
                     for await (const event of eventStream) {
-                        if (event.event === AGENT_START_EVENT && event.name === "tools") {
+                        if (event.event === TOOL_STARTED_EVENT && event.name === "tools") {
+                            // Extract actual tool name from input messages
+                            let toolName = "web_tool";
+                            const inputMsgs = event.data.input?.messages;
+                            if (inputMsgs && inputMsgs.length > 0) {
+                                const lastMsg = inputMsgs[inputMsgs.length - 1];
+                                if (lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
+                                    toolName = lastMsg.tool_calls[0].name;
+                                }
+                            }
+                            console.log("[WebAgent] Tool name:", toolName);
                             enqueueJson({
-                                type: AGENT_STARTED,
-                                payload: { name: "web_tool", content: JSON.stringify(event.data.input), id: event.run_id }
+                                type: TOOL_STARTED,
+                                payload: {
+                                    name: toolName,
+                                    content: JSON.stringify(event.data.input),
+                                    id: event.run_id
+                                }
                             });
                         }
-                        else if (event.event === AGENT_END_EVENT && event.name === "tools") {
+                        else if (event.event === TOOL_ENDED_EVENT && event.name === "tools") {
+                            // Extract tool name from output
+                            let toolName = "web_tool";
                             let output = event.data.output;
                             if (output?.messages?.length > 0) {
-                                output = output.messages[output.messages.length - 1].content;
+                                const toolMsg = output.messages[output.messages.length - 1];
+                                if (toolMsg.name) {
+                                    toolName = toolMsg.name;
+                                }
+                                output = toolMsg.content;
                             }
                             enqueueJson({
-                                type: AGENT_ENDED,
-                                payload: { name: "web_tool", content: JSON.stringify(output), id: event.run_id }
+                                type: TOOL_ENDED,
+                                payload: {
+                                    name: toolName,
+                                    content: JSON.stringify(output),
+                                    id: event.run_id
+                                }
                             });
                         }
                         else if (event.event === ON_CHAT_MODEL_STREAM_EVENT) {
                             enqueueJson({
                                 type: AGENT_STREAM,
-                                payload: { name: event.name, content: event.data.chunk, id: event.run_id }
+                                payload: {
+                                    name: event.name,
+                                    content: event.data.chunk,
+                                    id: event.run_id
+                                }
                             });
                         }
                     }
                 } catch (error) {
-                    console.error("[WebScraperAgent] CRITICAL ERROR:", error);
+                    console.error("[WebAgent] CRITICAL ERROR:", error);
                     enqueueJson({
                         type: AGENT_ERROR,
-                        payload: { name: "WebAgent", content: error instanceof Error ? error.message : "Unknown error", id: "WebAgent" }
+                        payload: {
+                            name: agentName,
+                            content: error instanceof Error ? error.message : "Unknown error",
+                            id: agentId
+                        }
                     });
                 } finally {
                     enqueueJson({
                         type: AGENT_ENDED,
-                        payload: { name: "WebAgent", content: "", id: "WebAgent" }
+                        payload: {
+                            name: agentName,
+                            content: "",
+                            id: agentId
+                        }
                     });
                     controller.close();
                 }

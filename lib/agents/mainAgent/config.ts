@@ -11,8 +11,8 @@ const mainAgentUserMetadata: AgentUserMetadata = {
     long_description: "Main Agent that handles the conversation.",
     icon: FiCpu,
     suggestedActions: [
-        "What are the advantages of using Next.js?",
-        "Who found the DeepStackers AI Studio?",
+        "Search this link oruccakir.live",
+        "Get the last two commits from Evangeline repo owner is oruccakir",
         "What is Mustafa Kemal Atatürk?",
         "What is Model Context Protocol"
     ],

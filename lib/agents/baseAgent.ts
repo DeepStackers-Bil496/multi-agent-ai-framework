@@ -50,6 +50,20 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
+     * Get the agent's display name
+     */
+    public get name(): string {
+        return this.userMetadata.name;
+    }
+
+    /**
+     * Get the agent's ID
+     */
+    public get id(): string {
+        return this.userMetadata.id;
+    }
+
+    /**
      * Every agent must implement this method.
      * In langGraph, this method is used as the agent node.
      * We will be use these methods at the @mainAgentGraph .
