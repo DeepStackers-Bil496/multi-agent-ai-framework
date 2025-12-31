@@ -64,9 +64,6 @@ import {
   AgentUserRole,
   AgentAssistantRole,
   API_MODEL_TYPE,
-  LOCAL_MODEL_TYPE,
-  LOCAL_VISION_MODEL_TYPE,
-  API_VISION_MODEL_TYPE,
   AGENT_ENDED,
   AGENT_STARTED,
   AGENT_STREAM,
@@ -83,38 +80,28 @@ export type AgentChatMessage = { role: AgentChatRole; content: string };
 /**
  * We will be using this types at the agent implementations.
  */
-export type APILLMImplMetadata = {
+/**
+ * Supported LLM providers
+ */
+export type LLMProvider =
+  | "google"     // Google Gemini
+  | "openai"     // OpenAI (also works with vLLM via baseURL)
+  | "groq"       // Groq (fast inference)
+  | "ollama"     // Ollama (local)
+  | "anthropic"  // Anthropic Claude
+  | "mistral";   // Mistral AI
+
+export type LLMImplMetadata = {
   type: typeof API_MODEL_TYPE;
+  provider: LLMProvider;  // LLM provider (gemini, openai, groq, etc.)
   modelID: string;
   systemInstruction: string;
-  apiKey: string;
-};
-
-export type LocalLLMImplMetadata = {
-  type: typeof LOCAL_MODEL_TYPE;
-  modelPath: string;
-  contextWindow: number;
-  hfSpaceID?: string;
-  systemInstruction: string;
-};
-
-export type LocalVisionModelImplMetadata = {
-  type: typeof LOCAL_VISION_MODEL_TYPE;
-  modelID: string;
-  systemInstruction: string;
-};
-
-export type APIVisionModelImplMetadata = {
-  type: typeof API_VISION_MODEL_TYPE;
-  modelID: string;
-  systemInstruction: string;
+  apiKey?: string;        // Optional for local providers like Ollama
+  baseURL?: string;       // For vLLM or custom endpoints
 };
 
 export type AgentImplMetadata =
-  | APILLMImplMetadata
-  | LocalLLMImplMetadata
-  | LocalVisionModelImplMetadata
-  | APIVisionModelImplMetadata;
+  | LLMImplMetadata;
 
 
 export type AgentUserMetadata = {

@@ -1,144 +1,160 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { DynamicStructuredTool } from "@langchain/core/tools";
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { Runnable } from "@langchain/core/runnables";
-import { z } from "zod";
-import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR } from "@/lib/constants";
-import { AgentChatMessage, APILLMImplMetadata } from "@/lib/types";
+import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT, TOOL_ENDED, TOOL_STARTED } from "@/lib/constants";
+import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { MainAgentConfig } from "./config";
 import { BaseAgent } from "../baseAgent";
 import { githubAgent } from "../githubAgent/githubAgent";
+import { webAgent } from "../webAgent/webAgent";
+import { createDelegationTools } from "./tools";
 
-/**
- * Create the GitHub Agent tool that delegates to the GitHubAgent subgraph
- */
-function createGitHubAgentTool(): DynamicStructuredTool {
-    return new DynamicStructuredTool({
-        name: "github_agent",
-        description: `Delegate GitHub-related tasks to the specialized GitHub Agent. 
-Use this for ANY GitHub operations including:
-- Viewing commits, branches, tags, files
-- Creating/updating issues
-- Reading/reviewing pull requests
-- Searching repositories or code
-- Any other GitHub API operations
-
-The GitHub Agent has access to 20+ specialized GitHub tools and will handle the task autonomously.`,
-        schema: z.object({
-            task: z.string().describe("The complete task description for the GitHub agent. Be specific about what you need."),
-        }),
-        func: async ({ task }) => {
-            console.log("[MainAgent] Delegating to GitHub Agent:", task);
-            try {
-                const result = await githubAgent.invoke(task);
-                console.log("[MainAgent] GitHub Agent completed");
-                return result;
-            } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : "Unknown error";
-                console.error("[MainAgent] GitHub Agent error:", errorMsg);
-                return `GitHub Agent encountered an error: ${errorMsg}`;
-            }
-        },
-    });
-}
-
-class MainAgent extends BaseAgent<APILLMImplMetadata> {
-
-    private readonly mainAgentLLM: Runnable;
-    private readonly mainAgentGraph: Runnable;
-    private readonly mainAgentTools: DynamicStructuredTool[];
+class MainAgent extends BaseAgent<LLMImplMetadata> {
 
     /**
      * @param mainAgentConfig Main agent configuration
      */
-    constructor(mainAgentConfig: AgentConfig<APILLMImplMetadata>) {
+    constructor(mainAgentConfig: AgentConfig<LLMImplMetadata>) {
         super(mainAgentConfig);
 
-        // Create tools - including sub-agent tools
-        this.mainAgentTools = [
-            createGitHubAgentTool(),
-            // Add more sub-agent tools here as needed:
-            // createWebAgentTool(),
-            // createCodeAgentTool(),
-        ];
+        // Create delegation tools for all sub-agents
+        this.agentTools = createDelegationTools();
 
-        this.mainAgentLLM = new ChatGoogleGenerativeAI({
-            model: this.implementationMetadata.modelID,
-            apiKey: this.implementationMetadata.apiKey,
-        }).bindTools(this.mainAgentTools);
+        // Use factory method to create LLM based on config provider
+        console.log(`[MainAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
+        const llm = this.createLLMFromConfig();
+        this.agentLLM = llm.bindTools!(this.agentTools);
 
-        // Create tool node for executing sub-agent tools
-        const toolNode = new ToolNode(this.mainAgentTools);
-
+        // Build the orchestrator graph with subgraph nodes
         const mainAgentGraph = new StateGraph(MessagesAnnotation)
+            // Orchestrator node - decides what to do
             .addNode("MainAgentNode", this.agentNode.bind(this))
-            .addNode("tools", toolNode)
+            // Preprocessing nodes - extract task and create HumanMessage
+            .addNode("PrepareGitHubAgentTask", this.PrepareGitHubAgentTask.bind(this))
+            .addNode("PrepareWebAgentTask", this.PrepareWebAgentTask.bind(this))
+            // Sub-agent subgraphs
+            .addNode("GitHubAgentSubgraph", githubAgent.getCompiledGraph())
+            .addNode("WebAgentSubgraph", webAgent.getCompiledGraph())
+            // Entry point
             .addEdge(START, "MainAgentNode")
-            .addConditionalEdges("MainAgentNode", this.MainAgentRoute.bind(this))
-            .addEdge("tools", "MainAgentNode"); // Loop back after tool execution
+            // Conditional routing from orchestrator
+            .addConditionalEdges("MainAgentNode", this.orchestratorRoute.bind(this))
+            // Preprocessing -> Subgraph edges
+            .addEdge("PrepareGitHubAgentTask", "GitHubAgentSubgraph")
+            .addEdge("PrepareWebAgentTask", "WebAgentSubgraph")
+            // Subgraph -> Orchestrator edges (return after completion)
+            .addEdge("GitHubAgentSubgraph", "MainAgentNode")
+            .addEdge("WebAgentSubgraph", "MainAgentNode");
 
-        this.mainAgentGraph = mainAgentGraph.compile();
+        this.agentGraph = mainAgentGraph.compile();
     }
 
     /**
+     * Orchestrator node - decides whether to answer directly or delegate
      * @param state Agent state
-     * @returns Agent node implementation
+     * @returns Updated state with response
      */
     protected async agentNode(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const messagesToSend = [
             new SystemMessage(this.implementationMetadata.systemInstruction),
             ...messages
-        ]
+        ];
 
         try {
-            const response = await this.mainAgentLLM.invoke(messagesToSend);
+            const response = await this.agentLLM!.invoke(messagesToSend);
             return {
                 messages: [response]
-            }
+            };
         } catch (error) {
             console.error("[MainAgent] Error in agentNode:", error);
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
             return {
                 messages: [new AIMessage(`Error: ${errorMessage}`)]
-            }
+            };
         }
     }
 
     /**
-     * This method is used to route the agent to the correct tool or end.
+     * Route based on the orchestrator's decision
      * @param state Agent state
-     * @returns Agent route
+     * @returns Routing decision
      */
-    private MainAgentRoute(state: typeof MessagesAnnotation.State) {
+    private orchestratorRoute(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
         const lastMessage = messages[messages.length - 1] as AIMessage;
 
-        // If no tool calls, we're done
+        // No tool calls = done
         if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
             return END;
         }
 
-        // Route to tools node
-        return "tools";
+        // Check for GitHub delegation
+        if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_github")) {
+            console.log("[MainAgent] Routing to PrepareGitHubAgentTask");
+            return "PrepareGitHubAgentTask";
+        }
+        // Check for Web Scraper delegation
+        if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_webscraper")) {
+            console.log("[MainAgent] Routing to PrepareWebAgentTask");
+            return "PrepareWebAgentTask";
+        }
+
+        // Default: end
+        return END;
     }
 
     /**
+     * Prepare task for GitHub Agent
+     */
+    private PrepareGitHubAgentTask(state: typeof MessagesAnnotation.State) {
+        const { messages } = state;
+        const lastMessage = messages[messages.length - 1] as AIMessage;
+
+        const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_github");
+        const task = delegation?.args?.task as string || "Help with GitHub";
+
+        console.log("[MainAgent] Preparing task for GitHub Agent:", task);
+
+        return {
+            messages: [new HumanMessage(`[GitHub Task] ${task}`)]
+        };
+    }
+
+    /**
+     * Prepare task for Web Agent
+     */
+    private PrepareWebAgentTask(state: typeof MessagesAnnotation.State) {
+        const { messages } = state;
+        const lastMessage = messages[messages.length - 1] as AIMessage;
+
+        const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_webscraper");
+        const task = delegation?.args?.task as string || "Help with web scraping";
+
+        console.log("[MainAgent] Preparing task for Web Agent:", task);
+
+        return {
+            messages: [new HumanMessage(`[Web Task] ${task}`)]
+        };
+    }
+
+    /**
+     * Run the agent with streaming response
      * @param inputMessages Input messages
-     * @returns Response
+     * @returns Streaming Response
      */
     public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
         });
 
-        const eventStream = this.mainAgentGraph.streamEvents(
+        const eventStream = this.agentGraph!.streamEvents(
             { messages: history },
             { version: "v2" }
         );
+
+        const agentName = this.name;
+        const agentId = this.id;
 
         const encoder = new TextEncoder();
         const responseStream = new ReadableStream({
@@ -153,26 +169,31 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_STARTED,
                         payload: {
-                            name: "MainAgent",
+                            name: agentName,
                             content: JSON.stringify(inputMessages),
-                            id: "MainAgent"
+                            id: agentId
                         }
                     });
 
                     for await (const event of eventStream) {
-                        // Tool execution started (sub-agent called)
-                        if (event.event === AGENT_START_EVENT && event.name === "tools") {
+                        // Subgraph started
+                        if (event.event === AGENT_START_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : webAgent.name;
+                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : webAgent.id;
                             enqueueJson({
                                 type: AGENT_STARTED,
                                 payload: {
-                                    name: "sub_agent_tool",
+                                    name: agentName,
                                     content: JSON.stringify(event.data.input),
-                                    id: event.run_id
+                                    id: agentId
                                 }
                             });
+                            console.log("[MainAgent] Subgraph started:", agentName);
                         }
-                        // Tool execution ended
-                        else if (event.event === AGENT_END_EVENT && event.name === "tools") {
+                        // Subgraph ended
+                        else if (event.event === AGENT_END_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : webAgent.name;
+                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : webAgent.id;
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
                                 output = output.messages[output.messages.length - 1].content;
@@ -181,7 +202,51 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
                             enqueueJson({
                                 type: AGENT_ENDED,
                                 payload: {
-                                    name: "sub_agent_tool",
+                                    name: agentName,
+                                    content: JSON.stringify(output),
+                                    id: agentId
+                                }
+                            });
+                            console.log("[MainAgent] Subgraph ended:", agentName);
+                        }
+                        // Tool execution
+                        else if (event.event === TOOL_STARTED_EVENT && event.name === "tools") {
+                            // Extract actual tool name from input messages
+                            let toolName = "tool";
+                            const inputMsgs = event.data.input?.messages;
+                            if (inputMsgs && inputMsgs.length > 0) {
+                                const lastMsg = inputMsgs[inputMsgs.length - 1];
+                                if (lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
+                                    toolName = lastMsg.tool_calls[0].name;
+                                }
+                            }
+
+                            enqueueJson({
+                                type: TOOL_STARTED,
+                                payload: {
+                                    name: toolName,
+                                    content: JSON.stringify(event.data.input),
+                                    id: event.run_id
+                                }
+                            });
+                            console.log("[MainAgent] Tool started:", toolName);
+                        }
+                        else if (event.event === TOOL_ENDED_EVENT && event.name === "tools") {
+                            // Extract tool name from output
+                            let toolName = "tool";
+                            let output = event.data.output;
+                            if (output && output.messages && output.messages.length > 0) {
+                                const toolMsg = output.messages[output.messages.length - 1];
+                                if (toolMsg.name) {
+                                    toolName = toolMsg.name;
+                                }
+                                output = toolMsg.content;
+                            }
+
+                            enqueueJson({
+                                type: TOOL_ENDED,
+                                payload: {
+                                    name: toolName,
                                     content: JSON.stringify(output),
                                     id: event.run_id
                                 }
@@ -206,9 +271,9 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_ERROR,
                         payload: {
-                            name: "MainAgent",
+                            name: agentName,
                             content: errorMessage,
-                            id: "MainAgent"
+                            id: agentId
                         }
                     });
                 }
@@ -216,9 +281,9 @@ class MainAgent extends BaseAgent<APILLMImplMetadata> {
                     enqueueJson({
                         type: AGENT_ENDED,
                         payload: {
-                            name: "MainAgent",
+                            name: agentName,
                             content: "",
-                            id: "MainAgent"
+                            id: agentId
                         }
                     });
                     controller.close();
