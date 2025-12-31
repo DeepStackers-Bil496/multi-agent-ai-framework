@@ -20,8 +20,7 @@ import { toast } from "sonner";
 import { useLocalStorage, useWindowSize } from "usehooks-ts";
 import { saveChatModelAsCookie } from "@/app/(chat)/actions";
 import { SelectItem } from "@/components/ui/select";
-import { chatModels } from "@/lib/ai/models";
-import { myProvider } from "@/lib/ai/providers";
+import { agentUserMetadataList } from "@/lib/agents/user_metadata";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
@@ -195,9 +194,6 @@ function PureMultimodalInput({
     }
   }, []);
 
-  const _modelResolver = useMemo(() => {
-    return myProvider.languageModel(selectedModelId);
-  }, [selectedModelId]);
 
   const contextProps = useMemo(
     () => ({
@@ -231,7 +227,7 @@ function PureMultimodalInput({
     },
     [setAttachments, uploadFile]
   );
-  
+
   const handlePaste = useCallback(
     async (event: ClipboardEvent) => {
       const items = event.clipboardData?.items;
@@ -295,6 +291,7 @@ function PureMultimodalInput({
             chatId={chatId}
             selectedVisibilityType={selectedVisibilityType}
             sendMessage={sendMessage}
+            agentId={selectedModelId}
           />
         )}
 
@@ -387,7 +384,7 @@ function PureMultimodalInput({
               className="size-8 rounded-full bg-primary text-primary-foreground transition-colors duration-200 hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
               disabled={!input.trim() || uploadQueue.length > 0}
               status={status}
-	      data-testid="send-button"
+              data-testid="send-button"
             >
               <ArrowUpIcon size={14} />
             </PromptInputSubmit>
@@ -463,19 +460,19 @@ function PureModelSelectorCompact({
     setOptimisticModelId(selectedModelId);
   }, [selectedModelId]);
 
-  const selectedModel = chatModels.find(
-    (model) => model.id === optimisticModelId
+  const selectedModel = agentUserMetadataList.find(
+    (agentUserMetadata) => agentUserMetadata.id === optimisticModelId
   );
 
   return (
     <PromptInputModelSelect
       onValueChange={(modelName) => {
-        const model = chatModels.find((m) => m.name === modelName);
-        if (model) {
-          setOptimisticModelId(model.id);
-          onModelChange?.(model.id);
+        const agentUserMetadata = agentUserMetadataList.find((m) => m.name === modelName);
+        if (agentUserMetadata) {
+          setOptimisticModelId(agentUserMetadata.id);
+          onModelChange?.(agentUserMetadata.id);
           startTransition(() => {
-            saveChatModelAsCookie(model.id);
+            saveChatModelAsCookie(agentUserMetadata.id);
           });
         }
       }}
@@ -483,7 +480,11 @@ function PureModelSelectorCompact({
     >
       <Trigger asChild>
         <Button variant="ghost" className="h-8 px-2">
-          <CpuIcon size={16} />
+          {selectedModel?.icon ? (
+            <selectedModel.icon size={16} />
+          ) : (
+            <CpuIcon size={16} />
+          )}
           <span className="hidden font-medium text-xs sm:block">
             {selectedModel?.name}
           </span>
@@ -492,11 +493,14 @@ function PureModelSelectorCompact({
       </Trigger>
       <PromptInputModelSelectContent className="min-w-[260px] p-0">
         <div className="flex flex-col gap-px">
-          {chatModels.map((model) => (
-            <SelectItem key={model.id} value={model.name}>
-              <div className="truncate font-medium text-xs">{model.name}</div>
+          {agentUserMetadataList.map((agentUserMetadata) => (
+            <SelectItem key={agentUserMetadata.id} value={agentUserMetadata.name}>
+              <div className="flex items-center gap-2">
+                {agentUserMetadata.icon && <agentUserMetadata.icon size={14} className="text-muted-foreground" />}
+                <div className="truncate font-medium text-xs">{agentUserMetadata.name}</div>
+              </div>
               <div className="mt-px truncate text-[10px] text-muted-foreground leading-tight">
-                {model.description}
+                {agentUserMetadata.short_description}
               </div>
             </SelectItem>
           ))}

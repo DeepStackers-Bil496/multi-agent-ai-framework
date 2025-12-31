@@ -56,3 +56,72 @@ export type Attachment = {
   url: string;
   contentType: string;
 };
+
+/**
+ * These are the constants that I defined to use both at frontend and backend.
+ */
+import {
+  AgentUserRole,
+  AgentAssistantRole,
+  API_MODEL_TYPE,
+  AGENT_ENDED,
+  AGENT_STARTED,
+  AGENT_STREAM,
+  AGENT_ERROR,
+} from "./constants";
+
+/**
+ * We will be using this types at the agent's chat messages.
+ */
+export type AgentChatRole = typeof AgentUserRole | typeof AgentAssistantRole;
+export type AgentChatMessage = { role: AgentChatRole; content: string };
+
+
+/**
+ * We will be using this types at the agent implementations.
+ */
+/**
+ * Supported LLM providers
+ */
+export type LLMProvider =
+  | "google"     // Google Gemini
+  | "openai"     // OpenAI (also works with vLLM via baseURL)
+  | "groq"       // Groq (fast inference)
+  | "ollama"     // Ollama (local)
+  | "anthropic"  // Anthropic Claude
+  | "mistral";   // Mistral AI
+
+export type LLMImplMetadata = {
+  type: typeof API_MODEL_TYPE;
+  provider: LLMProvider;  // LLM provider (gemini, openai, groq, etc.)
+  modelID: string;
+  systemInstruction: string;
+  apiKey?: string;        // Optional for local providers like Ollama
+  baseURL?: string;       // For vLLM or custom endpoints
+};
+
+export type AgentImplMetadata =
+  | LLMImplMetadata;
+
+
+export type AgentUserMetadata = {
+  id: string;
+  name: string;
+  short_description: string;
+  long_description?: string;
+  icon?: React.ComponentType<{ className?: string; size?: number }>;
+  suggestedActions?: string[];
+}
+
+/**
+ * Stream event types from MainAgent
+ */
+export type AgentStreamEvent = {
+  type: typeof AGENT_STARTED | typeof AGENT_ENDED | typeof AGENT_STREAM | typeof AGENT_ERROR;
+  payload: {
+    name: string;
+    content: string | Record<string, unknown>;
+    id: string;
+  };
+};
+

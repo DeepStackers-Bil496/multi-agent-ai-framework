@@ -22,13 +22,15 @@ export async function generateTitleFromUserMessage({
 }: {
   message: UIMessage;
 }) {
-  const { text: title } = await generateText({
+  /*const { text: title } = await generateText({
     model: myProvider.languageModel("title-model"),
     system: titlePrompt,
     prompt: getTextFromMessage(message),
-  });
-
-  return title;
+  });*/
+  /**
+   * TODO: Generate title from user message, here we are just returning a dummy title
+   */
+  return "title";
 }
 
 export async function deleteTrailingMessages({ id }: { id: string }) {
