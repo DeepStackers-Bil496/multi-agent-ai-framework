@@ -22,6 +22,20 @@ Use this when the user asks about:
             }),
             func: async ({ task }) => `Delegating to GitHub Agent: ${task}`,
         }),
+        // Email delegation tool
+        new DynamicStructuredTool({
+            name: "delegate_to_email",
+            description: `Route the task to the Email Agent for drafting or sending emails.
+Use this when the user asks to:
+- Draft an email (subject/body)
+- Manage recipients (to/cc/bcc)
+- Adjust tone or format of an email
+- Send an email after confirmation`,
+            schema: z.object({
+                task: z.string().describe("The email-related task to delegate."),
+            }),
+            func: async ({ task }) => `Delegating to Email Agent: ${task}`,
+        }),
         // Web Scraper delegation tool
         new DynamicStructuredTool({
             name: "delegate_to_webscraper",
