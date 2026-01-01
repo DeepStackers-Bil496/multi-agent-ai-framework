@@ -20,7 +20,7 @@ const emailAgentUserMetadata: AgentUserMetadata = {
 const emailAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
     provider: "google",
-    modelID: "gemini-1.5-flash",
+    modelID: "gemini-2.5-flash",
     systemInstruction: emailAgentSystemPrompt,
     apiKey: process.env.GEMINI_API_KEY || "",
 };

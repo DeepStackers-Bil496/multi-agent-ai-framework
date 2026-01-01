@@ -1,4 +1,4 @@
-const DEFAULT_MODEL_ID = "gemini-1.5-flash";
+const DEFAULT_MODEL_ID = "gemini-2.5-flash";
 const DEFAULT_ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const REQUEST_TIMEOUT_MS = 15000;
 
