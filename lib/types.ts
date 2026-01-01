@@ -43,6 +43,7 @@ export type CustomUIDataTypes = {
   clear: null;
   finish: null;
   usage: AppUsage;
+  "agent-execution": ExecutionStep[];
 };
 
 export type ChatMessage = UIMessage<
@@ -64,10 +65,12 @@ import {
   AgentUserRole,
   AgentAssistantRole,
   API_MODEL_TYPE,
-  AGENT_ENDED,
   AGENT_STARTED,
+  AGENT_ENDED,
   AGENT_STREAM,
   AGENT_ERROR,
+  TOOL_STARTED,
+  TOOL_ENDED,
 } from "./constants";
 
 /**
@@ -117,11 +120,26 @@ export type AgentUserMetadata = {
  * Stream event types from MainAgent
  */
 export type AgentStreamEvent = {
-  type: typeof AGENT_STARTED | typeof AGENT_ENDED | typeof AGENT_STREAM | typeof AGENT_ERROR;
+  type: typeof AGENT_STARTED | typeof AGENT_ENDED | typeof AGENT_STREAM | typeof AGENT_ERROR | typeof TOOL_STARTED | typeof TOOL_ENDED;
   payload: {
     name: string;
     content: string | Record<string, unknown>;
     id: string;
   };
+};
+
+/**
+ * Execution flow step
+ */
+export type ExecutionStep = {
+  id: string;
+  type: "agent" | "tool";
+  name: string;
+  status: "running" | "completed" | "error";
+  startTime: number;
+  endTime?: number;
+  input?: any;
+  output?: any;
+  children: ExecutionStep[];
 };
 
