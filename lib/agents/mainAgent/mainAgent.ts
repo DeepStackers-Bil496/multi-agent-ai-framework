@@ -9,17 +9,15 @@ import { githubAgent } from "../githubAgent/githubAgent";
 import { webAgent } from "../webAgent/webAgent";
 import { emailAgent } from "../emailAgent/emailAgent";
 import { createDelegationTools } from "./tools";
+import { DynamicStructuredTool } from "@langchain/core/tools";
 
 class MainAgent extends BaseAgent<LLMImplMetadata> {
 
     /**
      * @param mainAgentConfig Main agent configuration
      */
-    constructor(mainAgentConfig: AgentConfig<LLMImplMetadata>) {
-        super(mainAgentConfig);
-
-        // Create delegation tools for all sub-agents
-        this.agentTools = createDelegationTools();
+    constructor(mainAgentConfig: AgentConfig<LLMImplMetadata>, agentTools: DynamicStructuredTool[]) {
+        super(mainAgentConfig, agentTools);
 
         // Use factory method to create LLM based on config provider
         console.log(`[MainAgent] Initializing with provider: ${this.implementationMetadata.provider}`);
@@ -327,4 +325,4 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     }
 }
 
-export const mainAgent = new MainAgent(MainAgentConfig);
+export const mainAgent = new MainAgent(MainAgentConfig, createDelegationTools());
