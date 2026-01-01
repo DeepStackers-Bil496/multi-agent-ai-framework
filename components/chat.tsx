@@ -32,7 +32,8 @@ import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
-import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR } from "@/lib/constants";
+import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR, TOOL_STARTED, TOOL_ENDED } from "@/lib/constants";
+import type { ExecutionStep } from "@/lib/types";
 
 
 export function Chat({
@@ -232,6 +233,9 @@ export function Chat({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
+      const activeAgentStack: string[] = [];
+      const nodeMap = new Map<string, ExecutionStep>();
+      const rootSteps: ExecutionStep[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -243,26 +247,117 @@ export function Chat({
         for (const line of lines) {
           try {
             const data: AgentStreamEvent = JSON.parse(line);
-            if (data.type === AGENT_STREAM) {
+
+            if (data.type === AGENT_STARTED) {
+              const step: ExecutionStep = {
+                id: data.payload.id,
+                type: "agent",
+                name: data.payload.name,
+                status: "running",
+                startTime: Date.now(),
+                children: [],
+                input: data.payload.content ? JSON.parse(data.payload.content as string) : undefined
+              };
+
+              nodeMap.set(step.id, step);
+
+              if (activeAgentStack.length === 0) {
+                rootSteps.push(step);
+              } else {
+                const parentId = activeAgentStack[activeAgentStack.length - 1];
+                const parent = nodeMap.get(parentId);
+                if (parent) {
+                  parent.children.push(step);
+                }
+              }
+
+              activeAgentStack.push(step.id);
+            }
+            else if (data.type === AGENT_ENDED) {
+              const step = nodeMap.get(data.payload.id);
+              if (step) {
+                step.status = "completed";
+                step.endTime = Date.now();
+                try {
+                  step.output = data.payload.content ? JSON.parse(data.payload.content as string) : undefined;
+                } catch {
+                  step.output = data.payload.content;
+                }
+              }
+              activeAgentStack.pop();
+            }
+            else if (data.type === TOOL_STARTED) {
+              const step: ExecutionStep = {
+                id: data.payload.id,
+                type: "tool",
+                name: data.payload.name,
+                status: "running",
+                startTime: Date.now(),
+                children: [],
+                input: data.payload.content ? JSON.parse(data.payload.content as string) : undefined
+              };
+
+              nodeMap.set(step.id, step);
+
+              if (activeAgentStack.length > 0) {
+                const parentId = activeAgentStack[activeAgentStack.length - 1];
+                const parent = nodeMap.get(parentId);
+                if (parent) {
+                  parent.children.push(step);
+                }
+              } else {
+                rootSteps.push(step);
+              }
+            }
+            else if (data.type === TOOL_ENDED) {
+              const step = nodeMap.get(data.payload.id);
+              if (step) {
+                step.status = "completed";
+                step.endTime = Date.now();
+                try {
+                  step.output = data.payload.content ? JSON.parse(data.payload.content as string) : undefined;
+                } catch {
+                  step.output = data.payload.content;
+                }
+              }
+            }
+            else if (data.type === AGENT_STREAM) {
               const textChunk = extractTextContent(data.payload.content);
               accumulatedText += textChunk;
-
-              // Update assistant message with accumulated text
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMessageId
-                    ? { ...msg, parts: [{ type: "text" as const, text: accumulatedText }] }
-                    : msg
-                )
-              );
             } else if (data.type === AGENT_ERROR) {
               const errorContent = typeof data.payload.content === "string"
                 ? data.payload.content
                 : "An error occurred";
+
+              // Mark current active node as error
+              if (activeAgentStack.length > 0) {
+                const step = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                if (step) {
+                  step.status = "error";
+                  step.endTime = Date.now();
+                  step.output = errorContent;
+                }
+              }
+
               toast({ type: "error", description: errorContent });
             }
-          } catch {
-            // Not JSON or partial JSON, ignore
+
+            // Update messages with both text and execution flow
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? {
+                    ...msg,
+                    parts: [
+                      { type: "data-agent-execution" as const, data: [...rootSteps] },
+                      { type: "text" as const, text: accumulatedText }
+                    ] as any
+                  }
+                  : msg
+              )
+            );
+          } catch (e) {
+            console.error("Error parsing stream line:", e, line);
           }
         }
       }

@@ -4,7 +4,7 @@ import equal from "fast-deep-equal";
 import { motion } from "framer-motion";
 import { memo, useState } from "react";
 import type { Vote } from "@/lib/db/schema";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, ExecutionStep } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { useDataStream } from "./data-stream-provider";
 import { DocumentToolResult } from "./document";
@@ -24,6 +24,7 @@ import { MessageEditor } from "./message-editor";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
+import { ExecutionFlow, ThinkingFlow } from "./execution-flow";
 
 const PurePreviewMessage = ({
   chatId,
@@ -264,6 +265,16 @@ const PurePreviewMessage = ({
                     )}
                   </ToolContent>
                 </Tool>
+              );
+            }
+
+            if (type === "data-agent-execution") {
+              const { data } = part;
+              return (
+                <ThinkingFlow
+                  key={key}
+                  steps={data as ExecutionStep[]}
+                />
               );
             }
 
