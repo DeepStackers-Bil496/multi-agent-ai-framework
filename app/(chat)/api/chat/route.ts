@@ -45,7 +45,8 @@ import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { getAgentById } from "@/lib/agents";
-import { AgentUserRole, AgentAssistantRole, AGENT_STREAM } from "@/lib/constants";
+import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, TOOL_STARTED, TOOL_ENDED, AGENT_ERROR } from "@/lib/constants";
+import type { ExecutionStep } from "@/lib/types";
 
 
 export const maxDuration = 60;
@@ -327,9 +328,12 @@ export async function POST(request: Request) {
       throw new Error("No response body from Agent");
     }
 
-    // Create a passthrough stream that captures content for persistence
+    // Create a passthrough stream that captures content and execution flow for persistence
     const assistantMessageId = generateUUID();
     let accumulatedContent = "";
+    const activeAgentStack: string[] = [];
+    const nodeMap = new Map<string, ExecutionStep>();
+    const rootSteps: ExecutionStep[] = [];
 
     const originalStream = agentResponse.body;
     const reader = originalStream.getReader();
@@ -345,14 +349,79 @@ export async function POST(request: Request) {
             // Pass through to client
             controller.enqueue(value);
 
-            // Also capture content for persistence
+            // Also capture content and execution flow for persistence
             const chunk = decoder.decode(value, { stream: true });
             const lines = chunk.split("\n").filter(line => line.trim() !== "");
 
             for (const line of lines) {
               try {
                 const data = JSON.parse(line);
-                if (data.type === AGENT_STREAM && data.payload?.content) {
+
+                // Track execution flow hierarchy
+                if (data.type === AGENT_STARTED) {
+                  const step: ExecutionStep = {
+                    id: data.payload.id,
+                    type: "agent",
+                    name: data.payload.name,
+                    status: "running",
+                    startTime: Date.now(),
+                    children: [],
+                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                  };
+                  nodeMap.set(step.id, step);
+                  if (activeAgentStack.length === 0) rootSteps.push(step);
+                  else {
+                    const parent = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                    if (parent) parent.children.push(step);
+                  }
+                  activeAgentStack.push(step.id);
+                }
+                else if (data.type === AGENT_ENDED) {
+                  const step = nodeMap.get(data.payload.id);
+                  if (step) {
+                    step.status = "completed";
+                    step.endTime = Date.now();
+                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                  }
+                  activeAgentStack.pop();
+                }
+                else if (data.type === TOOL_STARTED) {
+                  const step: ExecutionStep = {
+                    id: data.payload.id,
+                    type: "tool",
+                    name: data.payload.name,
+                    status: "running",
+                    startTime: Date.now(),
+                    children: [],
+                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                  };
+                  nodeMap.set(step.id, step);
+                  if (activeAgentStack.length > 0) {
+                    const parent = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                    if (parent) parent.children.push(step);
+                  } else {
+                    rootSteps.push(step);
+                  }
+                }
+                else if (data.type === TOOL_ENDED) {
+                  const step = nodeMap.get(data.payload.id);
+                  if (step) {
+                    step.status = "completed";
+                    step.endTime = Date.now();
+                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                  }
+                }
+                else if (data.type === AGENT_ERROR) {
+                  if (activeAgentStack.length > 0) {
+                    const step = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                    if (step) {
+                      step.status = "error";
+                      step.endTime = Date.now();
+                      step.output = data.payload.content;
+                    }
+                  }
+                }
+                else if (data.type === AGENT_STREAM && data.payload?.content) {
                   const content = data.payload.content;
                   if (typeof content === "string") {
                     accumulatedContent += content;
@@ -372,13 +441,21 @@ export async function POST(request: Request) {
 
           controller.close();
 
-          // Save assistant message to database after stream ends
+          // Save assistant message to database after stream ends with execution flow part
+          const parts = [];
+          if (rootSteps.length > 0) {
+            parts.push({ type: "data-agent-execution", data: rootSteps });
+          }
           if (accumulatedContent) {
+            parts.push({ type: "text", text: accumulatedContent });
+          }
+
+          if (parts.length > 0) {
             await saveMessages({
               messages: [{
                 id: assistantMessageId,
                 role: "assistant",
-                parts: [{ type: "text", text: accumulatedContent }],
+                parts: parts as any,
                 createdAt: new Date(),
                 attachments: [],
                 chatId: id,

@@ -24,7 +24,7 @@ import { MessageEditor } from "./message-editor";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
-import { ExecutionFlow } from "./execution-flow";
+import { ExecutionFlow, ThinkingFlow } from "./execution-flow";
 
 const PurePreviewMessage = ({
   chatId,
@@ -271,7 +271,7 @@ const PurePreviewMessage = ({
             if (type === "data-agent-execution") {
               const { data } = part;
               return (
-                <ExecutionFlow
+                <ThinkingFlow
                   key={key}
                   steps={data as ExecutionStep[]}
                 />

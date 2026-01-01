@@ -349,8 +349,8 @@ export function Chat({
                   ? {
                     ...msg,
                     parts: [
-                      { type: "text" as const, text: accumulatedText },
-                      { type: "data-agent-execution" as const, data: [...rootSteps] }
+                      { type: "data-agent-execution" as const, data: [...rootSteps] },
+                      { type: "text" as const, text: accumulatedText }
                     ] as any
                   }
                   : msg
