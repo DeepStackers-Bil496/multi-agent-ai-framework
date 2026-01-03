@@ -86,7 +86,7 @@ deploy_llama_cpu() {
         --image "$IMAGE" \
         --region "$REGION" \
         --cpu 8 \
-        --memory 16Gi \
+        --memory 32Gi \
         --timeout 3600 \
         --allow-unauthenticated \
         --port 8080 \

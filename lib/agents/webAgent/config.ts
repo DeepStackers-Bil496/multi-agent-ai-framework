@@ -20,12 +20,12 @@ const webAgentUserMetadata: AgentUserMetadata = {
 
 const webAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
-    provider: "google",
-    modelID: "gemini-2.5-flash",
+    provider: "ollama",
+    modelID: "qwen2.5:14b",
     systemInstruction: webAgentSystemPrompt,
-    apiKey: process.env.GEMINI_API_KEY || ""
+    apiKey: "",
+    baseURL: "https://7a0d2ad69064.ngrok-free.app"
 }
-
 export const WebAgentConfig: AgentConfig<LLMImplMetadata> = {
     user_metadata: webAgentUserMetadata,
     implementation_metadata: webAgentImplementationMetadata,
