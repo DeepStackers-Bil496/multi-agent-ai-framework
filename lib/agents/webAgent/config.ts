@@ -24,7 +24,7 @@ const webAgentImplementationMetadata: LLMImplMetadata = {
     modelID: "qwen2.5:14b",
     systemInstruction: webAgentSystemPrompt,
     apiKey: "",
-    baseURL: "https://7a0d2ad69064.ngrok-free.app"
+    baseURL: process.env.WEB_AGENT_DEPLOYMENT_BASE_URL,
 }
 export const WebAgentConfig: AgentConfig<LLMImplMetadata> = {
     user_metadata: webAgentUserMetadata,

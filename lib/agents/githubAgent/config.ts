@@ -24,7 +24,7 @@ const githubAgentImplementationMetadata: LLMImplMetadata = {
     modelID: "qwen2.5:14b",
     systemInstruction: githubAgentSystemPrompt,
     apiKey: "",
-    baseURL: "https://7a0d2ad69064.ngrok-free.app"
+    baseURL: process.env.GITHUB_AGENT_DEPLOYMENT_BASE_URL,
 }
 
 export const GitHubAgentConfig: AgentConfig<LLMImplMetadata> = {
