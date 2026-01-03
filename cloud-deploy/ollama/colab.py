@@ -1,8 +1,8 @@
-# 1. Temizlik ve Kurulum
-!pkill ollama
-!pkill ngrok
-!pip install pyngrok
-!curl -fsSL https://ollama.com/install.sh | sh
+# Colabda bunlari yorum satirindan cikarak calistirin
+#!pkill ollama
+#!pkill ngrok
+#!pip install pyngrok
+#!curl -fsSL https://ollama.com/install.sh | sh
 
 import os
 import threading
