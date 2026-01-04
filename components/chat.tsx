@@ -34,6 +34,7 @@ import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
 import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR, TOOL_STARTED, TOOL_ENDED } from "@/lib/constants";
 import type { ExecutionStep } from "@/lib/types";
+import { useUIPreferences, parseUIActions } from "@/hooks/use-ui-preferences";
 
 
 export function Chat({
@@ -60,6 +61,7 @@ export function Chat({
 
   const { mutate } = useSWRConfig();
   const { setDataStream } = useDataStream();
+  const { applyUIAction } = useUIPreferences();
 
   const [input, setInput] = useState<string>("");
   const [usage, setUsage] = useState<AppUsage | undefined>(initialLastContext);
@@ -236,6 +238,7 @@ export function Chat({
       const activeAgentStack: string[] = [];
       const nodeMap = new Map<string, ExecutionStep>();
       const rootSteps: ExecutionStep[] = [];
+      const appliedActions = new Set<string>();
 
       while (true) {
         const { done, value } = await reader.read();
@@ -320,6 +323,21 @@ export function Chat({
                   step.output = data.payload.content;
                 }
               }
+
+              // Parse UI actions from tool output (where they actually exist)
+              const toolOutput = typeof data.payload.content === "string"
+                ? data.payload.content
+                : JSON.stringify(data.payload.content);
+              console.log("[Chat] TOOL_ENDED output:", toolOutput);
+              const uiActions = parseUIActions(toolOutput);
+              for (const action of uiActions) {
+                const actionKey = JSON.stringify(action);
+                if (!appliedActions.has(actionKey)) {
+                  appliedActions.add(actionKey);
+                  applyUIAction(action);
+                  console.log("[Chat] Applied UI action from tool:", action);
+                }
+              }
             }
             else if (data.type === AGENT_STREAM) {
               const textChunk = extractTextContent(data.payload.content);
@@ -373,7 +391,7 @@ export function Chat({
       setStatus("error");
       toast({ type: "error", description: "Failed to get response from agent" });
     }
-  }, [messages, id, visibilityType, mutate]);
+  }, [messages, id, visibilityType, mutate, applyUIAction]);
 
   // Stop function
   const stop = useCallback(async () => {
