@@ -20,11 +20,10 @@ const githubAgentUserMetadata: AgentUserMetadata = {
 
 const githubAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
-    provider: "ollama",
-    modelID: "qwen2.5:14b",
+    provider: "google",
+    modelID: "gemini-2.5-flash",
     systemInstruction: githubAgentSystemPrompt,
-    apiKey: "",
-    baseURL: process.env.GITHUB_AGENT_DEPLOYMENT_BASE_URL,
+    apiKey: process.env.GEMINI_API_KEY,
 }
 
 export const GitHubAgentConfig: AgentConfig<LLMImplMetadata> = {
