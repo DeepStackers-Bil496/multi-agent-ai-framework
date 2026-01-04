@@ -8,12 +8,16 @@ const frontendAgentUserMetadata: AgentUserMetadata = {
     id: "frontend-agent",
     name: "Frontend Agent",
     short_description: "UI customization via natural language",
-    long_description: "Customize the application's appearance including themes, colors, fonts, and styling through natural language commands.",
+    long_description: "Customize the application's appearance including themes, colors, fonts, effects, gradients, and styling through natural language commands.",
     icon: MdPalette,
     suggestedActions: [
-        "Switch to dark mode",
-        "Change the primary color to purple",
-        "Make the text larger",
+        "Apply the cyberpunk theme",
+        "Enable glassmorphism with strong blur",
+        "Set a purple to blue gradient background",
+        "Make everything more rounded with dramatic shadows",
+        "Switch to dark mode with neon pink accent",
+        "Use a playful font and bouncy animations",
+        "Apply ocean theme preset",
         "Reset all styles to default"
     ],
 };
