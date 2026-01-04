@@ -25,7 +25,7 @@ const frontendAgentUserMetadata: AgentUserMetadata = {
 const frontendAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
     provider: "google",
-    modelID: "gemini-2.0-flash-lite", // Lighter model - sufficient for simple tool routing
+    modelID: "gemini-2.5-flash", // Lighter model - sufficient for simple tool routing
     systemInstruction: frontendAgentSystemPrompt,
     apiKey: process.env.GEMINI_API_KEY || "",
 };
