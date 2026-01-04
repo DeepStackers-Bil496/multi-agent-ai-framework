@@ -30,7 +30,7 @@ const codebaseAgentImplementationMetadata: LLMImplMetadata = {
     modelID: "qwen2.5:14b",
     systemInstruction: codebaseAgentSystemPrompt,
     apiKey: "",
-    baseURL: "https://ec65721aeb19.ngrok-free.app"
+    baseURL: "https://fed650d55208.ngrok-free.app",
 };
 
 export const CodebaseAgentConfig: AgentConfig<LLMImplMetadata> = {

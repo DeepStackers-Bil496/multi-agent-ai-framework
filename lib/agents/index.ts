@@ -1,29 +1,16 @@
-
 import { mainAgent } from "./mainAgent/mainAgent";
-import { githubAgent } from "./githubAgent/githubAgent";
+import { agentRegistry } from "./agentRegistry";
 import { agentUserMetadataList } from "./user_metadata";
-import { AgentChatMessage } from "../types";
-import { webAgent } from "./webAgent/webAgent"
-import { emailAgent } from "./emailAgent/emailAgent";
-import { codebaseAgent } from "./codebaseAgent/codebaseAgent";
 
-// Common interface for all runnable agents
-interface RunnableAgent {
-    run(inputMessages: AgentChatMessage[]): Promise<Response>;
-}
+// Export metadata for components that don't need agent instances
+export { agentUserMetadataList };
 
-// Map agent IDs to their instances
-const agentInstances: Record<string, RunnableAgent> = {
-    "main-agent": mainAgent,
-    "github-agent": githubAgent,
-    "email-agent": emailAgent,
-    "web-agent": webAgent,
-    "codebase-agent": codebaseAgent,
-};
-
-export const agents = agentUserMetadataList.map(m => ({
-    ...m,
-    instance: agentInstances[m.id] || mainAgent
+// Build agents list with instances for server-side usage
+export const agents = agentUserMetadataList.map(metadata => ({
+    ...metadata,
+    instance: metadata.id === "main-agent"
+        ? mainAgent
+        : agentRegistry.getById(metadata.id)?.instance || mainAgent
 }));
 
 export function getAgentById(id: string) {
