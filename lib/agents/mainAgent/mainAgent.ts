@@ -8,6 +8,7 @@ import { BaseAgent } from "../baseAgent";
 import { githubAgent } from "../githubAgent/githubAgent";
 import { webAgent } from "../webAgent/webAgent";
 import { emailAgent } from "../emailAgent/emailAgent";
+import { codebaseAgent } from "../codebaseAgent/codebaseAgent";
 import { createDelegationTools } from "./tools";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 
@@ -32,10 +33,12 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             .addNode("PrepareGitHubAgentTask", this.PrepareGitHubAgentTask.bind(this))
             .addNode("PrepareEmailAgentTask", this.PrepareEmailAgentTask.bind(this))
             .addNode("PrepareWebAgentTask", this.PrepareWebAgentTask.bind(this))
+            .addNode("PrepareCodebaseAgentTask", this.PrepareCodebaseAgentTask.bind(this))
             // Sub-agent subgraphs
             .addNode("GitHubAgentSubgraph", githubAgent.getCompiledGraph())
             .addNode("EmailAgentSubgraph", emailAgent.getCompiledGraph())
             .addNode("WebAgentSubgraph", webAgent.getCompiledGraph())
+            .addNode("CodebaseAgentSubgraph", codebaseAgent.getCompiledGraph())
             // Entry point
             .addEdge(START, "MainAgentNode")
             // Conditional routing from orchestrator
@@ -44,10 +47,12 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             .addEdge("PrepareGitHubAgentTask", "GitHubAgentSubgraph")
             .addEdge("PrepareEmailAgentTask", "EmailAgentSubgraph")
             .addEdge("PrepareWebAgentTask", "WebAgentSubgraph")
+            .addEdge("PrepareCodebaseAgentTask", "CodebaseAgentSubgraph")
             // Subgraph -> Orchestrator edges (return after completion)
             .addEdge("GitHubAgentSubgraph", "MainAgentNode")
             .addEdge("EmailAgentSubgraph", "MainAgentNode")
-            .addEdge("WebAgentSubgraph", "MainAgentNode");
+            .addEdge("WebAgentSubgraph", "MainAgentNode")
+            .addEdge("CodebaseAgentSubgraph", "MainAgentNode");
 
         this.agentGraph = mainAgentGraph.compile();
     }
@@ -107,6 +112,11 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             console.log("[MainAgent] Routing to PrepareWebAgentTask");
             return "PrepareWebAgentTask";
         }
+        // Check for Codebase delegation
+        if (lastMessage.tool_calls.find(tc => tc.name === "delegate_to_codebase")) {
+            console.log("[MainAgent] Routing to PrepareCodebaseAgentTask");
+            return "PrepareCodebaseAgentTask";
+        }
 
         // Default: end
         return END;
@@ -164,6 +174,23 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     }
 
     /**
+     * Prepare task for Codebase Agent
+     */
+    private PrepareCodebaseAgentTask(state: typeof MessagesAnnotation.State) {
+        const { messages } = state;
+        const lastMessage = messages[messages.length - 1] as AIMessage;
+
+        const delegation = lastMessage.tool_calls?.find(tc => tc.name === "delegate_to_codebase");
+        const task = delegation?.args?.task as string || "Help with codebase analysis";
+
+        console.log("[MainAgent] Preparing task for Codebase Agent:", task);
+
+        return {
+            messages: [new HumanMessage(`[Codebase Task] ${task}`)]
+        };
+    }
+
+    /**
      * Run the agent with streaming response
      * @param inputMessages Input messages
      * @returns Streaming Response
@@ -202,9 +229,9 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
 
                     for await (const event of eventStream) {
                         // Subgraph started
-                        if (event.event === AGENT_START_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph" || event.name === "EmailAgentSubgraph")) {
-                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : event.name === "EmailAgentSubgraph" ? emailAgent.name : webAgent.name;
-                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : event.name === "EmailAgentSubgraph" ? emailAgent.id : webAgent.id;
+                        if (event.event === AGENT_START_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph" || event.name === "EmailAgentSubgraph" || event.name === "CodebaseAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : event.name === "EmailAgentSubgraph" ? emailAgent.name : event.name === "WebAgentSubgraph" ? webAgent.name : codebaseAgent.name;
+                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : event.name === "EmailAgentSubgraph" ? emailAgent.id : event.name === "WebAgentSubgraph" ? webAgent.id : codebaseAgent.id;
                             enqueueJson({
                                 type: AGENT_STARTED,
                                 payload: {
@@ -216,9 +243,9 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                             console.log("[MainAgent] Subgraph started:", agentName);
                         }
                         // Subgraph ended
-                        else if (event.event === AGENT_END_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph" || event.name === "EmailAgentSubgraph")) {
-                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : event.name === "EmailAgentSubgraph" ? emailAgent.name : webAgent.name;
-                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : event.name === "EmailAgentSubgraph" ? emailAgent.id : webAgent.id;
+                        else if (event.event === AGENT_END_EVENT && (event.name === "GitHubAgentSubgraph" || event.name === "WebAgentSubgraph" || event.name === "EmailAgentSubgraph" || event.name === "CodebaseAgentSubgraph")) {
+                            const agentName = event.name === "GitHubAgentSubgraph" ? githubAgent.name : event.name === "EmailAgentSubgraph" ? emailAgent.name : event.name === "WebAgentSubgraph" ? webAgent.name : codebaseAgent.name;
+                            const agentId = event.name === "GitHubAgentSubgraph" ? githubAgent.id : event.name === "EmailAgentSubgraph" ? emailAgent.id : event.name === "WebAgentSubgraph" ? webAgent.id : codebaseAgent.id;
                             let output = event.data.output;
                             if (output && output.messages && output.messages.length > 0) {
                                 output = output.messages[output.messages.length - 1].content;

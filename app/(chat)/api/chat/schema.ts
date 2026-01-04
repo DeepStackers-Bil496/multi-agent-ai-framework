@@ -25,7 +25,8 @@ export const postRequestBodySchema = z.object({
     "main-agent",
     "github-agent",
     "web-agent",
-    "email-agent"
+    "email-agent",
+    "codebase-agent"
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
 });

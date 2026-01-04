@@ -50,5 +50,19 @@ Use this when the user asks to:
             }),
             func: async ({ task }) => `Delegating to Web Scraper Agent: ${task}`,
         }),
+        // Codebase delegation tool
+        new DynamicStructuredTool({
+            name: "delegate_to_codebase",
+            description: `Route the task to the Codebase Agent for code analysis and retrieval.
+Use this when the user asks about:
+- Code snippets, functions, classes, or files
+- Code structure, architecture, or design
+- Code implementation details
+- Code documentation or comments`,
+            schema: z.object({
+                task: z.string().describe("The code-related task to delegate."),
+            }),
+            func: async ({ task }) => `Delegating to Codebase Agent: ${task}`,
+        }),
     ];
 }
