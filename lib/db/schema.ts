@@ -2,6 +2,8 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
   boolean,
   foreignKey,
+  index,
+  integer,
   json,
   jsonb,
   pgTable,
@@ -10,6 +12,7 @@ import {
   timestamp,
   uuid,
   varchar,
+  vector,
 } from "drizzle-orm/pg-core";
 import type { AppUsage } from "../usage";
 
@@ -171,3 +174,38 @@ export const stream = pgTable(
 );
 
 export type Stream = InferSelectModel<typeof stream>;
+
+// ============================================================================
+// CodebaseAgent RAG - Vector embeddings for code chunks
+// ============================================================================
+
+export const codebaseEmbedding = pgTable(
+  "CodebaseEmbedding",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    filePath: text("filePath").notNull(),
+    chunkType: varchar("chunkType", {
+      enum: ["function", "class", "method", "import", "general"],
+    }).notNull(),
+    chunkName: text("chunkName"),
+    parentClass: text("parentClass"),
+    content: text("content").notNull(),
+    startLine: integer("startLine"),
+    endLine: integer("endLine"),
+    // Google text-embedding-004 produces 768-dimensional vectors
+    embedding: vector("embedding", { dimensions: 768 }).notNull(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    // HNSW index for fast cosine similarity search
+    embeddingCosineIdx: index("embedding_cosine_idx").using(
+      "hnsw",
+      table.embedding.op("vector_cosine_ops")
+    ),
+    // Index for file path filtering
+    filepathIdx: index("filepath_idx").on(table.filePath),
+  })
+);
+
+export type CodebaseEmbedding = InferSelectModel<typeof codebaseEmbedding>;

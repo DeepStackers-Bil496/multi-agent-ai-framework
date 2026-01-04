@@ -16,7 +16,9 @@
     "db:check": "drizzle-kit check",
     "db:up": "drizzle-kit up",
     "test": "export PLAYWRIGHT=True && pnpm exec playwright test",
-    "test:email": "node --test --import tsx tests/emailAgent/*.test.ts"
+    "test:email": "node --test --import tsx tests/emailAgent/*.test.ts",
+    "index:codebase": "npx tsx lib/agents/codebaseAgent/indexer.ts",
+    "test:codebase": "node --test --import tsx tests/codebaseAgent/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^1.0.15",
