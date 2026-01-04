@@ -21,10 +21,10 @@ const webAgentUserMetadata: AgentUserMetadata = {
 const webAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
     provider: "ollama",
-    modelID: "qwen2.5:14b",
+    modelID: "llama3.2:3b-instruct-q4_K_M",
     systemInstruction: webAgentSystemPrompt,
     apiKey: "",
-    baseURL: "https://7a0d2ad69064.ngrok-free.app"
+    baseURL: "https://ollama-service-339531297198.us-central1.run.app"
 }
 export const WebAgentConfig: AgentConfig<LLMImplMetadata> = {
     user_metadata: webAgentUserMetadata,
