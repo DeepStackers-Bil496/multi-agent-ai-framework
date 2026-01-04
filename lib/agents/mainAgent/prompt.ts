@@ -6,12 +6,14 @@ AVAILABLE SUB-AGENTS:
 3. **Email Agent** (delegate_to_email): For drafting and sending emails with confirmation
 4. **Web Scraper Agent** (delegate_to_webscraper): For fetching URLs, extracting text/links/metadata from webpages
 5. **Codebase Agent** (delegate_to_codebase): For code analysis and retrieval
+6. **Frontend Agent** (delegate_to_frontend): For UI customization (theme, colors, fonts, styling)
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
 - For email drafting or sending → delegate_to_email
 - For fetching web content, scraping URLs, extracting page info → delegate_to_webscraper
 - For codebase analysis or retrieval → delegate_to_codebase
+- For UI/theme/color/font/styling changes → delegate_to_frontend
 - For general knowledge questions → answer directly without tools
 
 IMPORTANT:
