@@ -12,12 +12,13 @@ import {
     CommandList,
     CommandSeparator,
 } from "@/components/ui/command";
-import { LayoutDashboard, MessageSquare, Search } from "lucide-react";
+import { LayoutDashboard, MessageSquare } from "lucide-react";
+import { useCommandPalette } from "@/hooks/use-command-palette";
 import { getChatHistoryPaginationKey, type ChatHistory } from "@/components/sidebar-history";
 import { fetcher } from "@/lib/utils";
 
 export function CommandPalette() {
-    const [open, setOpen] = useState(false);
+    const { open, setOpen } = useCommandPalette();
     const router = useRouter();
     const pathname = usePathname();
     const params = useParams();

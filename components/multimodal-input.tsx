@@ -470,7 +470,7 @@ function PureModelSelectorCompact({
   useEffect(() => {
     async function fetchPreferences() {
       try {
-        const response = await fetch("/api/dashboard/preferences");
+        const response = await fetch("/api/user_dashboard/preferences");
         if (response.ok) {
           const data = await response.json();
           const disabled = new Set<string>();

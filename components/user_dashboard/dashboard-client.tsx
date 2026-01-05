@@ -1,11 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { StatsOverview } from "./stats-overview";
 import { UsageCharts } from "./usage-charts";
 import { AgentToggles } from "./agent-toggles";
 import { RecentActivity } from "./recent-activity";
 import type { AgentPreference } from "@/lib/db/schema";
+import { Button } from "@/components/ui/button";
+import { MessageSquare } from "lucide-react";
 
 interface DashboardAnalytics {
   summary: {
@@ -55,6 +58,8 @@ export function DashboardClient({
   analytics,
   preferences,
 }: DashboardClientProps) {
+  const router = useRouter();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <div className="container mx-auto max-w-6xl px-4 py-8">
@@ -65,11 +70,24 @@ export function DashboardClient({
           className="space-y-8"
         >
           {/* Header */}
-          <motion.div variants={itemVariants}>
-            <h1 className="text-3xl font-bold tracking-tight">User Dashboard</h1>
-            <p className="text-muted-foreground">
-              Monitor your usage and configure your AI agents
-            </p>
+          <motion.div
+            variants={itemVariants}
+            className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">User Dashboard</h1>
+              <p className="text-muted-foreground">
+                Monitor your usage and configure your AI agents
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="w-fit"
+              onClick={() => router.back()}
+            >
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Back to Chat
+            </Button>
           </motion.div>
 
           {/* Stats Overview */}
