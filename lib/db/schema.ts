@@ -176,6 +176,29 @@ export const stream = pgTable(
 export type Stream = InferSelectModel<typeof stream>;
 
 // ============================================================================
+// User Dashboard - Agent preferences
+// ============================================================================
+
+export const agentPreference = pgTable(
+  "AgentPreference",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("userId")
+      .notNull()
+      .references(() => user.id),
+    agentId: varchar("agentId", { length: 64 }).notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    userAgentIdx: index("user_agent_idx").on(table.userId, table.agentId),
+  })
+);
+
+export type AgentPreference = InferSelectModel<typeof agentPreference>;
+
+// ============================================================================
 // CodebaseAgent RAG - Vector embeddings for code chunks
 // ============================================================================
 

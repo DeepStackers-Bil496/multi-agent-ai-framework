@@ -64,6 +64,13 @@
       "when": 1767523694316,
       "tag": "0008_sweet_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1767616273904,
+      "tag": "0009_many_spot",
+      "breakpoints": true
     }
   ]
 }

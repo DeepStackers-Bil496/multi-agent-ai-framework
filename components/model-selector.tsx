@@ -1,7 +1,7 @@
 "use client";
 
 import type { Session } from "next-auth";
-import { startTransition, useMemo, useOptimistic, useState } from "react";
+import { startTransition, useEffect, useMemo, useOptimistic, useState } from "react";
 import { saveChatModelAsCookie } from "@/app/(chat)/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,11 @@ import { chatModels } from "@/lib/ai/models";
 import { cn } from "@/lib/utils";
 import { CheckCircleFillIcon, ChevronDownIcon } from "./icons";
 
+interface AgentPreference {
+  agentId: string;
+  enabled: boolean;
+}
+
 export function ModelSelector({
   session,
   selectedModelId,
@@ -26,13 +31,48 @@ export function ModelSelector({
   const [open, setOpen] = useState(false);
   const [optimisticModelId, setOptimisticModelId] =
     useOptimistic(selectedModelId);
+  const [disabledAgents, setDisabledAgents] = useState<Set<string>>(new Set());
 
   const userType = session.user.type;
   const { availableChatModelIds } = entitlementsByUserType[userType];
 
-  const availableChatModels = chatModels.filter((chatModel) =>
-    availableChatModelIds.includes(chatModel.id)
-  );
+  // Fetch user's agent preferences
+  useEffect(() => {
+    async function fetchPreferences() {
+      try {
+        const response = await fetch("/api/dashboard/preferences");
+        if (response.ok) {
+          const data = await response.json();
+          const disabled = new Set<string>();
+          for (const pref of data.preferences as AgentPreference[]) {
+            if (!pref.enabled) {
+              disabled.add(pref.agentId);
+            }
+          }
+          setDisabledAgents(disabled);
+        }
+      } catch {
+        // Silently fail - show all agents if preferences can't be fetched
+      }
+    }
+    fetchPreferences();
+  }, []);
+
+  // Filter chat models by entitlements and user preferences
+  const availableChatModels = useMemo(() => {
+    return chatModels.filter((chatModel) => {
+      // Must be in entitlements
+      if (!availableChatModelIds.includes(chatModel.id)) {
+        return false;
+      }
+      // MainAgent is always available
+      if (chatModel.id === "main-agent") {
+        return true;
+      }
+      // Filter out disabled agents
+      return !disabledAgents.has(chatModel.id);
+    });
+  }, [availableChatModelIds, disabledAgents]);
 
   const selectedChatModel = useMemo(
     () =>
@@ -41,6 +81,19 @@ export function ModelSelector({
       ),
     [optimisticModelId, availableChatModels]
   );
+
+  // If selected model is now disabled, fall back to main-agent
+  useEffect(() => {
+    if (!selectedChatModel && availableChatModels.length > 0) {
+      const mainAgent = availableChatModels.find((m) => m.id === "main-agent");
+      if (mainAgent) {
+        startTransition(() => {
+          setOptimisticModelId(mainAgent.id);
+          saveChatModelAsCookie(mainAgent.id);
+        });
+      }
+    }
+  }, [selectedChatModel, availableChatModels, setOptimisticModelId]);
 
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
@@ -56,7 +109,7 @@ export function ModelSelector({
           data-testid="model-selector"
           variant="outline"
         >
-          {selectedChatModel?.name}
+          {selectedChatModel?.name ?? "Select Agent"}
           <ChevronDownIcon />
         </Button>
       </DropdownMenuTrigger>

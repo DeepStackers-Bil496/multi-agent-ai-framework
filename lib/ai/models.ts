@@ -1,3 +1,5 @@
+import { agentUserMetadataList } from "@/lib/agents/user_metadata";
+
 export const DEFAULT_CHAT_MODEL: string = "main-agent";
 
 export type ChatModel = {
@@ -6,16 +8,17 @@ export type ChatModel = {
   description: string;
 };
 
-export const chatModels: ChatModel[] = [
-  {
-    id: "chat-model",
-    name: "Grok Vision",
-    description: "Advanced multimodal model with vision and text capabilities",
-  },
-  {
-    id: "chat-model-reasoning",
-    name: "Grok Reasoning",
-    description:
-      "Uses advanced chain-of-thought reasoning for complex problems",
-  },
-];
+/**
+ * Chat models derived from agent metadata.
+ * This ensures the model selector stays in sync with registered agents.
+ */
+export const chatModels: ChatModel[] = agentUserMetadataList.map((agent) => ({
+  id: agent.id,
+  name: agent.name,
+  description: agent.short_description,
+}));
+
+/**
+ * Get all agent IDs for schema validation
+ */
+export const agentIds = agentUserMetadataList.map((agent) => agent.id);
