@@ -26,11 +26,10 @@ const codebaseAgentUserMetadata: AgentUserMetadata = {
 
 const codebaseAgentImplementationMetadata: LLMImplMetadata = {
     type: API_MODEL_TYPE,
-    provider: "ollama",
-    modelID: "qwen2.5:14b",
+    provider: "google",
+    modelID: "gemini-2.5-flash",
     systemInstruction: codebaseAgentSystemPrompt,
-    apiKey: "",
-    baseURL: "https://fed650d55208.ngrok-free.app",
+    apiKey: process.env.GEMINI_API_KEY,
 };
 
 export const CodebaseAgentConfig: AgentConfig<LLMImplMetadata> = {
