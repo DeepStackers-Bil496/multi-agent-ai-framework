@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { DataStreamProvider } from "@/components/data-stream-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { auth } from "../(auth)/auth";
+import { CommandPalette } from "@/components/command-palette";
 
 export const experimental_ppr = true;
 
@@ -24,7 +25,10 @@ export default async function Layout({
       <DataStreamProvider>
         <SidebarProvider defaultOpen={!isCollapsed}>
           <AppSidebar user={session?.user} />
-          <SidebarInset>{children}</SidebarInset>
+          <SidebarInset>
+            {children}
+            <CommandPalette />
+          </SidebarInset>
         </SidebarProvider>
       </DataStreamProvider>
     </>

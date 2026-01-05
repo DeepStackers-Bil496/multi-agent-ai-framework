@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/app/(auth)/auth";
 import { getDashboardAnalytics, getAgentPreferences } from "@/lib/db/queries";
-import { DashboardClient } from "@/components/dashboard/dashboard-client";
+import { DashboardClient } from "@/components/user_dashboard/dashboard-client";
 
 export default async function DashboardPage() {
   const session = await auth();

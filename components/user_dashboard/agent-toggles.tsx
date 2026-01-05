@@ -47,7 +47,7 @@ export function AgentToggles({ preferences: initialPreferences }: AgentTogglesPr
     });
 
     try {
-      const response = await fetch("/api/dashboard/preferences", {
+      const response = await fetch("/api/user_dashboard/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agentId, enabled }),

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, MessagesSquare, Coins } from "lucide-react";
+import { MessageSquare, MessagesSquare } from "lucide-react";
 import {
   GlassCard,
   GlassCardContent,
@@ -34,17 +34,10 @@ export function StatsOverview({ summary }: StatsOverviewProps) {
       color: "text-green-500",
       bgColor: "bg-green-500/10",
     },
-    {
-      title: "Tokens Used",
-      value: formatNumber(summary.totalTokens),
-      icon: Coins,
-      color: "text-amber-500",
-      bgColor: "bg-amber-500/10",
-    },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-2">
       {stats.map((stat) => (
         <GlassCard key={stat.title} intensity="medium">
           <GlassCardHeader className="flex flex-row items-center justify-between pb-2">

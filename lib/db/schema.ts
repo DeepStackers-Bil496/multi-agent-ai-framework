@@ -35,7 +35,9 @@ export const chat = pgTable("Chat", {
     .notNull()
     .default("private"),
   lastContext: jsonb("lastContext").$type<AppUsage | null>(),
-});
+}, (table) => ({
+  userIdIdx: index("chat_userId_idx").on(table.userId),
+}));
 
 export type Chat = InferSelectModel<typeof chat>;
 
@@ -62,7 +64,10 @@ export const message = pgTable("Message_v2", {
   parts: json("parts").notNull(),
   attachments: json("attachments").notNull(),
   createdAt: timestamp("createdAt").notNull(),
-});
+}, (table) => ({
+  chatIdIdx: index("message_chatId_idx").on(table.chatId),
+  createdAtIdx: index("message_createdAt_idx").on(table.createdAt),
+}));
 
 export type DBMessage = InferSelectModel<typeof message>;
 

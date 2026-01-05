@@ -66,7 +66,7 @@ export function DashboardClient({
         >
           {/* Header */}
           <motion.div variants={itemVariants}>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">User Dashboard</h1>
             <p className="text-muted-foreground">
               Monitor your usage and configure your AI agents
             </p>

@@ -76,24 +76,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
               <div className="flex flex-row gap-1">
                 {user && (
                   <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          className="h-8 p-1 md:h-fit md:p-2"
-                          onClick={() => {
-                            setOpenMobile(false);
-                            router.push("/dashboard");
-                          }}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <LayoutDashboard className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent align="end" className="hidden md:block">
-                        Dashboard
-                      </TooltipContent>
-                    </Tooltip>
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
