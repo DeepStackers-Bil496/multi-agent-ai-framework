@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useParams } from "next/navigation";
+import useSWRInfinite from "swr/infinite";
 import {
     CommandDialog,
     CommandEmpty,
@@ -12,11 +13,22 @@ import {
     CommandSeparator,
 } from "@/components/ui/command";
 import { LayoutDashboard, MessageSquare, Search } from "lucide-react";
+import { getChatHistoryPaginationKey, type ChatHistory } from "@/components/sidebar-history";
+import { fetcher } from "@/lib/utils";
 
 export function CommandPalette() {
     const [open, setOpen] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
+    const params = useParams();
+
+    const { data: history } = useSWRInfinite<ChatHistory>(
+        getChatHistoryPaginationKey,
+        fetcher,
+        {
+            fallbackData: [],
+        }
+    );
 
     useEffect(() => {
         const down = (e: KeyboardEvent) => {
@@ -36,10 +48,18 @@ export function CommandPalette() {
     };
 
     const handleContinueChat = () => {
-        if (pathname.includes("/user_dashboard")) {
-            router.back();
-        } else {
+        if (params.id) {
             setOpen(false);
+            return;
+        }
+
+        const chats = history?.flatMap((page) => page.chats) || [];
+        const latestChat = chats[0];
+
+        if (latestChat) {
+            router.push(`/chat/${latestChat.id}`);
+        } else {
+            router.push("/");
         }
     };
 
