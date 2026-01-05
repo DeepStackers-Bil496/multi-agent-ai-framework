@@ -49,3 +49,9 @@ yarn-error.log*
 
 # cursor
 .cursor/
+
+# github actions
+.github/
+
+# claude
+.claude
