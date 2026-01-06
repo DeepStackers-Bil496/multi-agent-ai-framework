@@ -90,12 +90,6 @@ export function CommandPalette() {
                 <CommandSeparator />
                 <CommandGroup heading="Dashboards">
                     <CommandItem
-                        onSelect={() => runCommand(() => router.push("/user_dashboard"))}
-                    >
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        <span>User Dashboard</span>
-                    </CommandItem>
-                    <CommandItem
                         onSelect={() => runCommand(() => router.push("/agents_dashboard"))}
                     >
                         <Bot className="mr-2 h-4 w-4" />
