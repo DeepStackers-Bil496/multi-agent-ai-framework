@@ -31,6 +31,8 @@ import {
   vote,
   agentPreference,
   type AgentPreference,
+  userProfile,
+  type UserProfile,
 } from "./schema";
 import { generateHashedPassword } from "./utils";
 import { drizzle } from "drizzle-orm/neon-serverless";
@@ -742,6 +744,100 @@ export async function getDashboardAnalytics({ userId }: { userId: string }) {
     throw new ChatSDKError(
       "bad_request:database",
       "Failed to get dashboard analytics"
+    );
+  }
+}
+
+// ============================================================================
+// User Profile - Settings
+// ============================================================================
+
+export async function getUserProfile({
+  userId,
+}: {
+  userId: string;
+}): Promise<UserProfile | null> {
+  try {
+    const [profile] = await db
+      .select()
+      .from(userProfile)
+      .where(eq(userProfile.userId, userId));
+
+    return profile || null;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get user profile"
+    );
+  }
+}
+
+export async function upsertUserProfile({
+  userId,
+  fullName,
+  nickname,
+  workType,
+  personalPreferences,
+  notifyResponseCompletions,
+  notifyEmails,
+}: {
+  userId: string;
+  fullName?: string | null;
+  nickname?: string | null;
+  workType?: string | null;
+  personalPreferences?: string | null;
+  notifyResponseCompletions?: boolean;
+  notifyEmails?: boolean;
+}): Promise<UserProfile> {
+  try {
+    const existing = await db
+      .select()
+      .from(userProfile)
+      .where(eq(userProfile.userId, userId));
+
+    if (existing.length > 0) {
+      const updateData: Partial<UserProfile> = {
+        updatedAt: new Date(),
+      };
+
+      if (fullName !== undefined) updateData.fullName = fullName;
+      if (nickname !== undefined) updateData.nickname = nickname;
+      if (workType !== undefined) updateData.workType = workType;
+      if (personalPreferences !== undefined)
+        updateData.personalPreferences = personalPreferences;
+      if (notifyResponseCompletions !== undefined)
+        updateData.notifyResponseCompletions = notifyResponseCompletions;
+      if (notifyEmails !== undefined) updateData.notifyEmails = notifyEmails;
+
+      const [updated] = await db
+        .update(userProfile)
+        .set(updateData)
+        .where(eq(userProfile.userId, userId))
+        .returning();
+
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(userProfile)
+      .values({
+        userId,
+        fullName: fullName ?? null,
+        nickname: nickname ?? null,
+        workType: workType ?? null,
+        personalPreferences: personalPreferences ?? null,
+        notifyResponseCompletions: notifyResponseCompletions ?? true,
+        notifyEmails: notifyEmails ?? false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    return created;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to upsert user profile"
     );
   }
 }

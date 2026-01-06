@@ -237,3 +237,33 @@ export const codebaseEmbedding = pgTable(
 );
 
 export type CodebaseEmbedding = InferSelectModel<typeof codebaseEmbedding>;
+
+// ============================================================================
+// User Profile - Settings and preferences
+// ============================================================================
+
+export const userProfile = pgTable(
+  "UserProfile",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("userId")
+      .notNull()
+      .references(() => user.id)
+      .unique(),
+    fullName: varchar("fullName", { length: 128 }),
+    nickname: varchar("nickname", { length: 64 }),
+    workType: varchar("workType", { length: 32 }),
+    personalPreferences: text("personalPreferences"),
+    notifyResponseCompletions: boolean("notifyResponseCompletions")
+      .notNull()
+      .default(true),
+    notifyEmails: boolean("notifyEmails").notNull().default(false),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index("user_profile_userId_idx").on(table.userId),
+  })
+);
+
+export type UserProfile = InferSelectModel<typeof userProfile>;

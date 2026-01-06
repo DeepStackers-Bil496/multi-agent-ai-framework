@@ -11,8 +11,9 @@ import {
     CommandItem,
     CommandList,
     CommandSeparator,
+    CommandShortcut,
 } from "@/components/ui/command";
-import { LayoutDashboard, MessageSquare, Bot } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Bot, Settings } from "lucide-react";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import { getChatHistoryPaginationKey, type ChatHistory } from "@/components/sidebar-history";
 import { fetcher } from "@/lib/utils";
@@ -33,15 +34,21 @@ export function CommandPalette() {
 
     useEffect(() => {
         const down = (e: KeyboardEvent) => {
+            // Command palette: Cmd/Ctrl + Alt + K
             if (e.key === "k" && (e.metaKey || e.ctrlKey) && e.altKey) {
                 e.preventDefault();
                 setOpen((open) => !open);
+            }
+            // Settings shortcut: Cmd/Ctrl + ,
+            if (e.key === "," && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                router.push("/settings");
             }
         };
 
         document.addEventListener("keydown", down);
         return () => document.removeEventListener("keydown", down);
-    }, []);
+    }, [router, setOpen]);
 
     const runCommand = (command: () => void) => {
         setOpen(false);
@@ -73,6 +80,11 @@ export function CommandPalette() {
                     <CommandItem onSelect={() => runCommand(handleContinueChat)}>
                         <MessageSquare className="mr-2 h-4 w-4" />
                         <span>Continue Chat</span>
+                    </CommandItem>
+                    <CommandItem onSelect={() => runCommand(() => router.push("/settings"))}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                        <CommandShortcut>⌘,</CommandShortcut>
                     </CommandItem>
                 </CommandGroup>
                 <CommandSeparator />

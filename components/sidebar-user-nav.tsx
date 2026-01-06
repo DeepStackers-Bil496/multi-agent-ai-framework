@@ -1,17 +1,23 @@
 "use client";
 
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, Settings, Globe, HelpCircle, BookOpen, LogOut, LogIn } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { User } from "next-auth";
 import { signOut, useSession } from "next-auth/react";
-import { useTheme } from "next-themes";
+import useSWR from "swr";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
@@ -19,15 +25,34 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { guestRegex } from "@/lib/constants";
+import { fetcher } from "@/lib/utils";
 import { LoaderIcon } from "./icons";
 import { toast } from "./toast";
 
+interface ProfileData {
+  profile: {
+    fullName: string | null;
+    nickname: string | null;
+  } | null;
+}
+
 export function SidebarUserNav({ user }: { user: User }) {
   const router = useRouter();
-  const { data, status } = useSession();
-  const { setTheme, resolvedTheme } = useTheme();
+  const { data: sessionData, status } = useSession();
+  const { data: profileData } = useSWR<ProfileData>(
+    "/api/settings/profile",
+    fetcher
+  );
 
-  const isGuest = guestRegex.test(data?.user?.email ?? "");
+  const isGuest = guestRegex.test(sessionData?.user?.email ?? "");
+
+  // Display name priority: fullName > nickname > "Guest" > email
+  const displayName = isGuest
+    ? "Guest"
+    : profileData?.profile?.fullName ||
+      profileData?.profile?.nickname ||
+      user?.email?.split("@")[0] ||
+      "User";
 
   return (
     <SidebarMenu>
@@ -48,7 +73,7 @@ export function SidebarUserNav({ user }: { user: User }) {
               </SidebarMenuButton>
             ) : (
               <SidebarMenuButton
-                className="h-10 bg-background data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                className="h-10 bg-background hover:bg-muted data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 data-testid="user-nav-button"
               >
                 <Image
@@ -58,54 +83,131 @@ export function SidebarUserNav({ user }: { user: User }) {
                   src={`https://avatar.vercel.sh/${user.email}`}
                   width={24}
                 />
-                <span className="truncate" data-testid="user-email">
-                  {isGuest ? "Guest" : user?.email}
+                <span className="truncate font-medium" data-testid="user-email">
+                  {displayName}
                 </span>
-                <ChevronUp className="ml-auto" />
+                <ChevronUp className="ml-auto h-4 w-4" />
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-popper-anchor-width)"
+            className="w-64"
             data-testid="user-nav-menu"
             side="top"
+            align="start"
           >
+            {/* Email Label */}
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-sm text-muted-foreground truncate">
+                {isGuest ? "Guest Account" : user?.email}
+              </p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+
+            {/* General Section */}
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                data-testid="user-nav-item-settings"
+                onSelect={() => router.push("/settings")}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+                <DropdownMenuShortcut>⌘,</DropdownMenuShortcut>
+              </DropdownMenuItem>
+
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="cursor-pointer">
+                  <Globe className="mr-2 h-4 w-4" />
+                  Language
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem className="cursor-pointer" disabled>
+                    English (Default)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer text-muted-foreground" disabled>
+                    More languages coming soon
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onSelect={() => window.open("https://github.com/DeepStackers-Bil496/multi-agent-ai-framework", "_blank")}
+              >
+                <HelpCircle className="mr-2 h-4 w-4" />
+                Get help
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+
+            <DropdownMenuSeparator />
+
+            {/* Subscription/Learn More Section */}
+            <DropdownMenuGroup>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="cursor-pointer">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Learn more
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={() => window.open("https://github.com/DeepStackers-Bil496/multi-agent-ai-framework#readme", "_blank")}
+                  >
+                    Documentation
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={() => router.push("/agents_dashboard")}
+                  >
+                    Agents Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={() => router.push("/user_dashboard")}
+                  >
+                    Usage Dashboard
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuGroup>
+
+            <DropdownMenuSeparator />
+
+            {/* Auth Section */}
             <DropdownMenuItem
               className="cursor-pointer"
-              data-testid="user-nav-item-theme"
-              onSelect={() =>
-                setTheme(resolvedTheme === "dark" ? "light" : "dark")
-              }
+              data-testid="user-nav-item-auth"
+              onSelect={() => {
+                if (status === "loading") {
+                  toast({
+                    type: "error",
+                    description:
+                      "Checking authentication status, please try again!",
+                  });
+                  return;
+                }
+
+                if (isGuest) {
+                  router.push("/login");
+                } else {
+                  signOut({
+                    redirectTo: "/",
+                  });
+                }
+              }}
             >
-              {`Toggle ${resolvedTheme === "light" ? "dark" : "light"} mode`}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild data-testid="user-nav-item-auth">
-              <button
-                className="w-full cursor-pointer"
-                onClick={() => {
-                  if (status === "loading") {
-                    toast({
-                      type: "error",
-                      description:
-                        "Checking authentication status, please try again!",
-                    });
-
-                    return;
-                  }
-
-                  if (isGuest) {
-                    router.push("/login");
-                  } else {
-                    signOut({
-                      redirectTo: "/",
-                    });
-                  }
-                }}
-                type="button"
-              >
-                {isGuest ? "Login to your account" : "Sign out"}
-              </button>
+              {isGuest ? (
+                <>
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Login to your account
+                </>
+              ) : (
+                <>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </>
+              )}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
