@@ -5,6 +5,7 @@ import { WebAgentConfig } from "./webAgent/config";
 import { EmailAgentConfig } from "./emailAgent/config";
 import { CodebaseAgentConfig } from "./codebaseAgent/config";
 import { FrontendAgentConfig } from "./frontendAgent/config";
+import { CalendarAgentConfig } from "./calendarAgent/config";
 
 /**
  * Static list of agent metadata used by the UI.
@@ -18,4 +19,5 @@ export const agentUserMetadataList: AgentUserMetadata[] = [
     WebAgentConfig.user_metadata,
     CodebaseAgentConfig.user_metadata,
     FrontendAgentConfig.user_metadata,
+    CalendarAgentConfig.user_metadata,
 ];
