@@ -15,6 +15,7 @@ import "../webAgent/webAgent";
 import "../emailAgent/emailAgent";
 import "../codebaseAgent/codebaseAgent";
 import "../frontendAgent/frontendAgent";
+import "../calendarAgent/calendarAgent";
 
 class MainAgent extends BaseAgent<LLMImplMetadata> {
 

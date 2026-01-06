@@ -7,6 +7,7 @@ AVAILABLE SUB-AGENTS:
 4. **Web Scraper Agent** (delegate_to_webscraper): For fetching URLs, extracting text/links/metadata from webpages
 5. **Codebase Agent** (delegate_to_codebase): For code analysis and retrieval
 6. **Frontend Agent** (delegate_to_frontend): For UI customization (theme, colors, fonts, styling)
+7. **Calendar Agent** (delegate_to_calendar): For scheduling, calendar events, and availability
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
@@ -14,6 +15,7 @@ DELEGATION RULES:
 - For fetching web content, scraping URLs, extracting page info → delegate_to_webscraper
 - For codebase analysis or retrieval → delegate_to_codebase
 - For UI/theme/color/font/styling changes → delegate_to_frontend
+- For calendar scheduling or event management → delegate_to_calendar
 - For general knowledge questions → answer directly without tools
 
 IMPORTANT:
