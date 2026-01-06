@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo } from "react";
 import { useWindowSize } from "usehooks-ts";
@@ -8,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { PlusIcon } from "./icons";
 import { useSidebar } from "./ui/sidebar";
 import { VisibilitySelector, type VisibilityType } from "./visibility-selector";
-import { Command } from "lucide-react";
+import { Command, Settings } from "lucide-react";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
 
 function PureChatHeader({
   chatId,
@@ -68,6 +70,22 @@ function PureChatHeader({
         />
       )}
 
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            className="order-3 h-8 px-2 md:h-fit md:px-2"
+            asChild
+          >
+            <Link href="/settings">
+              <Settings className="h-4 w-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent align="end" className="hidden md:block">
+          Settings
+        </TooltipContent>
+      </Tooltip>
 
     </header>
   );
