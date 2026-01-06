@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { PlusIcon } from "./icons";
 import { useSidebar } from "./ui/sidebar";
 import { VisibilitySelector, type VisibilityType } from "./visibility-selector";
+import { Command } from "lucide-react";
+import { useCommandPalette } from "@/hooks/use-command-palette";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 function PureChatHeader({
   chatId,
@@ -20,12 +23,28 @@ function PureChatHeader({
 }) {
   const router = useRouter();
   const { open } = useSidebar();
+  const { toggle } = useCommandPalette();
 
   const { width: windowWidth } = useWindowSize();
 
   return (
     <header className="sticky top-0 flex items-center gap-2 bg-background px-2 py-1.5 md:px-2">
       <SidebarToggle />
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-8 px-2 md:h-fit md:px-2"
+            onClick={() => toggle()}
+          >
+            <Command className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent align="start" className="hidden md:block">
+          Search or commands
+        </TooltipContent>
+      </Tooltip>
 
       {(!open || windowWidth < 768) && (
         <Button

@@ -447,6 +447,11 @@ function PureAttachmentsButton({
 
 const AttachmentsButton = memo(PureAttachmentsButton);
 
+interface AgentPreference {
+  agentId: string;
+  enabled: boolean;
+}
+
 function PureModelSelectorCompact({
   selectedModelId,
   onModelChange,
@@ -455,19 +460,68 @@ function PureModelSelectorCompact({
   onModelChange?: (modelId: string) => void;
 }) {
   const [optimisticModelId, setOptimisticModelId] = useState(selectedModelId);
+  const [disabledAgents, setDisabledAgents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setOptimisticModelId(selectedModelId);
   }, [selectedModelId]);
 
-  const selectedModel = agentUserMetadataList.find(
+  // Fetch user's agent preferences
+  useEffect(() => {
+    async function fetchPreferences() {
+      try {
+        const response = await fetch("/api/user_dashboard/preferences");
+        if (response.ok) {
+          const data = await response.json();
+          const disabled = new Set<string>();
+          for (const pref of data.preferences as AgentPreference[]) {
+            if (!pref.enabled) {
+              disabled.add(pref.agentId);
+            }
+          }
+          setDisabledAgents(disabled);
+        }
+      } catch {
+        // Silently fail - show all agents if preferences can't be fetched
+      }
+    }
+    fetchPreferences();
+  }, []);
+
+  // Filter agents by user preferences
+  const availableAgents = useMemo(() => {
+    return agentUserMetadataList.filter((agent) => {
+      // MainAgent is always available
+      if (agent.id === "main-agent") {
+        return true;
+      }
+      // Filter out disabled agents
+      return !disabledAgents.has(agent.id);
+    });
+  }, [disabledAgents]);
+
+  const selectedModel = availableAgents.find(
     (agentUserMetadata) => agentUserMetadata.id === optimisticModelId
   );
+
+  // If selected model is disabled, fall back to main-agent
+  useEffect(() => {
+    if (!selectedModel && availableAgents.length > 0) {
+      const mainAgent = availableAgents.find((m) => m.id === "main-agent");
+      if (mainAgent) {
+        setOptimisticModelId(mainAgent.id);
+        onModelChange?.(mainAgent.id);
+        startTransition(() => {
+          saveChatModelAsCookie(mainAgent.id);
+        });
+      }
+    }
+  }, [selectedModel, availableAgents, onModelChange]);
 
   return (
     <PromptInputModelSelect
       onValueChange={(modelName) => {
-        const agentUserMetadata = agentUserMetadataList.find((m) => m.name === modelName);
+        const agentUserMetadata = availableAgents.find((m) => m.name === modelName);
         if (agentUserMetadata) {
           setOptimisticModelId(agentUserMetadata.id);
           onModelChange?.(agentUserMetadata.id);
@@ -486,14 +540,14 @@ function PureModelSelectorCompact({
             <CpuIcon size={16} />
           )}
           <span className="hidden font-medium text-xs sm:block">
-            {selectedModel?.name}
+            {selectedModel?.name ?? "Select Agent"}
           </span>
           <ChevronDownIcon size={16} />
         </Button>
       </Trigger>
       <PromptInputModelSelectContent className="min-w-[260px] p-0">
         <div className="flex flex-col gap-px">
-          {agentUserMetadataList.map((agentUserMetadata) => (
+          {availableAgents.map((agentUserMetadata) => (
             <SelectItem key={agentUserMetadata.id} value={agentUserMetadata.name}>
               <div className="flex items-center gap-2">
                 {agentUserMetadata.icon && <agentUserMetadata.icon size={14} className="text-muted-foreground" />}

@@ -29,6 +29,8 @@ import {
   type User,
   user,
   vote,
+  agentPreference,
+  type AgentPreference,
 } from "./schema";
 import { generateHashedPassword } from "./utils";
 import { drizzle } from "drizzle-orm/neon-serverless";
@@ -583,6 +585,163 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
     throw new ChatSDKError(
       "bad_request:database",
       "Failed to get stream ids by chat id"
+    );
+  }
+}
+
+// ============================================================================
+// Dashboard - Agent Preferences
+// ============================================================================
+
+export async function getAgentPreferences({
+  userId,
+}: {
+  userId: string;
+}): Promise<AgentPreference[]> {
+  try {
+    return await db
+      .select()
+      .from(agentPreference)
+      .where(eq(agentPreference.userId, userId));
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get agent preferences"
+    );
+  }
+}
+
+export async function upsertAgentPreference({
+  userId,
+  agentId,
+  enabled,
+}: {
+  userId: string;
+  agentId: string;
+  enabled: boolean;
+}) {
+  try {
+    const existing = await db
+      .select()
+      .from(agentPreference)
+      .where(
+        and(
+          eq(agentPreference.userId, userId),
+          eq(agentPreference.agentId, agentId)
+        )
+      );
+
+    if (existing.length > 0) {
+      return await db
+        .update(agentPreference)
+        .set({ enabled, updatedAt: new Date() })
+        .where(
+          and(
+            eq(agentPreference.userId, userId),
+            eq(agentPreference.agentId, agentId)
+          )
+        );
+    }
+
+    return await db.insert(agentPreference).values({
+      userId,
+      agentId,
+      enabled,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to upsert agent preference"
+    );
+  }
+}
+
+// ============================================================================
+// Dashboard - Analytics
+// ============================================================================
+
+export async function getDashboardAnalytics({ userId }: { userId: string }) {
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Get total chats count
+    const [chatStats] = await db
+      .select({ count: count(chat.id) })
+      .from(chat)
+      .where(eq(chat.userId, userId));
+
+    // Get total messages count
+    const [messageStats] = await db
+      .select({ count: count(message.id) })
+      .from(message)
+      .innerJoin(chat, eq(message.chatId, chat.id))
+      .where(eq(chat.userId, userId));
+
+    // Get recent chats (last 30 days)
+    const recentChats = await db
+      .select({
+        id: chat.id,
+        title: chat.title,
+        createdAt: chat.createdAt,
+        lastContext: chat.lastContext,
+      })
+      .from(chat)
+      .where(and(eq(chat.userId, userId), gte(chat.createdAt, thirtyDaysAgo)))
+      .orderBy(desc(chat.createdAt))
+      .limit(10);
+
+    // Get messages per day for the last 30 days
+    const messagesPerDay = await db
+      .select({
+        date: message.createdAt,
+        count: count(message.id),
+      })
+      .from(message)
+      .innerJoin(chat, eq(message.chatId, chat.id))
+      .where(and(eq(chat.userId, userId), gte(message.createdAt, thirtyDaysAgo)))
+      .groupBy(message.createdAt)
+      .orderBy(asc(message.createdAt));
+
+    // Aggregate messages by date
+    const messagesByDate = new Map<string, number>();
+    for (const row of messagesPerDay) {
+      const dateKey = row.date.toISOString().split("T")[0];
+      messagesByDate.set(dateKey, (messagesByDate.get(dateKey) || 0) + row.count);
+    }
+
+    // Calculate total tokens from lastContext
+    let totalTokens = 0;
+    for (const chatItem of recentChats) {
+      const context = chatItem.lastContext as AppUsage | null;
+      if (context?.totalTokens) {
+        totalTokens += context.totalTokens;
+      }
+    }
+
+    return {
+      summary: {
+        totalChats: chatStats?.count ?? 0,
+        totalMessages: messageStats?.count ?? 0,
+        totalTokens,
+      },
+      recentChats: recentChats.map((c) => ({
+        id: c.id,
+        title: c.title,
+        createdAt: c.createdAt.toISOString(),
+      })),
+      messagesPerDay: Array.from(messagesByDate.entries()).map(
+        ([date, msgCount]) => ({
+          date,
+          count: msgCount,
+        })
+      ),
+    };
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get dashboard analytics"
     );
   }
 }

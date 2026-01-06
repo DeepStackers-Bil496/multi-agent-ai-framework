@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { UIPreferencesProvider } from "@/hooks/use-ui-preferences";
+import { CommandPaletteProvider } from "@/hooks/use-command-palette";
 
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
@@ -80,8 +81,10 @@ export default function RootLayout({
           enableSystem
         >
           <UIPreferencesProvider>
-            <Toaster position="top-center" />
-            <SessionProvider>{children}</SessionProvider>
+            <CommandPaletteProvider>
+              <Toaster position="top-center" />
+              <SessionProvider>{children}</SessionProvider>
+            </CommandPaletteProvider>
           </UIPreferencesProvider>
         </ThemeProvider>
       </body>
