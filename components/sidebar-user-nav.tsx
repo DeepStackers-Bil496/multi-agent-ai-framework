@@ -50,9 +50,9 @@ export function SidebarUserNav({ user }: { user: User }) {
   const displayName = isGuest
     ? "Guest"
     : profileData?.profile?.fullName ||
-      profileData?.profile?.nickname ||
-      user?.email?.split("@")[0] ||
-      "User";
+    profileData?.profile?.nickname ||
+    user?.email?.split("@")[0] ||
+    "User";
 
   return (
     <SidebarMenu>
@@ -164,7 +164,7 @@ export function SidebarUserNav({ user }: { user: User }) {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="cursor-pointer"
-                    onSelect={() => router.push("/user_dashboard")}
+                    onSelect={() => router.push("/settings?tab=usage")}
                   >
                     Usage Dashboard
                   </DropdownMenuItem>
