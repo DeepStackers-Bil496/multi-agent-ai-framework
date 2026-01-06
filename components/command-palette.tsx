@@ -12,7 +12,7 @@ import {
     CommandList,
     CommandSeparator,
 } from "@/components/ui/command";
-import { LayoutDashboard, MessageSquare } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Bot } from "lucide-react";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import { getChatHistoryPaginationKey, type ChatHistory } from "@/components/sidebar-history";
 import { fetcher } from "@/lib/utils";
@@ -82,6 +82,12 @@ export function CommandPalette() {
                     >
                         <LayoutDashboard className="mr-2 h-4 w-4" />
                         <span>User Dashboard</span>
+                    </CommandItem>
+                    <CommandItem
+                        onSelect={() => runCommand(() => router.push("/agents_dashboard"))}
+                    >
+                        <Bot className="mr-2 h-4 w-4" />
+                        <span>Agents Dashboard</span>
                     </CommandItem>
                 </CommandGroup>
             </CommandList>
