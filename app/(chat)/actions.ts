@@ -1,10 +1,8 @@
 "use server";
 
-import { generateText, type UIMessage } from "ai";
+import { type UIMessage } from "ai";
 import { cookies } from "next/headers";
 import type { VisibilityType } from "@/components/visibility-selector";
-import { myProvider } from "@/lib/ai/providers";
-import { titlePrompt } from "@/lib/ai/prompts";
 import {
   deleteMessagesByChatIdAfterTimestamp,
   getMessageById,
@@ -22,15 +20,16 @@ export async function generateTitleFromUserMessage({
 }: {
   message: UIMessage;
 }) {
-  /*const { text: title } = await generateText({
-    model: myProvider.languageModel("title-model"),
-    system: titlePrompt,
-    prompt: getTextFromMessage(message),
-  });*/
-  /**
-   * TODO: Generate title from user message, here we are just returning a dummy title
-   */
-  return "title";
+  const text = getTextFromMessage(message).trim();
+  if (!text) return "New Chat";
+
+  // Clean up: remove multiple spaces, newlines, and limit length
+  const title = text
+    .split('\n')[0] // Take only the first line
+    .replace(/\s+/g, ' ') // Collapse whitespaces
+    .slice(0, 50); // Truncate to 50 chars
+
+  return title || "New Chat";
 }
 
 export async function deleteTrailingMessages({ id }: { id: string }) {
