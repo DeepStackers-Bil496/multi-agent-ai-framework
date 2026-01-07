@@ -8,6 +8,7 @@ import { FrontendAgentConfig } from "./frontendAgent/config";
 import { CalendarAgentConfig } from "./calendarAgent/config";
 import { DocumentAgentConfig } from "./documentAgent/config";
 import { HuggingFaceAgentConfig } from "./huggingFaceAgent/config";
+import { GoogleWorkspaceAgentConfig } from "./googleWorkspaceAgent/config";
 
 /**
  * Static list of agent metadata used by the UI.
@@ -24,4 +25,5 @@ export const agentUserMetadataList: AgentUserMetadata[] = [
     CalendarAgentConfig.user_metadata,
     DocumentAgentConfig.user_metadata,
     HuggingFaceAgentConfig.user_metadata,
+    GoogleWorkspaceAgentConfig.user_metadata,
 ];
