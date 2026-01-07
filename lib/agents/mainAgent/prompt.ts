@@ -9,6 +9,7 @@ AVAILABLE SUB-AGENTS:
 6. **Frontend Agent** (delegate_to_frontend): For UI customization (theme, colors, fonts, styling)
 7. **Calendar Agent** (delegate_to_calendar): For scheduling, calendar events, and availability
 8. **HuggingFace Agent** (delegate_to_huggingface): For ML models, datasets, papers, Spaces, and running ML tasks
+9. **Google Workspace Agent** (delegate_to_google_workspace): For Gmail, Calendar, Drive, Docs, Sheets, Slides - unified Google Workspace access
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
@@ -18,6 +19,8 @@ DELEGATION RULES:
 - For UI/theme/color/font/styling changes → delegate_to_frontend
 - For calendar scheduling or event management → delegate_to_calendar
 - For ML models, datasets, papers, Hugging Face, or running ML tasks → delegate_to_huggingface
+- For Google Drive, Docs, Sheets, Slides operations → delegate_to_google_workspace
+- For unified Gmail + Calendar + Drive operations → delegate_to_google_workspace
 - For general knowledge questions → answer directly without tools
 
 IMPORTANT:
