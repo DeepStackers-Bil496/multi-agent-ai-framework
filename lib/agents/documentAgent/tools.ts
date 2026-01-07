@@ -20,7 +20,7 @@ export function createSummarizeDocumentTool() {
         description: "Summarize a document into a concise set of sentences.",
         schema: z.object({
             content: z.string().min(1).describe("Document content to summarize"),
-            maxSentences: z.number().int().positive().optional().default(3).describe("Maximum number of sentences"),
+            maxSentences: z.number().int().min(1).optional().default(3).describe("Maximum number of sentences"),
         }),
         func: async ({ content, maxSentences }) => {
             const sentences = getSentences(content);
@@ -40,7 +40,7 @@ export function createExtractKeyPointsTool() {
         description: "Extract key points from a document as bullet points.",
         schema: z.object({
             content: z.string().min(1).describe("Document content to analyze"),
-            maxPoints: z.number().int().positive().optional().default(5).describe("Maximum number of key points"),
+            maxPoints: z.number().int().min(1).optional().default(5).describe("Maximum number of key points"),
         }),
         func: async ({ content, maxPoints }) => {
             const sentences = getSentences(content);

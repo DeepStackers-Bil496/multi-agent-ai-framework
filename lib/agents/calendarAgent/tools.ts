@@ -270,8 +270,8 @@ export function createFindFreeSlotsTool() {
         schema: z.object({
             timeMin: z.string().describe("ISO 8601 range start"),
             timeMax: z.string().describe("ISO 8601 range end"),
-            durationMinutes: z.number().int().positive().describe("Desired meeting length in minutes"),
-            maxSlots: z.number().int().positive().optional().default(5).describe("Maximum number of slots to return"),
+            durationMinutes: z.number().int().min(1).describe("Desired meeting length in minutes"),
+            maxSlots: z.number().int().min(1).optional().default(5).describe("Maximum number of slots to return"),
             timeZone: z.string().optional().describe("IANA timezone for results"),
         }),
         func: async ({ timeMin, timeMax, durationMinutes, maxSlots, timeZone }) => {
