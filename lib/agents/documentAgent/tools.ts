@@ -131,7 +131,8 @@ export function createConvertFormatTool() {
 
             if (fromFormat === "markdown" && toFormat === "plaintext") {
                 const stripped = content
-                    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+                    .replace(/```([\s\S]*?)```/g, "$1")
+                    .replace(/`([^`]+)`/g, "$1")
                     .replace(/[#*_>\-]+/g, " ")
                     .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
                     .replace(/\s+/g, " ")

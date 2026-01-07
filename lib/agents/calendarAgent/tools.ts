@@ -310,10 +310,19 @@ export function createFindFreeSlotsTool() {
                 const durationMs = durationMinutes * 60 * 1000;
 
                 for (const range of busyRanges) {
+                    if (range.start >= rangeEnd) {
+                        break;
+                    }
+
+                    if (cursor >= rangeEnd) {
+                        break;
+                    }
+
                     if (range.start > cursor) {
-                        const gap = range.start.getTime() - cursor.getTime();
+                        const gapEnd = range.start > rangeEnd ? rangeEnd : range.start;
+                        const gap = gapEnd.getTime() - cursor.getTime();
                         if (gap >= durationMs) {
-                            slots.push({ start: new Date(cursor), end: new Date(range.start) });
+                            slots.push({ start: new Date(cursor), end: new Date(gapEnd) });
                             if (slots.length >= (maxSlots ?? 5)) break;
                         }
                     }
