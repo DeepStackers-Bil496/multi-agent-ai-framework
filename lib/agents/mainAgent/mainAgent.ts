@@ -12,11 +12,8 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 // Import agents to trigger self-registration
 import "../githubAgent/githubAgent";
 import "../webAgent/webAgent";
-import "../emailAgent/emailAgent";
 import "../codebaseAgent/codebaseAgent";
 import "../frontendAgent/frontendAgent";
-import "../calendarAgent/calendarAgent";
-import "../documentAgent/documentAgent";
 import "../huggingFaceAgent/huggingFaceAgent";
 import "../googleWorkspaceAgent/googleWorkspaceAgent";
 
