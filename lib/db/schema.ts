@@ -267,3 +267,38 @@ export const userProfile = pgTable(
 );
 
 export type UserProfile = InferSelectModel<typeof userProfile>;
+
+// ============================================================================
+// User Tokens - Encrypted access tokens for external services
+// ============================================================================
+
+export const userToken = pgTable(
+  "UserToken",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("userId")
+      .notNull()
+      .references(() => user.id),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    // Encrypted tokens stored as base64-encoded strings
+    accessToken: text("accessToken").notNull(),
+    refreshToken: text("refreshToken"),
+    expiresAt: timestamp("expiresAt"),
+    // Scopes as JSON array: ["repo", "read:user", ...]
+    scopes: json("scopes").$type<string[]>().default([]),
+    // Provider-specific metadata: { username, avatar_url, ... }
+    metadata: json("metadata").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    // Composite unique index: one token per provider per user
+    userProviderIdx: index("user_token_user_provider_idx").on(
+      table.userId,
+      table.provider
+    ),
+    userIdIdx: index("user_token_userId_idx").on(table.userId),
+  })
+);
+
+export type UserToken = InferSelectModel<typeof userToken>;

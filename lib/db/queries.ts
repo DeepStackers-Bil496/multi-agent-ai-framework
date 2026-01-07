@@ -33,7 +33,10 @@ import {
   type AgentPreference,
   userProfile,
   type UserProfile,
+  userToken,
+  type UserToken,
 } from "./schema";
+import { encryptToken, decryptToken } from "./encryption";
 import { generateHashedPassword } from "./utils";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import pool from "./pool";
@@ -839,5 +842,225 @@ export async function upsertUserProfile({
       "bad_request:database",
       "Failed to upsert user profile"
     );
+  }
+}
+
+// ============================================================================
+// User Tokens - Encrypted access token management
+// ============================================================================
+
+export type TokenProvider = "github" | "google" | "custom";
+
+export interface SaveTokenParams {
+  userId: string;
+  provider: TokenProvider;
+  accessToken: string;
+  refreshToken?: string | null;
+  expiresAt?: Date | null;
+  scopes?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface TokenInfo {
+  id: string;
+  provider: TokenProvider;
+  scopes: string[];
+  metadata: Record<string, unknown>;
+  expiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  isExpired: boolean;
+}
+
+/**
+ * Save or update an encrypted token for a user
+ */
+export async function saveUserToken({
+  userId,
+  provider,
+  accessToken,
+  refreshToken,
+  expiresAt,
+  scopes = [],
+  metadata = {},
+}: SaveTokenParams): Promise<{ id: string }> {
+  try {
+    // Encrypt tokens before storage
+    const encryptedAccessToken = encryptToken(accessToken);
+    const encryptedRefreshToken = refreshToken
+      ? encryptToken(refreshToken)
+      : null;
+
+    // Check if token exists for this user/provider
+    const existing = await db
+      .select({ id: userToken.id })
+      .from(userToken)
+      .where(
+        and(eq(userToken.userId, userId), eq(userToken.provider, provider))
+      );
+
+    if (existing.length > 0) {
+      // Update existing token
+      await db
+        .update(userToken)
+        .set({
+          accessToken: encryptedAccessToken,
+          refreshToken: encryptedRefreshToken,
+          expiresAt,
+          scopes,
+          metadata,
+          updatedAt: new Date(),
+        })
+        .where(eq(userToken.id, existing[0].id));
+
+      return { id: existing[0].id };
+    }
+
+    // Insert new token
+    const [created] = await db
+      .insert(userToken)
+      .values({
+        userId,
+        provider,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
+        expiresAt,
+        scopes,
+        metadata,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning({ id: userToken.id });
+
+    return { id: created.id };
+  } catch (_error) {
+    throw new ChatSDKError("bad_request:database", "Failed to save user token");
+  }
+}
+
+/**
+ * Get all connected accounts for a user (without exposing tokens)
+ */
+export async function getUserTokens({
+  userId,
+}: {
+  userId: string;
+}): Promise<TokenInfo[]> {
+  try {
+    const tokens = await db
+      .select({
+        id: userToken.id,
+        provider: userToken.provider,
+        scopes: userToken.scopes,
+        metadata: userToken.metadata,
+        expiresAt: userToken.expiresAt,
+        createdAt: userToken.createdAt,
+        updatedAt: userToken.updatedAt,
+      })
+      .from(userToken)
+      .where(eq(userToken.userId, userId));
+
+    return tokens.map((token) => ({
+      ...token,
+      provider: token.provider as TokenProvider,
+      scopes: (token.scopes as string[]) || [],
+      metadata: (token.metadata as Record<string, unknown>) || {},
+      isExpired: token.expiresAt ? new Date() > token.expiresAt : false,
+    }));
+  } catch (_error) {
+    throw new ChatSDKError("bad_request:database", "Failed to get user tokens");
+  }
+}
+
+/**
+ * Get decrypted token for a specific provider (internal use only)
+ * WARNING: Only call this from server-side agent code, never expose to client
+ */
+export async function getDecryptedToken({
+  userId,
+  provider,
+}: {
+  userId: string;
+  provider: TokenProvider;
+}): Promise<{ accessToken: string; refreshToken: string | null } | null> {
+  try {
+    const [token] = await db
+      .select({
+        accessToken: userToken.accessToken,
+        refreshToken: userToken.refreshToken,
+      })
+      .from(userToken)
+      .where(
+        and(eq(userToken.userId, userId), eq(userToken.provider, provider))
+      );
+
+    if (!token) {
+      return null;
+    }
+
+    return {
+      accessToken: decryptToken(token.accessToken),
+      refreshToken: token.refreshToken
+        ? decryptToken(token.refreshToken)
+        : null,
+    };
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get decrypted token"
+    );
+  }
+}
+
+/**
+ * Delete a user's token for a specific provider
+ */
+export async function deleteUserToken({
+  userId,
+  provider,
+}: {
+  userId: string;
+  provider: TokenProvider;
+}): Promise<boolean> {
+  try {
+    const result = await db
+      .delete(userToken)
+      .where(
+        and(eq(userToken.userId, userId), eq(userToken.provider, provider))
+      )
+      .returning({ id: userToken.id });
+
+    return result.length > 0;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to delete user token"
+    );
+  }
+}
+
+/**
+ * Check if a user has a valid (non-expired) token for a provider
+ */
+export async function hasValidToken({
+  userId,
+  provider,
+}: {
+  userId: string;
+  provider: TokenProvider;
+}): Promise<boolean> {
+  try {
+    const [token] = await db
+      .select({ expiresAt: userToken.expiresAt })
+      .from(userToken)
+      .where(
+        and(eq(userToken.userId, userId), eq(userToken.provider, provider))
+      );
+
+    if (!token) return false;
+    if (!token.expiresAt) return true; // No expiration = valid
+    return new Date() < token.expiresAt;
+  } catch (_error) {
+    return false;
   }
 }
