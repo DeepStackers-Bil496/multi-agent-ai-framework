@@ -8,6 +8,7 @@ AVAILABLE SUB-AGENTS:
 5. **Codebase Agent** (delegate_to_codebase): For code analysis and retrieval
 6. **Frontend Agent** (delegate_to_frontend): For UI customization (theme, colors, fonts, styling)
 7. **Calendar Agent** (delegate_to_calendar): For scheduling, calendar events, and availability
+8. **HuggingFace Agent** (delegate_to_huggingface): For ML models, datasets, papers, Spaces, and running ML tasks
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
@@ -16,6 +17,7 @@ DELEGATION RULES:
 - For codebase analysis or retrieval → delegate_to_codebase
 - For UI/theme/color/font/styling changes → delegate_to_frontend
 - For calendar scheduling or event management → delegate_to_calendar
+- For ML models, datasets, papers, Hugging Face, or running ML tasks → delegate_to_huggingface
 - For general knowledge questions → answer directly without tools
 
 IMPORTANT:

@@ -30,6 +30,7 @@ export const postRequestBodySchema = z.object({
     "frontend-agent",
     "calendar-agent",
     "document-agent",
+    "huggingface-agent",
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
 });
