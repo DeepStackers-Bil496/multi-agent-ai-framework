@@ -17,5 +17,10 @@ This file is used to easy navigate to the project's related links.
 | **ngrok** | [![ngrok](https://img.shields.io/badge/ngrok-Dashboard-635bff?style=flat-square&logo=ngrok)](https://dashboard.ngrok.com) | Exposes local development environments to the internet. **Allows using Google Colab GPUs as a backend server.** |
 | **Ollama Search** | [![Ollama](https://img.shields.io/badge/Ollama-Models-white?style=flat-square&logo=ollama)](https://ollama.com/search) | Search for Ollama models to use in our agents. |
 
+### ☁️ GPU Cloud Resources
+| Service | Link | Description |
+| :--- | :--- | :--- |
+| **RunPod** | [![RunPod](https://img.shields.io/badge/RunPod-GPU_Cloud-6B46C1?style=flat-square&logo=runpod)](https://runpod.io) | Rent remote GPUs (Pods) easily. **Best for running "Remote Ollama"** with `ollama run`. Use "Community Cloud" for cheaper rates. |
+| **Vast.ai** | [![Vast.ai](https://img.shields.io/badge/Vast.ai-Marketplace-00C853?style=flat-square)](https://vast.ai) | Marketplace for inexpensive GPU rentals. Great for low-cost spot instances and short-term testing. |
 > [!TIP]
 > Keep this file updated as new resources are added to the project.
