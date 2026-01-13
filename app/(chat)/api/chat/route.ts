@@ -47,6 +47,7 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { getAgentById } from "@/lib/agents";
 import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, TOOL_STARTED, TOOL_ENDED, AGENT_ERROR } from "@/lib/constants";
 import type { ExecutionStep } from "@/lib/types";
+import { resolveAgentConfig } from "@/lib/agents/configResolver";
 
 
 export const maxDuration = 60;
@@ -321,8 +322,18 @@ export async function POST(request: Request) {
     // Get the selected agent
     const agent = getAgentById(selectedChatModel);
 
-    // Call the selected agent and get its streaming response
-    const agentResponse = await agent.instance.run(agentMessages);
+    // Resolve user-specific configuration for this agent
+    const resolvedConfig = await resolveAgentConfig(
+      session.user.id,
+      selectedChatModel
+    );
+
+    // Call the selected agent with user-specific config (if any)
+    const runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
+      ? resolvedConfig.llmConfig
+      : undefined;
+
+    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig);
 
     if (!agentResponse.body) {
       throw new Error("No response body from Agent");

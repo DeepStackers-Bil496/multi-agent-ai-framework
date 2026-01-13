@@ -160,18 +160,86 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
+     * Creates a temporary graph with runtime-specific LLM configuration.
+     * Used when user has custom configuration that differs from defaults.
+     * @param runtimeConfig Runtime configuration overrides
+     * @returns Compiled graph with the runtime-configured LLM
+     */
+    protected createRuntimeGraph(runtimeConfig: Partial<LLMImplMetadata>): Runnable {
+        // Merge runtime config with default implementation metadata
+        const mergedConfig: LLMImplMetadata = {
+            ...this.implementationMetadata as LLMImplMetadata,
+            ...runtimeConfig,
+            // Always preserve the system instruction from agent defaults
+            systemInstruction: (this.implementationMetadata as LLMImplMetadata).systemInstruction,
+        };
+
+        console.log(`[${this.name}] Creating runtime LLM with provider: ${mergedConfig.provider}, model: ${mergedConfig.modelID}`);
+
+        // Create new LLM with merged config
+        const runtimeLLM = createLLM(mergedConfig);
+        const boundLLM = runtimeLLM.bindTools!(this.agentTools);
+
+        // Build a new graph with the runtime LLM
+        const toolNode = new ToolNode(this.agentTools);
+        const runtimeAgentNode = async (state: typeof MessagesAnnotation.State) => {
+            const { messages } = state;
+            const messagesToSend = [
+                new SystemMessage(mergedConfig.systemInstruction),
+                ...messages
+            ];
+
+            try {
+                console.log("[" + this.name + "] (Runtime) Invoking LLM with", messages.length, "messages");
+                const response = await boundLLM.invoke(messagesToSend);
+                const aiResponse = response as AIMessage;
+
+                if (!aiResponse.content && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {
+                    console.warn("[" + this.name + "] (Runtime) Empty response from LLM, returning fallback");
+                    return {
+                        messages: [new AIMessage("I apologize, but I couldn't process that request. Please try again.")]
+                    };
+                }
+
+                return { messages: [response] };
+            } catch (error) {
+                console.error("[" + this.name + "] (Runtime) Error in agentNode:", error);
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                return { messages: [new AIMessage(`Error: ${errorMessage}`)] };
+            }
+        };
+
+        return new StateGraph(MessagesAnnotation)
+            .addNode("agentNode", runtimeAgentNode)
+            .addNode("tools", toolNode)
+            .addEdge(START, "agentNode")
+            .addConditionalEdges("agentNode", this.agentRoute.bind(this))
+            .addEdge("tools", "agentNode")
+            .compile();
+    }
+
+    /**
      * Run the agent with the given input messages.
      * @param inputMessages Input messages
+     * @param runtimeConfig Optional runtime configuration overrides (user-specific settings)
      * @returns Agent response
      */
-    public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
+    public async run(
+        inputMessages: AgentChatMessage[],
+        runtimeConfig?: Partial<LLMImplMetadata>
+    ): Promise<Response> {
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole
                 ? new HumanMessage(message.content)
                 : new AIMessage(message.content);
         });
 
-        const eventStream = this.agentGraph!.streamEvents(
+        // Use runtime graph if config provided, otherwise use default graph
+        const graphToUse = runtimeConfig && Object.keys(runtimeConfig).length > 0
+            ? this.createRuntimeGraph(runtimeConfig)
+            : this.agentGraph!;
+
+        const eventStream = graphToUse.streamEvents(
             { messages: history },
             { version: "v2" }
         );

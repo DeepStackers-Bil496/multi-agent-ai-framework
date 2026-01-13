@@ -204,6 +204,46 @@ export const agentPreference = pgTable(
 export type AgentPreference = InferSelectModel<typeof agentPreference>;
 
 // ============================================================================
+// User Dashboard - Agent configuration (model, API keys, secrets)
+// ============================================================================
+
+export const agentConfiguration = pgTable(
+  "AgentConfiguration",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("userId")
+      .notNull()
+      .references(() => user.id),
+    agentId: varchar("agentId", { length: 64 }).notNull(),
+    // Model deployment type: "cloud" for API providers, "self-hosted" for Ollama/vLLM
+    deploymentType: varchar("deploymentType", { length: 16 })
+      .notNull()
+      .default("cloud"),
+    // LLM provider (google, openai, anthropic, groq, mistral, ollama)
+    provider: varchar("provider", { length: 32 }),
+    // Model identifier (e.g., "gemini-2.5-flash", "gpt-4o")
+    modelId: varchar("modelId", { length: 128 }),
+    // Encrypted API key for cloud providers
+    apiKey: text("apiKey"),
+    // Base URL for self-hosted deployments (e.g., Ollama ngrok URL)
+    baseUrl: text("baseUrl"),
+    // Encrypted JSON object for agent-specific secrets
+    // e.g., { "GITHUB_PAT": "encrypted...", "HF_TOKEN": "encrypted..." }
+    agentSecrets: text("agentSecrets"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    userAgentConfigIdx: index("user_agent_config_idx").on(
+      table.userId,
+      table.agentId
+    ),
+  })
+);
+
+export type AgentConfiguration = InferSelectModel<typeof agentConfiguration>;
+
+// ============================================================================
 // CodebaseAgent RAG - Vector embeddings for code chunks
 // ============================================================================
 
