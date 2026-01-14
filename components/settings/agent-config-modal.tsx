@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import {
   Dialog,
@@ -41,6 +41,11 @@ interface AgentConfigResponse {
     hasAgentSecrets: boolean;
     configuredSecrets: string[];
   } | null;
+}
+
+interface ModelInfo {
+  id: string;
+  name: string;
 }
 
 // Agent-specific secret fields configuration
@@ -106,6 +111,11 @@ export function AgentConfigModal({
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  // Model fetching state
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
   const { data, mutate } = useSWR<AgentConfigResponse>(
     open ? `/api/user_dashboard/agent-config?agentId=${agent.id}` : null,
     fetcher
@@ -133,6 +143,140 @@ export function AgentConfigModal({
       setAgentSecrets({});
     }
   }, [data]);
+
+  // Fetch models from API
+  const fetchModels = useCallback(async () => {
+    setModelsError(null);
+    setModels([]);
+
+    // For cloud: use either new API key or stored API key (via agentId)
+    if (deploymentType === "cloud") {
+      const hasNewApiKey = apiKey.trim().length > 0;
+      const hasStoredApiKey = data?.config?.hasApiKey;
+
+      if (!hasNewApiKey && !hasStoredApiKey) {
+        setModelsError("Please enter an API key first");
+        return;
+      }
+
+      setIsLoadingModels(true);
+      try {
+        const params = new URLSearchParams({ provider });
+
+        // If user entered a new API key, use it; otherwise use stored key via agentId
+        if (hasNewApiKey) {
+          params.set("apiKey", apiKey.trim());
+        } else {
+          params.set("agentId", agent.id);
+        }
+
+        const response = await fetch(`/api/models/list?${params}`);
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          // Provide clearer error message for API key issues
+          const providerName = LLM_PROVIDERS.find(p => p.value === provider)?.label || provider;
+          throw new Error(`Invalid API key for ${providerName}. Please check your API key.`);
+        }
+
+        setModels(responseData.models || []);
+      } catch (error) {
+        setModelsError(
+          error instanceof Error ? error.message : "Failed to fetch models"
+        );
+      } finally {
+        setIsLoadingModels(false);
+      }
+    } else {
+      // Self-hosted: require base URL (use entered or stored)
+      const hasNewBaseUrl = baseUrl.trim().length > 0;
+      const hasStoredBaseUrl = !!data?.config?.baseUrl;
+
+      if (!hasNewBaseUrl && !hasStoredBaseUrl) {
+        setModelsError("Please enter a deployment URL first");
+        return;
+      }
+
+      setIsLoadingModels(true);
+      try {
+        const params = new URLSearchParams({ provider: "ollama" });
+
+        // If user entered a new baseUrl, use it; otherwise use stored key via agentId
+        if (hasNewBaseUrl) {
+          params.set("baseUrl", baseUrl.trim());
+        } else {
+          params.set("agentId", agent.id);
+        }
+
+        const response = await fetch(`/api/models/list?${params}`);
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          throw new Error("Could not connect to server. Please check the URL.");
+        }
+
+        setModels(responseData.models || []);
+      } catch (error) {
+        setModelsError(
+          error instanceof Error ? error.message : "Failed to fetch models"
+        );
+      } finally {
+        setIsLoadingModels(false);
+      }
+    }
+  }, [deploymentType, provider, apiKey, baseUrl, agent.id, data?.config]);
+
+  // Auto-fetch models when:
+  // 1. Modal opens and there's a stored API key
+  // 2. Provider changes (cloud mode)
+  // 3. API key changes (cloud mode) - with debounce
+  // 4. Base URL changes (self-hosted mode) - with debounce
+  useEffect(() => {
+    // Reset models when deployment type or provider changes
+    setModels([]);
+    setModelsError(null);
+
+    // Only reset modelId if user changed to a different provider than what's stored
+    const storedProvider = data?.config?.provider;
+    if (storedProvider && provider !== storedProvider) {
+      setModelId("");
+    }
+
+    // For cloud: auto-fetch if there's a stored API key
+    if (deploymentType === "cloud" && data?.config?.hasApiKey && !apiKey.trim()) {
+      fetchModels();
+    }
+  }, [deploymentType, provider, data?.config?.provider, data?.config?.hasApiKey]);
+
+  // Debounced auto-fetch when API key is entered (cloud mode)
+  useEffect(() => {
+    if (deploymentType !== "cloud" || !apiKey.trim()) return;
+
+    const timer = setTimeout(() => {
+      fetchModels();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [apiKey, fetchModels, deploymentType]);
+
+  // Debounced auto-fetch when base URL is entered (self-hosted mode)
+  useEffect(() => {
+    if (deploymentType !== "self-hosted") return;
+
+    // Auto-fetch if there's a stored baseUrl
+    if (data?.config?.baseUrl && !baseUrl.trim()) {
+      fetchModels();
+      return;
+    }
+
+    if (!baseUrl.trim()) return;
+
+    const timer = setTimeout(() => {
+      fetchModels();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [baseUrl, fetchModels, deploymentType, data?.config?.baseUrl]);
 
   const secretFields = AGENT_SECRET_FIELDS[agent.id] || [];
 
@@ -358,26 +502,54 @@ export function AgentConfigModal({
                       )}
                     </button>
                   </div>
-                  {data?.config?.hasApiKey && (
+                  {data?.config?.hasApiKey && !modelsError && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3 text-green-500" />
                       Already configured. Enter a new value to update.
                     </p>
                   )}
+                  {data?.config?.hasApiKey && modelsError && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      Stored API key may not be valid for this provider.
+                    </p>
+                  )}
                 </div>
 
-                {/* Model ID */}
+                {/* Model */}
                 <div className="space-y-2">
-                  <Label htmlFor="modelId">Model ID</Label>
-                  <Input
-                    id="modelId"
-                    placeholder="e.g., gemini-2.5-flash, gpt-4o"
+                  <Label htmlFor="modelId">Model</Label>
+                  <Select
                     value={modelId}
-                    onChange={(e) => setModelId(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty to use the default model for this provider
-                  </p>
+                    onValueChange={setModelId}
+                    disabled={isLoadingModels || models.length === 0}
+                  >
+                    <SelectTrigger>
+                      {isLoadingModels ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Loading models...</span>
+                        </div>
+                      ) : (
+                        <SelectValue
+                          placeholder={
+                            models.length === 0
+                              ? "Enter API key to load models"
+                              : "Select a model"
+                          }
+                        />
+                      )}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {models.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {modelsError && (
+                    <p className="text-xs text-destructive">{modelsError}</p>
+                  )}
                 </div>
               </>
             ) : (
@@ -396,15 +568,41 @@ export function AgentConfigModal({
                   </p>
                 </div>
 
-                {/* Model ID for self-hosted */}
+                {/* Model */}
                 <div className="space-y-2">
-                  <Label htmlFor="modelId">Model ID</Label>
-                  <Input
-                    id="modelId"
-                    placeholder="e.g., llama3.2, mistral"
+                  <Label htmlFor="modelId">Model</Label>
+                  <Select
                     value={modelId}
-                    onChange={(e) => setModelId(e.target.value)}
-                  />
+                    onValueChange={setModelId}
+                    disabled={isLoadingModels || models.length === 0}
+                  >
+                    <SelectTrigger>
+                      {isLoadingModels ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Loading models...</span>
+                        </div>
+                      ) : (
+                        <SelectValue
+                          placeholder={
+                            models.length === 0
+                              ? "Enter URL to load models"
+                              : "Select a model"
+                          }
+                        />
+                      )}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {models.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {modelsError && (
+                    <p className="text-xs text-destructive">{modelsError}</p>
+                  )}
                 </div>
               </>
             )}
