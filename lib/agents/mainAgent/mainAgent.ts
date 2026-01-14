@@ -1,4 +1,5 @@
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
+import { Runnable } from "@langchain/core/runnables";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT, TOOL_ENDED, TOOL_STARTED } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
@@ -136,6 +137,25 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     }
 
     /**
+     * Gets or creates orchestrator graph with caching based on config version.
+     */
+    private getOrCreateOrchestratorGraph(runtimeConfig?: Partial<LLMImplMetadata>): Runnable {
+        const newConfigVersion = runtimeConfig?._configVersion;
+
+        if (runtimeConfig && Object.keys(runtimeConfig).length > 0) {
+            if (newConfigVersion !== this.lastConfigVersion) {
+                console.log(`[MainAgent] Config changed (${this.lastConfigVersion} -> ${newConfigVersion}), recreating orchestrator graph`);
+                this.agentGraph = this.createRuntimeOrchestratorGraph(runtimeConfig);
+                this.lastConfigVersion = newConfigVersion ?? null;
+            } else {
+                console.log(`[MainAgent] Config unchanged (${newConfigVersion}), reusing cached orchestrator graph`);
+            }
+        }
+
+        return this.agentGraph!;
+    }
+
+    /**
      * Create a runtime orchestrator graph with user-configured LLM
      * This allows MainAgent to use the user's preferred provider/model
      */
@@ -189,8 +209,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
 
             graph = graph
                 .addNode(prepareNodeName, this.createPrepareTaskNode(agent))
-                // Use runtime graph for sub-agents to propagate secrets and specific agent config
-                .addNode(subgraphNodeName, agent.instance.createRuntimeGraph(subAgentConfig, this.runtimeSecrets))
+                // Use cached runtime graph for sub-agents (only recreates if config changed)
+                .addNode(subgraphNodeName, agent.instance.getOrCreateRuntimeGraph(subAgentConfig, this.runtimeSecrets))
                 .addEdge(prepareNodeName, subgraphNodeName)
                 .addEdge(subgraphNodeName, "MainAgentNode");
         }
@@ -209,10 +229,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             return message.role == AgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
         });
 
-        // Use runtime graph if config provided, otherwise use default graph
-        const graphToUse = runtimeConfig && Object.keys(runtimeConfig).length > 0
-            ? this.createRuntimeOrchestratorGraph(runtimeConfig)
-            : this.agentGraph!;
+        // Get or create orchestrator graph (uses caching based on config version)
+        const graphToUse = this.getOrCreateOrchestratorGraph(runtimeConfig);
 
         const eventStream = graphToUse.streamEvents(
             { messages: history },

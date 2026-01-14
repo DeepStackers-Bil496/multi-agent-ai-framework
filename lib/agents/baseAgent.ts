@@ -20,6 +20,9 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     protected agentLLM: Runnable | null = null;
     protected runtimeSecrets?: Record<string, string>;
 
+    // Tracks config version to avoid recreating LLM/tools when unchanged
+    protected lastConfigVersion: string | null = null;
+
     /**
      * @param config Agent configuration
      */
@@ -186,14 +189,41 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
-     * Creates a temporary graph with runtime-specific LLM configuration.
-     * Used when user has custom configuration that differs from defaults.
+     * Gets or creates a runtime graph with caching based on config version.
+     * Use this method when embedding agent as subgraph to benefit from caching.
      * @param runtimeConfig Runtime configuration overrides
-     * @returns Compiled graph with the runtime-configured LLM
+     * @param runtimeSecrets Optional runtime secrets for tools
+     * @returns Cached or newly created compiled graph
      */
+    public getOrCreateRuntimeGraph(
+        runtimeConfig?: Partial<LLMImplMetadata>,
+        runtimeSecrets?: Record<string, string>
+    ): Runnable {
+        // Check if we have any runtime customization (config OR secrets)
+        const hasRuntimeConfig = runtimeConfig && Object.keys(runtimeConfig).length > 0;
+        const hasRuntimeSecrets = runtimeSecrets && Object.keys(runtimeSecrets).length > 0;
+
+        if (hasRuntimeConfig || hasRuntimeSecrets) {
+            // Compute version from both config and secrets
+            const secretKeys = runtimeSecrets ? Object.keys(runtimeSecrets).sort().join(',') : '';
+            const newConfigVersion = `${runtimeConfig?._configVersion || 'default'}-${secretKeys}`;
+
+            if (newConfigVersion !== this.lastConfigVersion) {
+                console.log(`[${this.name}] Config changed (${this.lastConfigVersion} -> ${newConfigVersion}), recreating graph`);
+                this.runtimeSecrets = runtimeSecrets;
+                this.agentGraph = this.createRuntimeGraph(runtimeConfig, runtimeSecrets);
+                this.lastConfigVersion = newConfigVersion;
+            } else {
+                console.log(`[${this.name}] Config unchanged (${newConfigVersion}), reusing cached graph`);
+            }
+        }
+
+        return this.agentGraph!;
+    }
+
     /**
-     * Creates a temporary graph with runtime-specific LLM configuration.
-     * Used when user has custom configuration that differs from defaults.
+     * Creates a new runtime graph (always creates fresh LLM and tools).
+     * For cached access, use getOrCreateRuntimeGraph() instead.
      * @param runtimeConfig Runtime configuration overrides
      * @param runtimeSecrets Optional runtime secrets for tools
      * @returns Compiled graph with the runtime-configured LLM
@@ -276,13 +306,8 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
                 : new AIMessage(message.content);
         });
 
-        // Store runtime secrets for tools to access
-        this.runtimeSecrets = runtimeSecrets;
-
-        // Use runtime graph if config provided, otherwise use default graph
-        const graphToUse = runtimeConfig && Object.keys(runtimeConfig).length > 0
-            ? this.createRuntimeGraph(runtimeConfig, runtimeSecrets)
-            : this.agentGraph!;
+        // Get or create runtime graph (uses caching based on config version)
+        const graphToUse = this.getOrCreateRuntimeGraph(runtimeConfig, runtimeSecrets);
 
         const eventStream = graphToUse.streamEvents(
             { messages: history },

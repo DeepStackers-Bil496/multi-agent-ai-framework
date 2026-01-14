@@ -5,6 +5,38 @@ import {
   isEncryptionConfigured,
 } from "@/lib/encryption";
 import type { LLMImplMetadata, LLMProvider } from "@/lib/types";
+import { createHash } from "crypto";
+
+/**
+ * Computes a short hash for config caching.
+ * Includes both LLM config and secrets since tools depend on secrets.
+ */
+function computeConfigVersion(
+  llmConfig: Partial<LLMImplMetadata>,
+  secrets: Record<string, string>
+): string {
+  // Create deterministic string from config (exclude _configVersion itself)
+  const { _configVersion, ...configWithoutVersion } = llmConfig as any;
+  const toHash = JSON.stringify({
+    config: configWithoutVersion,
+    // Only hash secret keys for security, but include presence check
+    secretKeys: Object.keys(secrets).sort(),
+    // Include a marker if secrets have values (without exposing values)
+    hasSecrets: Object.values(secrets).some(v => v && v.length > 0),
+  });
+  return createHash("sha256").update(toHash).digest("hex").substring(0, 12);
+}
+
+/**
+ * Recomputes config version after merging subAgentConfigs.
+ * Use this for MainAgent to ensure version changes when ANY sub-agent config changes.
+ */
+export function recomputeConfigVersion(
+  llmConfig: Partial<LLMImplMetadata>,
+  secrets: Record<string, string>
+): string {
+  return computeConfigVersion(llmConfig, secrets);
+}
 
 export interface ResolvedAgentConfig {
   /**
@@ -156,6 +188,9 @@ function processAgentConfiguration(userConfig: any): ResolvedAgentConfig {
       );
     }
   }
+
+  // Compute config version for caching (avoids recreating LLM/tools when unchanged)
+  result.llmConfig._configVersion = computeConfigVersion(result.llmConfig, result.secrets);
 
   return result;
 }

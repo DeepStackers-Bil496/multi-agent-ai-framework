@@ -102,6 +102,7 @@ export type LLMImplMetadata = {
   apiKey?: string;        // Optional for local providers like Ollama
   baseURL?: string;       // For vLLM or custom endpoints
   subAgentConfigs?: Record<string, Partial<LLMImplMetadata>>; // Configurations for sub-agents managed by this agent
+  _configVersion?: string; // Auto-computed hash for caching - avoids recreating LLM/tools when config unchanged
 };
 
 export type AgentImplMetadata =

@@ -47,7 +47,7 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { getAgentById } from "@/lib/agents";
 import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, TOOL_STARTED, TOOL_ENDED, AGENT_ERROR } from "@/lib/constants";
 import type { ExecutionStep } from "@/lib/types";
-import { resolveAgentConfig, resolveAllAgentConfigs } from "@/lib/agents/configResolver";
+import { resolveAgentConfig, resolveAllAgentConfigs, recomputeConfigVersion } from "@/lib/agents/configResolver";
 import { LLMImplMetadata } from "@/lib/types";
 
 
@@ -350,8 +350,10 @@ export async function POST(request: Request) {
       // Attach subAgentConfigs to runtimeConfig
       runtimeConfig = {
         ...resolvedConfig.llmConfig,
-        subAgentConfigs
+        subAgentConfigs,
       };
+      // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
+      runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
     } else {
       runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
         ? resolvedConfig.llmConfig
