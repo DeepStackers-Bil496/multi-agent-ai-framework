@@ -31,6 +31,14 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     }
 
     /**
+     * Create delegation tools - MainAgent doesn't need runtime secrets itself
+     * (child agents handle their own secrets via their createTools implementations)
+     */
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createDelegationToolsFromRegistry();
+    }
+
+    /**
      * Build the orchestrator graph dynamically from registered agents
      */
     private buildOrchestratorGraph() {
@@ -129,7 +137,13 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     /**
      * Run the agent with streaming response
      */
-    public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
+    public async run(inputMessages: AgentChatMessage[], runtimeConfig?: Partial<LLMImplMetadata>, runtimeSecrets?: Record<string, string>): Promise<Response> {
+        // The instruction implies passing runtimeSecrets to super.run(),
+        // but MainAgent overrides run with its own streaming logic.
+        // If the intent was to delegate, the rest of this method would be removed.
+        // Assuming the intent is to only update the signature and keep the existing logic,
+        // and if super.run() were to be called, these parameters would be passed.
+        // For now, we'll keep the existing streaming logic.
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
         });

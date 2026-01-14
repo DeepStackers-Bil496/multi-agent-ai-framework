@@ -51,7 +51,7 @@ function createRawEmail(options: {
 }
 
 // Gmail Send Email Tool
-export function createGmailSendEmailTool() {
+export function createGmailSendEmailTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "gmail_send_email",
         description:
@@ -129,11 +129,13 @@ export function createGmailSendEmailTool() {
                 // Send via Gmail API
                 const response = await googleApiRequest<{ id: string; threadId: string }>(
                     "gmail",
-                    "/users/me/messages/send",
+                    "/gmail/v1/users/me/messages/send",
                     {
                         method: "POST",
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ raw }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -151,7 +153,7 @@ export function createGmailSendEmailTool() {
 }
 
 // Gmail Draft Email Tool (using Gemini)
-export function createGmailDraftEmailTool() {
+export function createGmailDraftEmailTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "gmail_draft_email",
         description:
@@ -186,7 +188,7 @@ export function createGmailDraftEmailTool() {
 }
 
 // Gmail Search Emails Tool
-export function createGmailSearchEmailsTool() {
+export function createGmailSearchEmailsTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "gmail_search_emails",
         description:
@@ -209,7 +211,7 @@ export function createGmailSearchEmailsTool() {
                 const response = await googleApiRequest<{
                     messages?: Array<{ id: string; threadId: string }>;
                     resultSizeEstimate?: number;
-                }>("gmail", `/users/me/messages?${params.toString()}`);
+                }>("gmail", `/users/me/messages?${params.toString()}`, {}, runtimeSecrets);
 
                 if (!response.messages || response.messages.length === 0) {
                     return JSON.stringify({
@@ -239,7 +241,7 @@ export function createGmailSearchEmailsTool() {
 }
 
 // Gmail List Emails Tool
-export function createGmailListEmailsTool() {
+export function createGmailListEmailsTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "gmail_list_emails",
         description: "List emails from Gmail inbox or specific labels.",
@@ -262,7 +264,7 @@ export function createGmailListEmailsTool() {
                 const response = await googleApiRequest<{
                     messages?: Array<{ id: string; threadId: string }>;
                     resultSizeEstimate?: number;
-                }>("gmail", `/users/me/messages?${params.toString()}`);
+                }>("gmail", `/users/me/messages?${params.toString()}`, {}, runtimeSecrets);
 
                 if (!response.messages || response.messages.length === 0) {
                     return JSON.stringify({
@@ -291,7 +293,7 @@ export function createGmailListEmailsTool() {
 }
 
 // Gmail Get Email Tool
-export function createGmailGetEmailTool() {
+export function createGmailGetEmailTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "gmail_get_email",
         description: "Get the full content of an email by its ID.",
@@ -305,23 +307,24 @@ export function createGmailGetEmailTool() {
         }),
         func: async ({ emailId, format }) => {
             try {
-                const params = new URLSearchParams();
-                params.set("format", format ?? "full");
-
                 const response = await googleApiRequest<{
-                    id: string;
-                    threadId: string;
-                    labelIds?: string[];
-                    snippet?: string;
+                    id?: string;
+                    threadId?: string;
                     payload?: {
                         headers?: Array<{ name: string; value: string }>;
+                        parts?: any[];
                         body?: { data?: string };
-                        parts?: Array<{ mimeType?: string; body?: { data?: string } }>;
                     };
+                    snippet?: string;
+                    raw?: string;
+                    labelIds?: string[];
                     internalDate?: string;
-                }>("gmail", `/users/me/messages/${encodeURIComponent(emailId)}?${params.toString()}`);
-
-                // Extract headers
+                }>(
+                    "gmail",
+                    `/gmail/v1/users/me/messages/${emailId}?format=${format}`,
+                    {},
+                    runtimeSecrets
+                ); // Extract headers
                 const headers = response.payload?.headers || [];
                 const getHeader = (name: string) =>
                     headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
@@ -363,7 +366,7 @@ export function createGmailGetEmailTool() {
 }
 
 // Gmail Delete Email Tool
-export function createGmailDeleteEmailTool() {
+export function createGmailDeleteEmailTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "gmail_delete_email",
         description: "Move an email to trash by its ID. This does not permanently delete the email.",
@@ -374,8 +377,9 @@ export function createGmailDeleteEmailTool() {
             try {
                 await googleApiRequest<{ id: string }>(
                     "gmail",
-                    `/users/me/messages/${encodeURIComponent(emailId)}/trash`,
-                    { method: "POST" }
+                    `/gmail/v1/users/me/messages/${emailId}/trash`,
+                    { method: "POST" },
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -391,13 +395,13 @@ export function createGmailDeleteEmailTool() {
 }
 
 // Export all Gmail tools
-export function createAllGmailTools(): DynamicStructuredTool[] {
+export function createAllGmailTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
-        createGmailSendEmailTool(),
-        createGmailDraftEmailTool(),
-        createGmailSearchEmailsTool(),
-        createGmailListEmailsTool(),
-        createGmailGetEmailTool(),
-        createGmailDeleteEmailTool(),
+        createGmailSendEmailTool(runtimeSecrets),
+        createGmailDraftEmailTool(runtimeSecrets),
+        createGmailSearchEmailsTool(runtimeSecrets),
+        createGmailListEmailsTool(runtimeSecrets),
+        createGmailGetEmailTool(runtimeSecrets),
+        createGmailDeleteEmailTool(runtimeSecrets),
     ];
 }

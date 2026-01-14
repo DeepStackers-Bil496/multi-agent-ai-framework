@@ -3,7 +3,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { googleApiRequest } from "../../auth/googleAuth";
 
 // Sheets Create Spreadsheet Tool
-export function createSheetsCreateSpreadsheetTool() {
+export function createSheetsCreateSpreadsheetTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "sheets_create_spreadsheet",
         description: "Create a new Google Spreadsheet with optional sheet names.",
@@ -19,8 +19,8 @@ export function createSheetsCreateSpreadsheetTool() {
                 const sheets =
                     sheetTitles && sheetTitles.length > 0
                         ? sheetTitles.map((name) => ({
-                              properties: { title: name },
-                          }))
+                            properties: { title: name },
+                        }))
                         : [{ properties: { title: "Sheet1" } }];
 
                 const spreadsheet = await googleApiRequest<{
@@ -34,7 +34,7 @@ export function createSheetsCreateSpreadsheetTool() {
                         properties: { title },
                         sheets,
                     }),
-                });
+                }, runtimeSecrets);
 
                 return JSON.stringify({
                     status: "success",
@@ -56,7 +56,7 @@ export function createSheetsCreateSpreadsheetTool() {
 }
 
 // Sheets Get Spreadsheet Tool
-export function createSheetsGetSpreadsheetTool() {
+export function createSheetsGetSpreadsheetTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "sheets_get_spreadsheet",
         description: "Get metadata and cell values from a Google Spreadsheet.",
@@ -69,7 +69,6 @@ export function createSheetsGetSpreadsheetTool() {
         }),
         func: async ({ spreadsheetId, ranges }) => {
             try {
-                // Get spreadsheet metadata
                 const params = new URLSearchParams();
                 if (ranges && ranges.length > 0) {
                     ranges.forEach((r) => params.append("ranges", r));
@@ -88,7 +87,7 @@ export function createSheetsGetSpreadsheetTool() {
                             }>;
                         }>;
                     }>;
-                }>("sheets", `/spreadsheets/${encodeURIComponent(spreadsheetId)}?${params.toString()}`);
+                }>("sheets", `/spreadsheets/${encodeURIComponent(spreadsheetId)}?${params.toString()}`, {}, runtimeSecrets);
 
                 const sheetsData = spreadsheet.sheets.map((sheet) => {
                     const data: string[][] = [];
@@ -127,7 +126,7 @@ export function createSheetsGetSpreadsheetTool() {
 }
 
 // Sheets Update Cells Tool
-export function createSheetsUpdateCellsTool() {
+export function createSheetsUpdateCellsTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "sheets_update_cells",
         description:
@@ -142,7 +141,6 @@ export function createSheetsUpdateCellsTool() {
         }),
         func: async ({ spreadsheetId, range, valuesJson }) => {
             try {
-                // Parse the JSON string to get the 2D array
                 let values: any[][];
                 try {
                     values = JSON.parse(valuesJson);
@@ -171,7 +169,8 @@ export function createSheetsUpdateCellsTool() {
                             majorDimension: "ROWS",
                             values,
                         }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -191,7 +190,7 @@ export function createSheetsUpdateCellsTool() {
 }
 
 // Sheets Append Rows Tool
-export function createSheetsAppendRowsTool() {
+export function createSheetsAppendRowsTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "sheets_append_rows",
         description:
@@ -206,7 +205,6 @@ export function createSheetsAppendRowsTool() {
         }),
         func: async ({ spreadsheetId, range, valuesJson }) => {
             try {
-                // Parse the JSON string to get the 2D array
                 let values: any[][];
                 try {
                     values = JSON.parse(valuesJson);
@@ -236,7 +234,8 @@ export function createSheetsAppendRowsTool() {
                             majorDimension: "ROWS",
                             values,
                         }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -255,11 +254,11 @@ export function createSheetsAppendRowsTool() {
 }
 
 // Export all Sheets tools
-export function createAllSheetsTools(): DynamicStructuredTool[] {
+export function createAllSheetsTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
-        createSheetsCreateSpreadsheetTool(),
-        createSheetsGetSpreadsheetTool(),
-        createSheetsUpdateCellsTool(),
-        createSheetsAppendRowsTool(),
+        createSheetsCreateSpreadsheetTool(runtimeSecrets),
+        createSheetsGetSpreadsheetTool(runtimeSecrets),
+        createSheetsUpdateCellsTool(runtimeSecrets),
+        createSheetsAppendRowsTool(runtimeSecrets),
     ];
 }

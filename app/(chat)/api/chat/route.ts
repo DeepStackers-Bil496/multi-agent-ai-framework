@@ -333,7 +333,7 @@ export async function POST(request: Request) {
       ? resolvedConfig.llmConfig
       : undefined;
 
-    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig);
+    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig, resolvedConfig.secrets);
 
     if (!agentResponse.body) {
       throw new Error("No response body from Agent");

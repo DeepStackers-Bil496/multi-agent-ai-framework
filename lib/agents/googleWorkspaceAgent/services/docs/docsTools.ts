@@ -20,7 +20,7 @@ function extractDocText(body: any): string {
 }
 
 // Docs Create Document Tool
-export function createDocsCreateDocumentTool() {
+export function createDocsCreateDocumentTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "docs_create_document",
         description: "Create a new Google Doc with an optional initial content.",
@@ -37,7 +37,8 @@ export function createDocsCreateDocumentTool() {
                     {
                         method: "POST",
                         body: JSON.stringify({ title }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 // If content provided, add it to the document
@@ -57,7 +58,8 @@ export function createDocsCreateDocumentTool() {
                                     },
                                 ],
                             }),
-                        }
+                        },
+                        runtimeSecrets
                     );
                 }
 
@@ -77,7 +79,7 @@ export function createDocsCreateDocumentTool() {
 }
 
 // Docs Get Document Tool
-export function createDocsGetDocumentTool() {
+export function createDocsGetDocumentTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "docs_get_document",
         description: "Get the content of a Google Doc by its ID.",
@@ -91,7 +93,7 @@ export function createDocsGetDocumentTool() {
                     title: string;
                     body: any;
                     revisionId: string;
-                }>("docs", `/documents/${encodeURIComponent(documentId)}`);
+                }>("docs", `/documents/${encodeURIComponent(documentId)}`, {}, runtimeSecrets);
 
                 const textContent = extractDocText(doc.body);
 
@@ -112,7 +114,7 @@ export function createDocsGetDocumentTool() {
 }
 
 // Docs Update Document Tool
-export function createDocsUpdateDocumentTool() {
+export function createDocsUpdateDocumentTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "docs_update_document",
         description:
@@ -192,7 +194,8 @@ export function createDocsUpdateDocumentTool() {
                     {
                         method: "POST",
                         body: JSON.stringify({ requests }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -210,10 +213,10 @@ export function createDocsUpdateDocumentTool() {
 }
 
 // Export all Docs tools
-export function createAllDocsTools(): DynamicStructuredTool[] {
+export function createAllDocsTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
-        createDocsCreateDocumentTool(),
-        createDocsGetDocumentTool(),
-        createDocsUpdateDocumentTool(),
+        createDocsCreateDocumentTool(runtimeSecrets),
+        createDocsGetDocumentTool(runtimeSecrets),
+        createDocsUpdateDocumentTool(runtimeSecrets),
     ];
 }

@@ -22,6 +22,13 @@ class CodebaseAgent extends BaseAgent<LLMImplMetadata> {
     ) {
         super(config, agentTools);
     }
+
+    /**
+     * Create Codebase tools - no secrets needed for this agent
+     */
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createCodebaseAgentTools();
+    }
 }
 
 export const codebaseAgent = new CodebaseAgent(
@@ -44,5 +51,3 @@ Use this when the user asks about:
     instance: codebaseAgent,
     getCompiledGraph: () => codebaseAgent.getCompiledGraph(),
 });
-
-

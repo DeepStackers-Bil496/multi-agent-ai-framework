@@ -8,19 +8,30 @@ const MCP_SERVER_URL = "https://huggingface.co/mcp";
 // Shared MCP client singleton
 let mcpClient: Client | null = null;
 let isConnected = false;
+let currentRuntimeSecrets: Record<string, string> | undefined;
 
 /**
  * Initialize MCP client connection to Remote Hugging Face MCP Server
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-async function ensureConnected(): Promise<Client> {
+async function ensureConnected(runtimeSecrets?: Record<string, string>): Promise<Client> {
+    // Reconnect if secrets changed
+    if (isConnected && mcpClient && runtimeSecrets !== currentRuntimeSecrets) {
+        isConnected = false;
+        mcpClient = null;
+    }
+
     if (isConnected && mcpClient) {
         return mcpClient;
     }
 
-    const hfToken = process.env.HF_TOKEN;
+    // Try runtime secrets first, then fall back to environment variable
+    const hfToken = runtimeSecrets?.["HF_TOKEN"] || process.env.HF_TOKEN;
     if (!hfToken) {
-        throw new Error("HF_TOKEN environment variable is not set.");
+        throw new Error("HF_TOKEN is not configured. Please set it in agent settings or environment variables.");
     }
+
+    currentRuntimeSecrets = runtimeSecrets;
 
     try {
         const transport = new StreamableHTTPClientTransport(
@@ -51,9 +62,14 @@ async function ensureConnected(): Promise<Client> {
 
 /**
  * Call a tool on the Remote Hugging Face MCP Server
+ * @param toolName Name of the tool to call
+ * @param args Arguments for the tool  
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-async function callMCPTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
-    const client = await ensureConnected();
+async function callMCPTool(toolName: string, args: Record<string, unknown>, runtimeSecrets?: Record<string, string>): Promise<unknown> {
+    // Use passed secrets, or fall back to module-level currentRuntimeSecrets
+    const secretsToUse = runtimeSecrets ?? currentRuntimeSecrets;
+    const client = await ensureConnected(secretsToUse);
     console.log(`[HuggingFaceMCPTools] Calling: ${toolName}`, args);
     return await client.callTool({ name: toolName, arguments: args });
 }
@@ -344,8 +360,18 @@ export function createDynamicSpaceTool() {
 
 /**
  * Create all Hugging Face MCP tools
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-export function createAllHuggingFaceMCPTools(): DynamicStructuredTool[] {
+export function createAllHuggingFaceMCPTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+    // Set module-level secrets so tools can access them via callMCPTool
+    if (runtimeSecrets) {
+        currentRuntimeSecrets = runtimeSecrets;
+    }
+
+    // The existing tool creators call callMCPTool without secrets parameter,
+    // but callMCPTool will use currentRuntimeSecrets that was set by ensureConnected()
+    // when the first tool is called. This works because ensureConnected() is called
+    // on every callMCPTool invocation and caches the runtime secrets.
     return [
         // User info
         createWhoAmITool(),

@@ -25,11 +25,11 @@ const googleAuthEnvSchema = z.object({
 
 export type GoogleAuthEnv = z.infer<typeof googleAuthEnvSchema>;
 
-export function getGoogleAuthEnv(): GoogleAuthEnv {
+export function getGoogleAuthEnv(runtimeSecrets?: Record<string, string>): GoogleAuthEnv {
     const env = {
-        clientId: process.env.GOOGLE_CLIENT_ID || "",
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-        refreshToken: process.env.GOOGLE_REFRESH_TOKEN || "",
+        clientId: runtimeSecrets?.["GOOGLE_CLIENT_ID"] || process.env.GOOGLE_CLIENT_ID || "",
+        clientSecret: runtimeSecrets?.["GOOGLE_CLIENT_SECRET"] || process.env.GOOGLE_CLIENT_SECRET || "",
+        refreshToken: runtimeSecrets?.["GOOGLE_REFRESH_TOKEN"] || process.env.GOOGLE_REFRESH_TOKEN || "",
         redirectUri: process.env.GOOGLE_REDIRECT_URI || DEFAULT_REDIRECT_URI,
         calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
     };
@@ -43,9 +43,10 @@ let cachedToken: { token: string; expiresAt: number } | null = null;
 /**
  * Get a valid access token, refreshing if necessary.
  * Uses 60-second buffer before expiration.
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-export async function getAccessToken(): Promise<string> {
-    const env = getGoogleAuthEnv();
+export async function getAccessToken(runtimeSecrets?: Record<string, string>): Promise<string> {
+    const env = getGoogleAuthEnv(runtimeSecrets);
     const now = Date.now();
 
     // Return cached token if still valid (with 60-second buffer)
@@ -83,13 +84,18 @@ export async function getAccessToken(): Promise<string> {
 
 /**
  * Generic Google API request helper with automatic token injection.
+ * @param service Google service to call
+ * @param path API endpoint path
+ * @param options Fetch options
+ * @param runtimeSecrets Optional runtime secrets from database
  */
 export async function googleApiRequest<T>(
     service: GoogleService,
     path: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    runtimeSecrets?: Record<string, string>
 ): Promise<T> {
-    const token = await getAccessToken();
+    const token = await getAccessToken(runtimeSecrets);
     const baseUrl = API_BASES[service];
     const url = `${baseUrl}${path}`;
 

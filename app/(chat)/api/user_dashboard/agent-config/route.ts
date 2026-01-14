@@ -161,11 +161,13 @@ export async function POST(request: Request) {
     userId: session.user.id,
     agentId,
     deploymentType: deploymentType || undefined,
-    provider: provider || null,
-    modelId: modelId || null,
-    apiKey: encryptedApiKey,
-    baseUrl: baseUrl || null,
-    agentSecrets: encryptedSecrets,
+    provider: provider || undefined,
+    modelId: modelId || undefined,
+    // Only pass apiKey if user entered a new one (not empty)
+    apiKey: encryptedApiKey ?? undefined,
+    baseUrl: baseUrl || undefined,
+    // Only pass agentSecrets if user entered new secrets (merged with existing)
+    agentSecrets: encryptedSecrets ?? undefined,
   });
 
   return Response.json({ success: true });

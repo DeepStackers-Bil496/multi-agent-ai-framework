@@ -64,9 +64,19 @@ const AGENT_SECRET_FIELDS: Record<
   ],
   "google-workspace-agent": [
     {
-      key: "GOOGLE_OAUTH_TOKEN",
-      label: "Google OAuth Token",
-      placeholder: "ya29.xxxxxxxxxxxx",
+      key: "GOOGLE_CLIENT_ID",
+      label: "Google OAuth Client ID",
+      placeholder: "xxxxxxxxxxxx.apps.googleusercontent.com",
+    },
+    {
+      key: "GOOGLE_CLIENT_SECRET",
+      label: "Google OAuth Client Secret",
+      placeholder: "GOCSPX-xxxxxxxxxxxx",
+    },
+    {
+      key: "GOOGLE_REFRESH_TOKEN",
+      label: "Google OAuth Refresh Token",
+      placeholder: "1//xxxxxxxxxxxx",
     },
   ],
 };

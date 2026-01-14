@@ -18,6 +18,7 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     protected agentTools: DynamicStructuredTool[] = [];
     protected agentGraph: Runnable | null = null;
     protected agentLLM: Runnable | null = null;
+    protected runtimeSecrets?: Record<string, string>;
 
     /**
      * @param config Agent configuration
@@ -72,7 +73,15 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
-     * 
+     * Abstract method that each agent must implement to create its tools.
+     * This allows runtime secrets to be passed to tools when available.
+     * @param runtimeSecrets Optional secrets from database for API authentication
+     * @returns Array of tools for this agent
+     */
+    protected abstract createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[];
+
+    /**
+     * Build the agent graph with the current tools
      */
     protected buildAgentGraph() {
         const toolNode = new ToolNode(this.agentTools);
@@ -160,6 +169,23 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
+     * Get a secret value, checking runtime secrets first, then falling back to env vars.
+     * This allows user-configured secrets from the database to take precedence.
+     * @param key The secret key to retrieve
+     * @param envVarName Optional environment variable name to use as fallback
+     * @returns The secret value or undefined
+     */
+    protected getSecret(key: string, envVarName?: string): string | undefined {
+        // First check runtime secrets (from database)
+        if (this.runtimeSecrets?.[key]) {
+            return this.runtimeSecrets[key];
+        }
+
+        // Fall back to environment variable
+        return process.env[envVarName || key];
+    }
+
+    /**
      * Creates a temporary graph with runtime-specific LLM configuration.
      * Used when user has custom configuration that differs from defaults.
      * @param runtimeConfig Runtime configuration overrides
@@ -176,12 +202,15 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
 
         console.log(`[${this.name}] Creating runtime LLM with provider: ${mergedConfig.provider}, model: ${mergedConfig.modelID}`);
 
+        // Create tools with runtime secrets if available
+        const runtimeTools = this.createTools(this.runtimeSecrets);
+
         // Create new LLM with merged config
         const runtimeLLM = createLLM(mergedConfig);
-        const boundLLM = runtimeLLM.bindTools!(this.agentTools);
+        const boundLLM = runtimeLLM.bindTools!(runtimeTools);
 
-        // Build a new graph with the runtime LLM
-        const toolNode = new ToolNode(this.agentTools);
+        // Build a new graph with the runtime LLM and tools
+        const toolNode = new ToolNode(runtimeTools);
         const runtimeAgentNode = async (state: typeof MessagesAnnotation.State) => {
             const { messages } = state;
             const messagesToSend = [
@@ -222,17 +251,22 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
      * Run the agent with the given input messages.
      * @param inputMessages Input messages
      * @param runtimeConfig Optional runtime configuration overrides (user-specific settings)
+     * @param runtimeSecrets Optional runtime secrets from database (user-specific credentials)
      * @returns Agent response
      */
     public async run(
         inputMessages: AgentChatMessage[],
-        runtimeConfig?: Partial<LLMImplMetadata>
+        runtimeConfig?: Partial<LLMImplMetadata>,
+        runtimeSecrets?: Record<string, string>
     ): Promise<Response> {
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole
                 ? new HumanMessage(message.content)
                 : new AIMessage(message.content);
         });
+
+        // Store runtime secrets for tools to access
+        this.runtimeSecrets = runtimeSecrets;
 
         // Use runtime graph if config provided, otherwise use default graph
         const graphToUse = runtimeConfig && Object.keys(runtimeConfig).length > 0

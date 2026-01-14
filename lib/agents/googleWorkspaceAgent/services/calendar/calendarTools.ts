@@ -9,10 +9,7 @@ const dateTimeRangeSchema = z.object({
 });
 
 function formatDateTime(dateTime: string, timeZone?: string) {
-    return {
-        dateTime,
-        timeZone,
-    };
+    return { dateTime, timeZone };
 }
 
 function formatEventSummary(event: { id?: string | null; summary?: string | null; start?: any; end?: any }) {
@@ -30,7 +27,7 @@ function parseDate(value: string) {
 }
 
 // Calendar Create Event Tool
-export function createCalendarCreateEventTool() {
+export function createCalendarCreateEventTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "calendar_create_event",
         description: "Create a Google Calendar event with title, time range, attendees, and optional description.",
@@ -45,7 +42,7 @@ export function createCalendarCreateEventTool() {
         }),
         func: async ({ summary, description, location, start, end, timeZone, attendees }) => {
             try {
-                const { calendarId } = getGoogleAuthEnv();
+                const { calendarId } = getGoogleAuthEnv(runtimeSecrets);
                 const event = await googleApiRequest<{ id?: string; summary?: string }>(
                     "calendar",
                     `/calendars/${encodeURIComponent(calendarId)}/events`,
@@ -59,7 +56,8 @@ export function createCalendarCreateEventTool() {
                             end: formatDateTime(end, timeZone),
                             attendees: attendees?.map((email) => ({ email })) || undefined,
                         }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return `Event created: ${event.summary || "(no title)"} (${event.id ?? "no-id"})`;
@@ -72,7 +70,7 @@ export function createCalendarCreateEventTool() {
 }
 
 // Calendar List Events Tool
-export function createCalendarListEventsTool() {
+export function createCalendarListEventsTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "calendar_list_events",
         description: "List upcoming Google Calendar events within an optional time range.",
@@ -84,7 +82,7 @@ export function createCalendarListEventsTool() {
         }),
         func: async ({ timeMin, timeMax, maxResults, query }) => {
             try {
-                const { calendarId } = getGoogleAuthEnv();
+                const { calendarId } = getGoogleAuthEnv(runtimeSecrets);
                 const params = new URLSearchParams();
                 if (timeMin) params.set("timeMin", timeMin);
                 if (timeMax) params.set("timeMax", timeMax);
@@ -95,7 +93,9 @@ export function createCalendarListEventsTool() {
 
                 const response = await googleApiRequest<{ items?: any[] }>(
                     "calendar",
-                    `/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`
+                    `/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
+                    {},
+                    runtimeSecrets
                 );
 
                 const events = response.items ?? [];
@@ -113,7 +113,7 @@ export function createCalendarListEventsTool() {
 }
 
 // Calendar Update Event Tool
-export function createCalendarUpdateEventTool() {
+export function createCalendarUpdateEventTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "calendar_update_event",
         description: "Update an existing Google Calendar event by ID.",
@@ -129,7 +129,7 @@ export function createCalendarUpdateEventTool() {
         }),
         func: async ({ eventId, summary, description, location, start, end, timeZone, attendees }) => {
             try {
-                const { calendarId } = getGoogleAuthEnv();
+                const { calendarId } = getGoogleAuthEnv(runtimeSecrets);
                 const event = await googleApiRequest<{ id?: string; summary?: string }>(
                     "calendar",
                     `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
@@ -143,7 +143,8 @@ export function createCalendarUpdateEventTool() {
                             end: end ? formatDateTime(end, timeZone) : undefined,
                             attendees: attendees?.map((email) => ({ email })) || undefined,
                         }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return `Event updated: ${event.summary || "(no title)"} (${event.id ?? "no-id"})`;
@@ -156,7 +157,7 @@ export function createCalendarUpdateEventTool() {
 }
 
 // Calendar Delete Event Tool
-export function createCalendarDeleteEventTool() {
+export function createCalendarDeleteEventTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "calendar_delete_event",
         description: "Delete an event from Google Calendar by ID.",
@@ -165,11 +166,12 @@ export function createCalendarDeleteEventTool() {
         }),
         func: async ({ eventId }) => {
             try {
-                const { calendarId } = getGoogleAuthEnv();
+                const { calendarId } = getGoogleAuthEnv(runtimeSecrets);
                 await googleApiRequest(
                     "calendar",
                     `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
-                    { method: "DELETE" }
+                    { method: "DELETE" },
+                    runtimeSecrets
                 );
                 return `Event deleted: ${eventId}`;
             } catch (error) {
@@ -181,7 +183,7 @@ export function createCalendarDeleteEventTool() {
 }
 
 // Calendar Find Free Slots Tool
-export function createCalendarFindFreeSlotsTool() {
+export function createCalendarFindFreeSlotsTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "calendar_find_free_slots",
         description: "Find free time slots within a range using Google Calendar free/busy data.",
@@ -194,7 +196,7 @@ export function createCalendarFindFreeSlotsTool() {
         }),
         func: async ({ timeMin, timeMax, durationMinutes, maxSlots, timeZone }) => {
             try {
-                const { calendarId } = getGoogleAuthEnv();
+                const { calendarId } = getGoogleAuthEnv(runtimeSecrets);
                 const response = await googleApiRequest<{
                     calendars?: Record<string, { busy?: { start?: string; end?: string }[] }>;
                 }>("calendar", "/freeBusy", {
@@ -205,7 +207,7 @@ export function createCalendarFindFreeSlotsTool() {
                         timeZone,
                         items: [{ id: calendarId }],
                     }),
-                });
+                }, runtimeSecrets);
 
                 const busy = response.calendars?.[calendarId]?.busy ?? [];
                 const rangeStart = parseDate(timeMin);
@@ -227,13 +229,8 @@ export function createCalendarFindFreeSlotsTool() {
                 const durationMs = durationMinutes * 60 * 1000;
 
                 for (const range of busyRanges) {
-                    if (range.start >= rangeEnd) {
-                        break;
-                    }
-
-                    if (cursor >= rangeEnd) {
-                        break;
-                    }
+                    if (range.start >= rangeEnd) break;
+                    if (cursor >= rangeEnd) break;
 
                     if (range.start > cursor) {
                         const gapEnd = range.start > rangeEnd ? rangeEnd : range.start;
@@ -275,12 +272,12 @@ export function createCalendarFindFreeSlotsTool() {
 }
 
 // Export all Calendar tools
-export function createAllCalendarTools(): DynamicStructuredTool[] {
+export function createAllCalendarTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
-        createCalendarCreateEventTool(),
-        createCalendarListEventsTool(),
-        createCalendarUpdateEventTool(),
-        createCalendarDeleteEventTool(),
-        createCalendarFindFreeSlotsTool(),
+        createCalendarCreateEventTool(runtimeSecrets),
+        createCalendarListEventsTool(runtimeSecrets),
+        createCalendarUpdateEventTool(runtimeSecrets),
+        createCalendarDeleteEventTool(runtimeSecrets),
+        createCalendarFindFreeSlotsTool(runtimeSecrets),
     ];
 }
