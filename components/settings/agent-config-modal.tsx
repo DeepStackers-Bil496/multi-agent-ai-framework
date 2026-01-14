@@ -72,12 +72,11 @@ const AGENT_SECRET_FIELDS: Record<
 };
 
 const LLM_PROVIDERS: { value: LLMProvider; label: string }[] = [
-  { value: "google", label: "Google (Gemini)" },
+  { value: "google", label: "Google" },
   { value: "openai", label: "OpenAI" },
-  { value: "anthropic", label: "Anthropic (Claude)" },
+  { value: "anthropic", label: "Anthropic" },
   { value: "groq", label: "Groq" },
-  { value: "mistral", label: "Mistral AI" },
-  { value: "ollama", label: "Ollama (Local)" },
+  { value: "mistral", label: "Mistral AI" }
 ];
 
 export function AgentConfigModal({
@@ -383,7 +382,7 @@ export function AgentConfigModal({
                     onChange={(e) => setBaseUrl(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    URL of your Ollama or vLLM server (including ngrok tunnels)
+                    URL of your Ollama, vLLM or local server
                   </p>
                 </div>
 
