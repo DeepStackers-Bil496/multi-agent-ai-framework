@@ -8,6 +8,7 @@ import { BaseAgent } from "../baseAgent";
 import { agentRegistry, DelegatableAgent } from "../agentRegistry";
 import { createDelegationToolsFromRegistry } from "./delegationToolFactory";
 import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createLLM } from "../llmFactory";
 
 // Import agents to trigger self-registration
 import "../githubAgent/githubAgent";
@@ -135,20 +136,85 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     }
 
     /**
+     * Create a runtime orchestrator graph with user-configured LLM
+     * This allows MainAgent to use the user's preferred provider/model
+     */
+    private createRuntimeOrchestratorGraph(runtimeConfig: Partial<LLMImplMetadata>) {
+        // Merge runtime config with default implementation metadata
+        const mergedConfig: LLMImplMetadata = {
+            ...this.implementationMetadata as LLMImplMetadata,
+            ...runtimeConfig,
+            // Always preserve the system instruction from agent defaults
+            systemInstruction: (this.implementationMetadata as LLMImplMetadata).systemInstruction,
+        };
+
+        console.log(`[MainAgent] Creating runtime LLM with provider: ${mergedConfig.provider}, model: ${mergedConfig.modelID}`);
+
+        // Create new LLM with merged config and bind tools
+        const runtimeLLM = createLLM(mergedConfig);
+        const boundLLM = runtimeLLM.bindTools!(this.agentTools);
+
+        // Create a runtime agent node that uses the new LLM
+        const runtimeAgentNode = async (state: typeof MessagesAnnotation.State) => {
+            const { messages } = state;
+            const messagesToSend = [
+                new SystemMessage(mergedConfig.systemInstruction),
+                ...messages
+            ];
+
+            try {
+                const response = await boundLLM.invoke(messagesToSend);
+                return { messages: [response] };
+            } catch (error) {
+                console.error("[MainAgent] (Runtime) Error in agentNode:", error);
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                return { messages: [new AIMessage(`Error: ${errorMessage}`)] };
+            }
+        };
+
+        // Build the graph with the runtime LLM
+        const registeredAgents = agentRegistry.getAll();
+        let graph: any = new StateGraph(MessagesAnnotation)
+            .addNode("MainAgentNode", runtimeAgentNode)
+            .addEdge(START, "MainAgentNode")
+            .addConditionalEdges("MainAgentNode", this.orchestratorRoute.bind(this));
+
+        // Dynamically add nodes for each registered agent
+        for (const agent of registeredAgents) {
+            const prepareNodeName = `Prepare_${agent.id}_Task`;
+            const subgraphNodeName = `${agent.id}_Subgraph`;
+
+            // Get runtime config for this specific sub-agent, if available
+            const subAgentConfig = runtimeConfig?.subAgentConfigs?.[agent.id];
+
+            graph = graph
+                .addNode(prepareNodeName, this.createPrepareTaskNode(agent))
+                // Use runtime graph for sub-agents to propagate secrets and specific agent config
+                .addNode(subgraphNodeName, agent.instance.createRuntimeGraph(subAgentConfig, this.runtimeSecrets))
+                .addEdge(prepareNodeName, subgraphNodeName)
+                .addEdge(subgraphNodeName, "MainAgentNode");
+        }
+
+        return graph.compile();
+    }
+
+    /**
      * Run the agent with streaming response
      */
     public async run(inputMessages: AgentChatMessage[], runtimeConfig?: Partial<LLMImplMetadata>, runtimeSecrets?: Record<string, string>): Promise<Response> {
-        // The instruction implies passing runtimeSecrets to super.run(),
-        // but MainAgent overrides run with its own streaming logic.
-        // If the intent was to delegate, the rest of this method would be removed.
-        // Assuming the intent is to only update the signature and keep the existing logic,
-        // and if super.run() were to be called, these parameters would be passed.
-        // For now, we'll keep the existing streaming logic.
+        // Store runtime secrets for child agents to access
+        this.runtimeSecrets = runtimeSecrets;
+
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole ? new HumanMessage(message.content) : new AIMessage(message.content);
         });
 
-        const eventStream = this.agentGraph!.streamEvents(
+        // Use runtime graph if config provided, otherwise use default graph
+        const graphToUse = runtimeConfig && Object.keys(runtimeConfig).length > 0
+            ? this.createRuntimeOrchestratorGraph(runtimeConfig)
+            : this.agentGraph!;
+
+        const eventStream = graphToUse.streamEvents(
             { messages: history },
             { version: "v2" }
         );

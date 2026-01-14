@@ -47,7 +47,8 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { getAgentById } from "@/lib/agents";
 import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, TOOL_STARTED, TOOL_ENDED, AGENT_ERROR } from "@/lib/constants";
 import type { ExecutionStep } from "@/lib/types";
-import { resolveAgentConfig } from "@/lib/agents/configResolver";
+import { resolveAgentConfig, resolveAllAgentConfigs } from "@/lib/agents/configResolver";
+import { LLMImplMetadata } from "@/lib/types";
 
 
 export const maxDuration = 60;
@@ -328,12 +329,36 @@ export async function POST(request: Request) {
       selectedChatModel
     );
 
-    // Call the selected agent with user-specific config (if any)
-    const runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
-      ? resolvedConfig.llmConfig
-      : undefined;
+    let runtimeConfig: Partial<LLMImplMetadata> | undefined;
+    let runtimeSecrets = resolvedConfig.secrets;
 
-    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig, resolvedConfig.secrets);
+    // Special handling for MainAgent: Load configs for all agents to enable orchestration
+    if (selectedChatModel === "main-agent") {
+      const allConfigs = await resolveAllAgentConfigs(session.user.id);
+      const subAgentConfigs: Record<string, Partial<LLMImplMetadata>> = {};
+
+      for (const [agentId, config] of Object.entries(allConfigs)) {
+        // Merge secrets so MainAgent can authenticate sub-agent tools
+        runtimeSecrets = { ...runtimeSecrets, ...config.secrets };
+
+        // Store specific LLM config for sub-agents
+        if (Object.keys(config.llmConfig).length > 0) {
+          subAgentConfigs[agentId] = config.llmConfig;
+        }
+      }
+
+      // Attach subAgentConfigs to runtimeConfig
+      runtimeConfig = {
+        ...resolvedConfig.llmConfig,
+        subAgentConfigs
+      };
+    } else {
+      runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
+        ? resolvedConfig.llmConfig
+        : undefined;
+    }
+
+    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
 
     if (!agentResponse.body) {
       throw new Error("No response body from Agent");

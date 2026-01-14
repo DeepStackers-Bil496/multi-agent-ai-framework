@@ -101,6 +101,7 @@ export type LLMImplMetadata = {
   systemInstruction: string;
   apiKey?: string;        // Optional for local providers like Ollama
   baseURL?: string;       // For vLLM or custom endpoints
+  subAgentConfigs?: Record<string, Partial<LLMImplMetadata>>; // Configurations for sub-agents managed by this agent
 };
 
 export type AgentImplMetadata =

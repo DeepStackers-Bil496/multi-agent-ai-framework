@@ -191,7 +191,17 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
      * @param runtimeConfig Runtime configuration overrides
      * @returns Compiled graph with the runtime-configured LLM
      */
-    protected createRuntimeGraph(runtimeConfig: Partial<LLMImplMetadata>): Runnable {
+    /**
+     * Creates a temporary graph with runtime-specific LLM configuration.
+     * Used when user has custom configuration that differs from defaults.
+     * @param runtimeConfig Runtime configuration overrides
+     * @param runtimeSecrets Optional runtime secrets for tools
+     * @returns Compiled graph with the runtime-configured LLM
+     */
+    public createRuntimeGraph(
+        runtimeConfig?: Partial<LLMImplMetadata>,
+        runtimeSecrets?: Record<string, string>
+    ): Runnable {
         // Merge runtime config with default implementation metadata
         const mergedConfig: LLMImplMetadata = {
             ...this.implementationMetadata as LLMImplMetadata,
@@ -202,8 +212,9 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
 
         console.log(`[${this.name}] Creating runtime LLM with provider: ${mergedConfig.provider}, model: ${mergedConfig.modelID}`);
 
-        // Create tools with runtime secrets if available
-        const runtimeTools = this.createTools(this.runtimeSecrets);
+        // Create tools with runtime secrets if available (or use existing)
+        const secrets = runtimeSecrets || this.runtimeSecrets;
+        const runtimeTools = this.createTools(secrets);
 
         // Create new LLM with merged config
         const runtimeLLM = createLLM(mergedConfig);
@@ -270,7 +281,7 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
 
         // Use runtime graph if config provided, otherwise use default graph
         const graphToUse = runtimeConfig && Object.keys(runtimeConfig).length > 0
-            ? this.createRuntimeGraph(runtimeConfig)
+            ? this.createRuntimeGraph(runtimeConfig, runtimeSecrets)
             : this.agentGraph!;
 
         const eventStream = graphToUse.streamEvents(

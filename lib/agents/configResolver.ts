@@ -1,4 +1,4 @@
-import { getAgentConfiguration } from "@/lib/db/queries";
+import { getAgentConfiguration, getAllAgentConfigurations } from "@/lib/db/queries";
 import {
   decryptSecret,
   decryptAgentSecrets,
@@ -18,6 +18,19 @@ export interface ResolvedAgentConfig {
   secrets: Record<string, string>;
 }
 
+/**
+ * Resolves agent configuration for a specific user.
+ *
+ * This function:
+ * 1. Fetches user-specific configuration from the database
+ * 2. Decrypts any stored secrets
+ * 3. Returns user config overrides (to be merged with agent defaults at runtime)
+ * 4. Falls back to environment variables when no user config exists
+ *
+ * @param userId - The user's ID
+ * @param agentId - The agent's ID
+ * @returns Resolved configuration with LLM settings and decrypted secrets
+ */
 /**
  * Resolves agent configuration for a specific user.
  *
@@ -56,54 +69,95 @@ export async function resolveAgentConfig(
       return result;
     }
 
-    // Process deployment type and provider
-    if (userConfig.deploymentType === "self-hosted") {
-      // Self-hosted: use Ollama provider with custom base URL
-      result.llmConfig.provider = "ollama";
-      if (userConfig.baseUrl) {
-        result.llmConfig.baseURL = userConfig.baseUrl;
-      }
-      if (userConfig.modelId) {
-        result.llmConfig.modelID = userConfig.modelId;
-      }
-    } else if (userConfig.provider) {
-      // Cloud API: use specified provider
-      result.llmConfig.provider = userConfig.provider as LLMProvider;
-
-      if (userConfig.modelId) {
-        result.llmConfig.modelID = userConfig.modelId;
-      }
-
-      // Decrypt and set API key
-      if (userConfig.apiKey) {
-        try {
-          result.llmConfig.apiKey = decryptSecret(userConfig.apiKey);
-        } catch (error) {
-          console.error(
-            `Failed to decrypt API key for agent ${agentId}:`,
-            error
-          );
-        }
-      }
-    }
-
-    // Decrypt agent-specific secrets
-    if (userConfig.agentSecrets) {
-      try {
-        result.secrets = decryptAgentSecrets(userConfig.agentSecrets);
-      } catch (error) {
-        console.error(
-          `Failed to decrypt agent secrets for ${agentId}:`,
-          error
-        );
-      }
-    }
-
-    return result;
+    return processAgentConfiguration(userConfig);
   } catch (error) {
     console.error(`Failed to resolve agent config for ${agentId}:`, error);
     return result;
   }
+}
+
+/**
+ * Resolves configuration for ALL agents for a specific user.
+ * 
+ * @param userId - The user's ID
+ * @returns Map of agentId -> ResolvedAgentConfig
+ */
+export async function resolveAllAgentConfigs(
+  userId: string
+): Promise<Record<string, ResolvedAgentConfig>> {
+  const result: Record<string, ResolvedAgentConfig> = {};
+
+  if (!isEncryptionConfigured()) {
+    return result;
+  }
+
+  try {
+    const allConfigs = await getAllAgentConfigurations({ userId });
+
+    for (const config of allConfigs) {
+      result[config.agentId] = processAgentConfiguration(config);
+    }
+
+    return result;
+  } catch (error) {
+    console.error(`Failed to resolve all agent configs for user ${userId}:`, error);
+    return result;
+  }
+}
+
+/**
+ * Helper to process a raw DB configuration into a resolved config
+ */
+function processAgentConfiguration(userConfig: any): ResolvedAgentConfig {
+  const result: ResolvedAgentConfig = {
+    llmConfig: {},
+    secrets: {},
+  };
+
+  // Process deployment type and provider
+  if (userConfig.deploymentType === "self-hosted") {
+    // Self-hosted: use Ollama provider with custom base URL
+    result.llmConfig.provider = "ollama";
+    if (userConfig.baseUrl) {
+      result.llmConfig.baseURL = userConfig.baseUrl;
+    }
+    if (userConfig.modelId) {
+      result.llmConfig.modelID = userConfig.modelId;
+    }
+  } else if (userConfig.provider) {
+    // Cloud API: use specified provider
+    result.llmConfig.provider = userConfig.provider as LLMProvider;
+
+    if (userConfig.modelId) {
+      result.llmConfig.modelID = userConfig.modelId;
+    }
+
+    // Decrypt and set API key
+    if (userConfig.apiKey) {
+      try {
+        result.llmConfig.apiKey = decryptSecret(userConfig.apiKey);
+      } catch (error) {
+        console.error(
+          `Failed to decrypt API key for agent ${userConfig.agentId}:`,
+          error
+        );
+      }
+    }
+  }
+
+  // Decrypt agent-specific secrets
+  if (userConfig.agentSecrets) {
+    try {
+      result.secrets = decryptAgentSecrets(userConfig.agentSecrets);
+    } catch (error) {
+      console.error(
+        `Failed to decrypt agent secrets for ${userConfig.agentId}:`,
+        error
+      );
+    }
+  }
+
+  return result;
 }
 
 /**
