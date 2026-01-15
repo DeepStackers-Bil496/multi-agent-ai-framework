@@ -6,10 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { fetcher } from "@/lib/utils";
 import { agentUserMetadataList } from "@/lib/agents/user_metadata";
 import { toast } from "@/components/toast";
 import type { AgentPreference } from "@/lib/db/schema";
+import type { AgentUserMetadata } from "@/lib/types";
+import { Settings } from "lucide-react";
+import { AgentConfigModal } from "../agent-config-modal";
 
 export function CapabilitiesTab() {
   const { data: preferencesData, mutate } = useSWR<{
@@ -17,6 +21,7 @@ export function CapabilitiesTab() {
   }>("/api/user_dashboard/preferences", fetcher);
 
   const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
+  const [configModalAgent, setConfigModalAgent] = useState<AgentUserMetadata | null>(null);
 
   const isAgentEnabled = (agentId: string) => {
     if (!preferencesData?.preferences) return true;
@@ -118,17 +123,37 @@ export function CapabilitiesTab() {
                     </p>
                   </div>
                 </div>
-                <Switch
-                  checked={enabled}
-                  onCheckedChange={(checked) => handleToggle(agent.id, checked)}
-                  disabled={isMainAgent || isPending}
-                  className={isPending ? "opacity-50" : ""}
-                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setConfigModalAgent(agent)}
+                    title="Configure agent"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={(checked) => handleToggle(agent.id, checked)}
+                    disabled={isMainAgent || isPending}
+                    className={isPending ? "opacity-50" : ""}
+                  />
+                </div>
               </div>
             );
           })}
         </CardContent>
       </Card>
+
+      {/* Agent Configuration Modal */}
+      {configModalAgent && (
+        <AgentConfigModal
+          agent={configModalAgent}
+          open={!!configModalAgent}
+          onOpenChange={(open) => !open && setConfigModalAgent(null)}
+        />
+      )}
 
       <Card>
         <CardHeader>

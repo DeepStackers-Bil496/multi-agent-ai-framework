@@ -10,6 +10,13 @@ class FrontendAgent extends BaseAgent<LLMImplMetadata> {
     constructor(frontendAgentConfig: AgentConfig<LLMImplMetadata>, agentTools: DynamicStructuredTool[]) {
         super(frontendAgentConfig, agentTools);
     }
+
+    /**
+     * Create Frontend tools - no secrets needed for this agent
+     */
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createFrontendAgentTools();
+    }
 }
 
 export const frontendAgent = new FrontendAgent(FrontendAgentConfig, createFrontendAgentTools());

@@ -1,0 +1,1 @@
+ALTER TABLE "AgentConfiguration" DROP COLUMN IF EXISTS "cachedModels";

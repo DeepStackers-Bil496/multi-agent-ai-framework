@@ -31,6 +31,8 @@ import {
   vote,
   agentPreference,
   type AgentPreference,
+  agentConfiguration,
+  type AgentConfiguration,
   userProfile,
   type UserProfile,
 } from "./schema";
@@ -656,6 +658,152 @@ export async function upsertAgentPreference({
     throw new ChatSDKError(
       "bad_request:database",
       "Failed to upsert agent preference"
+    );
+  }
+}
+
+// ============================================================================
+// Dashboard - Agent Configuration (model, API keys, secrets)
+// ============================================================================
+
+export async function getAgentConfiguration({
+  userId,
+  agentId,
+}: {
+  userId: string;
+  agentId: string;
+}): Promise<AgentConfiguration | null> {
+  try {
+    const [config] = await db
+      .select()
+      .from(agentConfiguration)
+      .where(
+        and(
+          eq(agentConfiguration.userId, userId),
+          eq(agentConfiguration.agentId, agentId)
+        )
+      );
+    return config || null;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get agent configuration"
+    );
+  }
+}
+
+export async function getAllAgentConfigurations({
+  userId,
+}: {
+  userId: string;
+}): Promise<AgentConfiguration[]> {
+  try {
+    return await db
+      .select()
+      .from(agentConfiguration)
+      .where(eq(agentConfiguration.userId, userId));
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get agent configurations"
+    );
+  }
+}
+
+export async function upsertAgentConfiguration({
+  userId,
+  agentId,
+  deploymentType,
+  provider,
+  modelId,
+  apiKey,
+  baseUrl,
+  agentSecrets,
+}: {
+  userId: string;
+  agentId: string;
+  deploymentType?: string;
+  provider?: string | null;
+  modelId?: string | null;
+  apiKey?: string | null;
+  baseUrl?: string | null;
+  agentSecrets?: string | null;
+}): Promise<AgentConfiguration> {
+  try {
+    const existing = await getAgentConfiguration({ userId, agentId });
+
+    if (existing) {
+      const updateData: Partial<AgentConfiguration> = {
+        updatedAt: new Date(),
+      };
+
+      if (deploymentType !== undefined)
+        updateData.deploymentType = deploymentType;
+      if (provider !== undefined) updateData.provider = provider;
+      if (modelId !== undefined) updateData.modelId = modelId;
+      if (apiKey !== undefined) updateData.apiKey = apiKey;
+      if (baseUrl !== undefined) updateData.baseUrl = baseUrl;
+      if (agentSecrets !== undefined) updateData.agentSecrets = agentSecrets;
+
+      const [updated] = await db
+        .update(agentConfiguration)
+        .set(updateData)
+        .where(
+          and(
+            eq(agentConfiguration.userId, userId),
+            eq(agentConfiguration.agentId, agentId)
+          )
+        )
+        .returning();
+
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(agentConfiguration)
+      .values({
+        userId,
+        agentId,
+        deploymentType: deploymentType || "cloud",
+        provider: provider ?? null,
+        modelId: modelId ?? null,
+        apiKey: apiKey ?? null,
+        baseUrl: baseUrl ?? null,
+        agentSecrets: agentSecrets ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    return created;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to upsert agent configuration"
+    );
+  }
+}
+
+export async function deleteAgentConfiguration({
+  userId,
+  agentId,
+}: {
+  userId: string;
+  agentId: string;
+}): Promise<void> {
+  try {
+    await db
+      .delete(agentConfiguration)
+      .where(
+        and(
+          eq(agentConfiguration.userId, userId),
+          eq(agentConfiguration.agentId, agentId)
+        )
+      );
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to delete agent configuration"
     );
   }
 }

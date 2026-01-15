@@ -14,6 +14,13 @@ class HuggingFaceAgent extends BaseAgent<LLMImplMetadata> {
     constructor(huggingFaceAgentConfig: AgentConfig<LLMImplMetadata>, agentTools: DynamicStructuredTool[]) {
         super(huggingFaceAgentConfig, agentTools);
     }
+
+    /**
+     * Create HuggingFace MCP tools, passing runtime secrets when available
+     */
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createAllHuggingFaceMCPTools(runtimeSecrets);
+    }
 }
 
 export const huggingFaceAgent = new HuggingFaceAgent(HuggingFaceAgentConfig, createAllHuggingFaceMCPTools());

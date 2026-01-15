@@ -11,6 +11,13 @@ class WebAgent extends BaseAgent<LLMImplMetadata> {
     constructor(webAgentConfig: AgentConfig<LLMImplMetadata>, agentTools: DynamicStructuredTool[]) {
         super(webAgentConfig, agentTools);
     }
+
+    /**
+     * Create Web scraping tools - no secrets needed for this agent
+     */
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createAllWebAgentTools();
+    }
 }
 
 export const webAgent = new WebAgent(WebAgentConfig, createAllWebAgentTools());
@@ -30,4 +37,3 @@ Use this when the user asks to:
     instance: webAgent,
     getCompiledGraph: () => webAgent.getCompiledGraph(),
 });
-

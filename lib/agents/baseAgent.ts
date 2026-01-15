@@ -18,6 +18,10 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     protected agentTools: DynamicStructuredTool[] = [];
     protected agentGraph: Runnable | null = null;
     protected agentLLM: Runnable | null = null;
+    protected runtimeSecrets?: Record<string, string>;
+
+    // Tracks config version to avoid recreating LLM/tools when unchanged
+    protected lastConfigVersion: string | null = null;
 
     /**
      * @param config Agent configuration
@@ -72,7 +76,15 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
-     * 
+     * Abstract method that each agent must implement to create its tools.
+     * This allows runtime secrets to be passed to tools when available.
+     * @param runtimeSecrets Optional secrets from database for API authentication
+     * @returns Array of tools for this agent
+     */
+    protected abstract createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[];
+
+    /**
+     * Build the agent graph with the current tools
      */
     protected buildAgentGraph() {
         const toolNode = new ToolNode(this.agentTools);
@@ -160,18 +172,144 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
+     * Get a secret value, checking runtime secrets first, then falling back to env vars.
+     * This allows user-configured secrets from the database to take precedence.
+     * @param key The secret key to retrieve
+     * @param envVarName Optional environment variable name to use as fallback
+     * @returns The secret value or undefined
+     */
+    protected getSecret(key: string, envVarName?: string): string | undefined {
+        // First check runtime secrets (from database)
+        if (this.runtimeSecrets?.[key]) {
+            return this.runtimeSecrets[key];
+        }
+
+        // Fall back to environment variable
+        return process.env[envVarName || key];
+    }
+
+    /**
+     * Gets or creates a runtime graph with caching based on config version.
+     * Use this method when embedding agent as subgraph to benefit from caching.
+     * @param runtimeConfig Runtime configuration overrides
+     * @param runtimeSecrets Optional runtime secrets for tools
+     * @returns Cached or newly created compiled graph
+     */
+    public getOrCreateRuntimeGraph(
+        runtimeConfig?: Partial<LLMImplMetadata>,
+        runtimeSecrets?: Record<string, string>
+    ): Runnable {
+        // Check if we have any runtime customization (config OR secrets)
+        const hasRuntimeConfig = runtimeConfig && Object.keys(runtimeConfig).length > 0;
+        const hasRuntimeSecrets = runtimeSecrets && Object.keys(runtimeSecrets).length > 0;
+
+        if (hasRuntimeConfig || hasRuntimeSecrets) {
+            // Compute version from both config and secrets
+            const secretKeys = runtimeSecrets ? Object.keys(runtimeSecrets).sort().join(',') : '';
+            const newConfigVersion = `${runtimeConfig?._configVersion || 'default'}-${secretKeys}`;
+
+            if (newConfigVersion !== this.lastConfigVersion) {
+                console.log(`[${this.name}] Config changed (${this.lastConfigVersion} -> ${newConfigVersion}), recreating graph`);
+                this.runtimeSecrets = runtimeSecrets;
+                this.agentGraph = this.createRuntimeGraph(runtimeConfig, runtimeSecrets);
+                this.lastConfigVersion = newConfigVersion;
+            } else {
+                console.log(`[${this.name}] Config unchanged (${newConfigVersion}), reusing cached graph`);
+            }
+        }
+
+        return this.agentGraph!;
+    }
+
+    /**
+     * Creates a new runtime graph (always creates fresh LLM and tools).
+     * For cached access, use getOrCreateRuntimeGraph() instead.
+     * @param runtimeConfig Runtime configuration overrides
+     * @param runtimeSecrets Optional runtime secrets for tools
+     * @returns Compiled graph with the runtime-configured LLM
+     */
+    public createRuntimeGraph(
+        runtimeConfig?: Partial<LLMImplMetadata>,
+        runtimeSecrets?: Record<string, string>
+    ): Runnable {
+        // Merge runtime config with default implementation metadata
+        const mergedConfig: LLMImplMetadata = {
+            ...this.implementationMetadata as LLMImplMetadata,
+            ...runtimeConfig,
+            // Always preserve the system instruction from agent defaults
+            systemInstruction: (this.implementationMetadata as LLMImplMetadata).systemInstruction,
+        };
+
+        console.log(`[${this.name}] Creating runtime LLM with provider: ${mergedConfig.provider}, model: ${mergedConfig.modelID}`);
+
+        // Create tools with runtime secrets if available (or use existing)
+        const secrets = runtimeSecrets || this.runtimeSecrets;
+        const runtimeTools = this.createTools(secrets);
+
+        // Create new LLM with merged config
+        const runtimeLLM = createLLM(mergedConfig);
+        const boundLLM = runtimeLLM.bindTools!(runtimeTools);
+
+        // Build a new graph with the runtime LLM and tools
+        const toolNode = new ToolNode(runtimeTools);
+        const runtimeAgentNode = async (state: typeof MessagesAnnotation.State) => {
+            const { messages } = state;
+            const messagesToSend = [
+                new SystemMessage(mergedConfig.systemInstruction),
+                ...messages
+            ];
+
+            try {
+                console.log("[" + this.name + "] (Runtime) Invoking LLM with", messages.length, "messages");
+                const response = await boundLLM.invoke(messagesToSend);
+                const aiResponse = response as AIMessage;
+
+                if (!aiResponse.content && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {
+                    console.warn("[" + this.name + "] (Runtime) Empty response from LLM, returning fallback");
+                    return {
+                        messages: [new AIMessage("I apologize, but I couldn't process that request. Please try again.")]
+                    };
+                }
+
+                return { messages: [response] };
+            } catch (error) {
+                console.error("[" + this.name + "] (Runtime) Error in agentNode:", error);
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                return { messages: [new AIMessage(`Error: ${errorMessage}`)] };
+            }
+        };
+
+        return new StateGraph(MessagesAnnotation)
+            .addNode("agentNode", runtimeAgentNode)
+            .addNode("tools", toolNode)
+            .addEdge(START, "agentNode")
+            .addConditionalEdges("agentNode", this.agentRoute.bind(this))
+            .addEdge("tools", "agentNode")
+            .compile();
+    }
+
+    /**
      * Run the agent with the given input messages.
      * @param inputMessages Input messages
+     * @param runtimeConfig Optional runtime configuration overrides (user-specific settings)
+     * @param runtimeSecrets Optional runtime secrets from database (user-specific credentials)
      * @returns Agent response
      */
-    public async run(inputMessages: AgentChatMessage[]): Promise<Response> {
+    public async run(
+        inputMessages: AgentChatMessage[],
+        runtimeConfig?: Partial<LLMImplMetadata>,
+        runtimeSecrets?: Record<string, string>
+    ): Promise<Response> {
         const history = inputMessages.map((message) => {
             return message.role == AgentUserRole
                 ? new HumanMessage(message.content)
                 : new AIMessage(message.content);
         });
 
-        const eventStream = this.agentGraph!.streamEvents(
+        // Get or create runtime graph (uses caching based on config version)
+        const graphToUse = this.getOrCreateRuntimeGraph(runtimeConfig, runtimeSecrets);
+
+        const eventStream = graphToUse.streamEvents(
             { messages: history },
             { version: "v2" }
         );

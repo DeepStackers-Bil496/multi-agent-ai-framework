@@ -1,5 +1,5 @@
+import { BaseAgent } from "./baseAgent";
 import { Runnable } from "@langchain/core/runnables";
-import { AgentUserMetadata, AgentChatMessage } from "../types";
 
 /**
  * Interface for agents that can be delegated to by the MainAgent.
@@ -17,7 +17,7 @@ export interface DelegatableAgent {
     /** Prefix for task messages, e.g., "[GitHub Task]" */
     taskPrefix: string;
     /** The agent instance for running */
-    instance: { run(inputMessages: AgentChatMessage[]): Promise<Response> };
+    instance: BaseAgent<any>;
     /** Returns the compiled LangGraph for this agent */
     getCompiledGraph: () => Runnable;
 }

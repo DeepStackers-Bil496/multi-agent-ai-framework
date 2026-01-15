@@ -8,27 +8,43 @@ const MCP_SERVER_URL = "https://api.githubcopilot.com/mcp/";
 // Shared MCP client singleton
 let mcpClient: Client | null = null;
 let isConnected = false;
+let currentRuntimeSecrets: Record<string, string> | undefined;
 
 /**
  * Initialize MCP client connection to Remote GitHub MCP Server
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-async function ensureConnected(): Promise<Client> {
+async function ensureConnected(runtimeSecrets?: Record<string, string>): Promise<Client> {
+    // Reconnect if secrets changed
+    if (isConnected && mcpClient && runtimeSecrets !== currentRuntimeSecrets) {
+        isConnected = false;
+        mcpClient = null;
+    }
+
     if (isConnected && mcpClient) {
         return mcpClient;
     }
 
-    const githubPat = process.env.GITHUB_PAT;
+    // Try runtime secrets first, then fall back to environment variable
+    const githubPat = runtimeSecrets?.["GITHUB_PAT"] || process.env.GITHUB_PAT;
     if (!githubPat) {
-        throw new Error("GITHUB_PAT environment variable is not set.");
+        throw new Error("GITHUB_PAT is not configured. Please set it in agent settings or environment variables.");
     }
 
+    currentRuntimeSecrets = runtimeSecrets;
+
     try {
+        // Trim any whitespace from token that might cause formatting issues
+        const cleanToken = githubPat.trim();
+        console.log(`[GitHubMCPTools] Token format: starts with 'ghp_'=${cleanToken.startsWith('ghp_')}, length=${cleanToken.length}`);
+
         const transport = new StreamableHTTPClientTransport(
             new URL(MCP_SERVER_URL),
             {
                 requestInit: {
                     headers: {
-                        "Authorization": `Bearer ${githubPat}`,
+                        // GitHub PAT should use 'Bearer' format for remote MCP
+                        "Authorization": `Bearer ${cleanToken}`,
                     },
                 },
             }
@@ -51,9 +67,14 @@ async function ensureConnected(): Promise<Client> {
 
 /**
  * Call a tool on the Remote GitHub MCP Server
+ * @param toolName Name of the tool to call  
+ * @param args Arguments for the tool
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-async function callMCPTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
-    const client = await ensureConnected();
+async function callMCPTool(toolName: string, args: Record<string, unknown>, runtimeSecrets?: Record<string, string>): Promise<unknown> {
+    // Use passed secrets, or fall back to module-level currentRuntimeSecrets
+    const secretsToUse = runtimeSecrets ?? currentRuntimeSecrets;
+    const client = await ensureConnected(secretsToUse);
     console.log(`[GitHubMCPTools] Calling: ${toolName}`, args);
     return await client.callTool({ name: toolName, arguments: args });
 }
@@ -756,10 +777,17 @@ export function createGetMeTool() {
 /**
  * Create all GitHub MCP tools as an array
  * This is the main export for use with LangChain/LangGraph
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-export function createAllGitHubMCPTools(): DynamicStructuredTool[] {
+export function createAllGitHubMCPTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+    // Set module-level secrets so tools can access them via callMCPTool
+    if (runtimeSecrets) {
+        currentRuntimeSecrets = runtimeSecrets;
+    }
+
+    // The existing tool creators call callMCPTool without secrets parameter,
+    // but callMCPTool will use currentRuntimeSecrets as fallback.
     return [
-        // Repository operations
         createListCommitsTool(),
         createGetCommitTool(),
         createGetFileContentsTool(),
@@ -768,20 +796,16 @@ export function createAllGitHubMCPTools(): DynamicStructuredTool[] {
         createListBranchesTool(),
         createCreateBranchTool(),
         createListTagsTool(),
-        // Issue operations
         createListIssuesTool(),
         createIssueReadTool(),
         createIssueWriteTool(),
         createAddIssueCommentTool(),
         createSearchIssuesTool(),
-        // PR operations
         createListPullRequestsTool(),
         createPullRequestReadTool(),
         createSearchPullRequestsTool(),
-        // File operations
         createPushFilesTool(),
         createCreateOrUpdateFileTool(),
-        // User operations
         createGetMeTool(),
     ];
 }

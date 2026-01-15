@@ -13,6 +13,13 @@ class GoogleWorkspaceAgent extends BaseAgent<LLMImplMetadata> {
     ) {
         super(googleWorkspaceAgentConfig, agentTools);
     }
+
+    /**
+     * Create Google Workspace tools, passing runtime secrets when available
+     */
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createAllGoogleWorkspaceAgentTools(runtimeSecrets);
+    }
 }
 
 export const googleWorkspaceAgent = new GoogleWorkspaceAgent(

@@ -27,25 +27,26 @@ import { createAllSlidesTools } from "./services/slides/slidesTools";
  * - Docs: 3 tools
  * - Sheets: 4 tools
  * - Slides: 2 tools
+ * @param runtimeSecrets Optional runtime secrets from database
  */
-export function createAllGoogleWorkspaceAgentTools(): DynamicStructuredTool[] {
+export function createAllGoogleWorkspaceAgentTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
         // Gmail (6 tools)
-        ...createAllGmailTools(),
+        ...createAllGmailTools(runtimeSecrets),
 
         // Calendar (5 tools)
-        ...createAllCalendarTools(),
+        ...createAllCalendarTools(runtimeSecrets),
 
         // Drive (7 tools)
-        ...createAllDriveTools(),
+        ...createAllDriveTools(runtimeSecrets),
 
         // Docs (3 tools)
-        ...createAllDocsTools(),
+        ...createAllDocsTools(runtimeSecrets),
 
         // Sheets (4 tools)
-        ...createAllSheetsTools(),
+        ...createAllSheetsTools(runtimeSecrets),
 
         // Slides (2 tools)
-        ...createAllSlidesTools(),
+        ...createAllSlidesTools(runtimeSecrets),
     ];
 }

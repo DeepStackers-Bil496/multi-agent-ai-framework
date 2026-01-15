@@ -3,7 +3,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { googleApiRequest } from "../../auth/googleAuth";
 
 // Slides Create Presentation Tool
-export function createSlidesCreatePresentationTool() {
+export function createSlidesCreatePresentationTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "slides_create_presentation",
         description: "Create a new Google Slides presentation.",
@@ -19,7 +19,7 @@ export function createSlidesCreatePresentationTool() {
                 }>("slides", "/presentations", {
                     method: "POST",
                     body: JSON.stringify({ title }),
-                });
+                }, runtimeSecrets);
 
                 return JSON.stringify({
                     status: "success",
@@ -38,7 +38,7 @@ export function createSlidesCreatePresentationTool() {
 }
 
 // Slides Get Presentation Tool
-export function createSlidesGetPresentationTool() {
+export function createSlidesGetPresentationTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "slides_get_presentation",
         description: "Get metadata and slide information from a Google Slides presentation.",
@@ -66,7 +66,7 @@ export function createSlidesGetPresentationTool() {
                             };
                         }>;
                     }>;
-                }>("slides", `/presentations/${encodeURIComponent(presentationId)}`);
+                }>("slides", `/presentations/${encodeURIComponent(presentationId)}`, {}, runtimeSecrets);
 
                 // Extract text content from each slide
                 const slidesData = presentation.slides?.map((slide, index) => {
@@ -109,9 +109,9 @@ export function createSlidesGetPresentationTool() {
 }
 
 // Export all Slides tools
-export function createAllSlidesTools(): DynamicStructuredTool[] {
+export function createAllSlidesTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
-        createSlidesCreatePresentationTool(),
-        createSlidesGetPresentationTool(),
+        createSlidesCreatePresentationTool(runtimeSecrets),
+        createSlidesGetPresentationTool(runtimeSecrets),
     ];
 }

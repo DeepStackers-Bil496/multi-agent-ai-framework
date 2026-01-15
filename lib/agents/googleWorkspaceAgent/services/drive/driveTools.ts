@@ -24,7 +24,7 @@ function formatFileInfo(file: {
 }
 
 // Drive List Files Tool
-export function createDriveListFilesTool() {
+export function createDriveListFilesTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "drive_list_files",
         description: "List files in Google Drive with optional filters.",
@@ -58,7 +58,9 @@ export function createDriveListFilesTool() {
 
                 const response = await googleApiRequest<{ files?: any[] }>(
                     "drive",
-                    `/files?${params.toString()}`
+                    `/files?${params.toString()}`,
+                    {},
+                    runtimeSecrets
                 );
 
                 const files = response.files ?? [];
@@ -85,7 +87,7 @@ export function createDriveListFilesTool() {
 }
 
 // Drive Search Files Tool
-export function createDriveSearchFilesTool() {
+export function createDriveSearchFilesTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "drive_search_files",
         description:
@@ -115,7 +117,9 @@ export function createDriveSearchFilesTool() {
 
                 const response = await googleApiRequest<{ files?: any[] }>(
                     "drive",
-                    `/files?${params.toString()}`
+                    `/files?${params.toString()}`,
+                    {},
+                    runtimeSecrets
                 );
 
                 const files = response.files ?? [];
@@ -142,7 +146,7 @@ export function createDriveSearchFilesTool() {
 }
 
 // Drive Get File Tool
-export function createDriveGetFileTool() {
+export function createDriveGetFileTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "drive_get_file",
         description: "Get metadata for a specific file by ID.",
@@ -159,7 +163,9 @@ export function createDriveGetFileTool() {
 
                 const file = await googleApiRequest<any>(
                     "drive",
-                    `/files/${encodeURIComponent(fileId)}?${params.toString()}`
+                    `/files/${encodeURIComponent(fileId)}?${params.toString()}`,
+                    {},
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -181,7 +187,7 @@ export function createDriveGetFileTool() {
 }
 
 // Drive Upload File Tool
-export function createDriveUploadFileTool() {
+export function createDriveUploadFileTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "drive_upload_file",
         description: "Upload a file to Google Drive. Content should be base64 encoded.",
@@ -193,13 +199,9 @@ export function createDriveUploadFileTool() {
         }),
         func: async ({ name, mimeType, content, folderId }) => {
             try {
-                const token = await getAccessToken();
+                const token = await getAccessToken(runtimeSecrets);
 
-                // Create multipart upload
-                const metadata: any = {
-                    name,
-                    mimeType,
-                };
+                const metadata: any = { name, mimeType };
                 if (folderId) {
                     metadata.parents = [folderId];
                 }
@@ -207,8 +209,6 @@ export function createDriveUploadFileTool() {
                 const boundary = "-------314159265358979323846";
                 const delimiter = `\r\n--${boundary}\r\n`;
                 const closeDelimiter = `\r\n--${boundary}--`;
-
-                const fileContent = Buffer.from(content, "base64");
 
                 const multipartBody =
                     delimiter +
@@ -254,7 +254,7 @@ export function createDriveUploadFileTool() {
 }
 
 // Drive Download File Tool
-export function createDriveDownloadFileTool() {
+export function createDriveDownloadFileTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "drive_download_file",
         description:
@@ -264,21 +264,19 @@ export function createDriveDownloadFileTool() {
         }),
         func: async ({ fileId }) => {
             try {
-                const token = await getAccessToken();
+                const token = await getAccessToken(runtimeSecrets);
 
-                // First get file metadata to check type
                 const metaResponse = await googleApiRequest<{ mimeType: string; name: string }>(
                     "drive",
-                    `/files/${encodeURIComponent(fileId)}?fields=mimeType,name`
+                    `/files/${encodeURIComponent(fileId)}?fields=mimeType,name`,
+                    {},
+                    runtimeSecrets
                 );
 
-                // Download the file
                 const downloadResponse = await fetch(
                     `${API_BASES.drive}/files/${encodeURIComponent(fileId)}?alt=media`,
                     {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
+                        headers: { Authorization: `Bearer ${token}` },
                     }
                 );
 
@@ -322,7 +320,7 @@ export function createDriveDownloadFileTool() {
 }
 
 // Drive Delete File Tool
-export function createDriveDeleteFileTool() {
+export function createDriveDeleteFileTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "drive_delete_file",
         description: "Move a file to trash in Google Drive.",
@@ -337,7 +335,8 @@ export function createDriveDeleteFileTool() {
                     {
                         method: "PATCH",
                         body: JSON.stringify({ trashed: true }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -353,7 +352,7 @@ export function createDriveDeleteFileTool() {
 }
 
 // Drive Share File Tool
-export function createDriveShareFileTool() {
+export function createDriveShareFileTool(runtimeSecrets?: Record<string, string>) {
     return new DynamicStructuredTool({
         name: "drive_share_file",
         description: "Share a file with specific users by granting permissions.",
@@ -386,7 +385,8 @@ export function createDriveShareFileTool() {
                             role,
                             emailAddress: email,
                         }),
-                    }
+                    },
+                    runtimeSecrets
                 );
 
                 return JSON.stringify({
@@ -402,14 +402,14 @@ export function createDriveShareFileTool() {
 }
 
 // Export all Drive tools
-export function createAllDriveTools(): DynamicStructuredTool[] {
+export function createAllDriveTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
-        createDriveListFilesTool(),
-        createDriveSearchFilesTool(),
-        createDriveGetFileTool(),
-        createDriveUploadFileTool(),
-        createDriveDownloadFileTool(),
-        createDriveDeleteFileTool(),
-        createDriveShareFileTool(),
+        createDriveListFilesTool(runtimeSecrets),
+        createDriveSearchFilesTool(runtimeSecrets),
+        createDriveGetFileTool(runtimeSecrets),
+        createDriveUploadFileTool(runtimeSecrets),
+        createDriveDownloadFileTool(runtimeSecrets),
+        createDriveDeleteFileTool(runtimeSecrets),
+        createDriveShareFileTool(runtimeSecrets),
     ];
 }

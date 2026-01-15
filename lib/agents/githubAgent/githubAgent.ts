@@ -1,4 +1,3 @@
-
 import { LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
 import { GitHubAgentConfig } from "./config";
@@ -14,6 +13,13 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
      */
     constructor(githubAgentConfig: AgentConfig<LLMImplMetadata>, agentTools: DynamicStructuredTool[]) {
         super(githubAgentConfig, agentTools);
+    }
+
+    /**
+     * Create GitHub MCP tools, passing runtime secrets when available
+     */
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createAllGitHubMCPTools(runtimeSecrets);
     }
 }
 
@@ -35,4 +41,3 @@ Use this when the user asks about:
     instance: githubAgent,
     getCompiledGraph: () => githubAgent.getCompiledGraph(),
 });
-

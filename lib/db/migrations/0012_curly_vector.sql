@@ -1,0 +1,1 @@
+ALTER TABLE "AgentConfiguration" ADD COLUMN "cachedModels" json;
