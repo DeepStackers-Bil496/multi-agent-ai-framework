@@ -90,7 +90,7 @@ export function CapabilitiesTab() {
         <CardHeader>
           <CardTitle>Available Agents</CardTitle>
           <CardDescription>
-            Enable or disable specific AI agents based on your needs
+            Enable agents for standalone usage. Enabled agents can be selected directly from the chat page.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -157,22 +157,37 @@ export function CapabilitiesTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Agent Information</CardTitle>
+          <CardTitle>How Agents Work</CardTitle>
           <CardDescription>
-            Learn more about how agents work together
+            Understanding standalone usage vs orchestration
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg bg-muted p-4 text-sm space-y-2">
-            <p>
-              <strong>MainAgent</strong> is the primary orchestrator that routes
-              your requests to specialized agents based on intent.
-            </p>
-            <p>
-              Disabling an agent will prevent MainAgent from delegating tasks to
-              it. The MainAgent will handle those requests directly or suggest
-              alternatives.
-            </p>
+          <div className="rounded-lg bg-muted p-4 text-sm space-y-3">
+            <div>
+              <strong className="text-foreground">🎯 Standalone Mode (Enabled)</strong>
+              <p className="mt-1 text-muted-foreground">
+                When you enable an agent, it becomes available for direct selection from the chat page.
+                You can choose it as your primary agent and interact with it directly for specialized tasks.
+              </p>
+            </div>
+            <div>
+              <strong className="text-foreground">🔄 Orchestration Mode</strong>
+              <p className="mt-1 text-muted-foreground">
+                All agents (enabled or disabled) are always available to the <strong>MainAgent</strong> orchestrator.
+                When you chat with MainAgent, it automatically delegates tasks to the most suitable specialized agent based on your request.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-border">
+              <p className="text-muted-foreground">
+                <strong className="text-foreground">💡 Tip:</strong> Enable agents you want to use directly.
+                Leave them disabled if you prefer MainAgent to handle orchestration automatically.
+              </p>
+              <p className="mt-2 text-muted-foreground">
+                <strong className="text-foreground">⚙️ Important:</strong> Configure API keys and tokens for each agent regardless of its toggle state,
+                as MainAgent may delegate tasks to any configured agent during orchestration.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

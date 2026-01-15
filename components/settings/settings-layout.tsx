@@ -9,7 +9,6 @@ import {
   Shield,
   BarChart3,
   Sparkles,
-  Plug,
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,7 +18,6 @@ import { AccountTab } from "./tabs/account-tab";
 import { PrivacyTab } from "./tabs/privacy-tab";
 import { UsageTab } from "./tabs/usage-tab";
 import { CapabilitiesTab } from "./tabs/capabilities-tab";
-import { ConnectorsTab } from "./tabs/connectors-tab";
 
 const tabs = [
   { id: "general", label: "General", icon: Settings },
@@ -27,7 +25,6 @@ const tabs = [
   { id: "privacy", label: "Privacy", icon: Shield },
   { id: "usage", label: "Usage", icon: BarChart3 },
   { id: "capabilities", label: "Capabilities", icon: Sparkles },
-  { id: "connectors", label: "Connectors", icon: Plug },
 ] as const;
 
 type TabId = (typeof tabs)[number]["id"];
@@ -48,8 +45,6 @@ export function SettingsLayout() {
         return <UsageTab />;
       case "capabilities":
         return <CapabilitiesTab />;
-      case "connectors":
-        return <ConnectorsTab />;
       default:
         return <GeneralTab />;
     }
