@@ -94,6 +94,10 @@ const LLM_PROVIDERS: { value: LLMProvider; label: string }[] = [
   { value: "mistral", label: "Mistral AI" }
 ];
 
+const SELF_HOSTED_PROVIDERS: { value: LLMProvider; label: string }[] = [
+  { value: "ollama", label: "Ollama" }
+];
+
 export function AgentConfigModal({
   agent,
   open,
@@ -103,6 +107,7 @@ export function AgentConfigModal({
     "cloud"
   );
   const [provider, setProvider] = useState<LLMProvider>("google");
+  const [selfHostedProvider, setSelfHostedProvider] = useState<LLMProvider>("ollama");
   const [modelId, setModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -116,7 +121,7 @@ export function AgentConfigModal({
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
 
-  const { data, mutate } = useSWR<AgentConfigResponse>(
+  const { data, isLoading: isLoadingConfig, mutate } = useSWR<AgentConfigResponse>(
     open ? `/api/user_dashboard/agent-config?agentId=${agent.id}` : null,
     fetcher
   );
@@ -124,10 +129,16 @@ export function AgentConfigModal({
   // Populate form with existing config
   useEffect(() => {
     if (data?.config) {
-      setDeploymentType(
-        (data.config.deploymentType as "cloud" | "self-hosted") || "cloud"
-      );
-      setProvider((data.config.provider as LLMProvider) || "google");
+      const storedDeploymentType = (data.config.deploymentType as "cloud" | "self-hosted") || "cloud";
+      setDeploymentType(storedDeploymentType);
+
+      // Set provider based on deployment type
+      if (storedDeploymentType === "self-hosted") {
+        setSelfHostedProvider((data.config.provider as LLMProvider) || "ollama");
+      } else {
+        setProvider((data.config.provider as LLMProvider) || "google");
+      }
+
       setModelId(data.config.modelId || "");
       setBaseUrl(data.config.baseUrl || "");
       // Don't populate secrets - user must re-enter for security
@@ -137,6 +148,7 @@ export function AgentConfigModal({
       // Reset form when no config exists
       setDeploymentType("cloud");
       setProvider("google");
+      setSelfHostedProvider("ollama");
       setModelId("");
       setBaseUrl("");
       setApiKey("");
@@ -199,7 +211,7 @@ export function AgentConfigModal({
 
       setIsLoadingModels(true);
       try {
-        const params = new URLSearchParams({ provider: "ollama" });
+        const params = new URLSearchParams({ provider: selfHostedProvider });
 
         // If user entered a new baseUrl, use it; otherwise use stored key via agentId
         if (hasNewBaseUrl) {
@@ -224,7 +236,7 @@ export function AgentConfigModal({
         setIsLoadingModels(false);
       }
     }
-  }, [deploymentType, provider, apiKey, baseUrl, agent.id, data?.config]);
+  }, [deploymentType, provider, selfHostedProvider, apiKey, baseUrl, agent.id, data?.config]);
 
   // Auto-fetch models when:
   // 1. Modal opens and there's a stored API key
@@ -236,9 +248,21 @@ export function AgentConfigModal({
     setModels([]);
     setModelsError(null);
 
-    // Only reset modelId if user changed to a different provider than what's stored
+    const storedDeploymentType = data?.config?.deploymentType;
+    const storedModelId = data?.config?.modelId;
+
+    // If switching back to stored deployment type, restore the stored modelId
+    if (storedDeploymentType && deploymentType === storedDeploymentType) {
+      setModelId(storedModelId || "");
+    }
+    // If switching away from stored deployment type, reset modelId
+    else if (storedDeploymentType && deploymentType !== storedDeploymentType) {
+      setModelId("");
+    }
+
+    // Only reset modelId if user changed to a different provider than what's stored (cloud mode)
     const storedProvider = data?.config?.provider;
-    if (storedProvider && provider !== storedProvider) {
+    if (deploymentType === "cloud" && storedProvider && provider !== storedProvider) {
       setModelId("");
     }
 
@@ -246,7 +270,7 @@ export function AgentConfigModal({
     if (deploymentType === "cloud" && data?.config?.hasApiKey && !apiKey.trim()) {
       fetchModels();
     }
-  }, [deploymentType, provider, data?.config?.provider, data?.config?.hasApiKey]);
+  }, [deploymentType, provider, data?.config?.provider, data?.config?.hasApiKey, data?.config?.deploymentType, data?.config?.modelId]);
 
   // Debounced auto-fetch when API key is entered (cloud mode)
   useEffect(() => {
@@ -271,6 +295,13 @@ export function AgentConfigModal({
 
     if (!baseUrl.trim()) return;
 
+    // Reset modelId and models when URL changes (different servers have different models)
+    const storedBaseUrl = data?.config?.baseUrl;
+    if (baseUrl.trim() !== storedBaseUrl) {
+      setModelId("");
+      setModels([]);
+    }
+
     const timer = setTimeout(() => {
       fetchModels();
     }, 500);
@@ -281,6 +312,33 @@ export function AgentConfigModal({
   const secretFields = AGENT_SECRET_FIELDS[agent.id] || [];
 
   const handleSave = async () => {
+    // Validation: Check if model is selected
+    if (!modelId) {
+      toast({
+        type: "error",
+        description: "Please select a model before saving",
+      });
+      return;
+    }
+
+    // Validation: Check if API key is valid (for cloud mode)
+    if (deploymentType === "cloud" && modelsError) {
+      toast({
+        type: "error",
+        description: "Please enter a valid API key before saving",
+      });
+      return;
+    }
+
+    // Validation: Check if base URL is provided and valid (for self-hosted mode)
+    if (deploymentType === "self-hosted" && (!baseUrl.trim() || modelsError)) {
+      toast({
+        type: "error",
+        description: "Please enter a valid deployment URL before saving",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -290,11 +348,12 @@ export function AgentConfigModal({
 
       if (deploymentType === "cloud") {
         payload.provider = provider;
-        payload.modelId = modelId || undefined;
+        payload.modelId = modelId;
         if (apiKey.trim()) payload.apiKey = apiKey.trim();
       } else {
+        payload.provider = selfHostedProvider;
         payload.baseUrl = baseUrl || undefined;
-        payload.modelId = modelId || undefined;
+        payload.modelId = modelId;
       }
 
       // Only include secrets that have values
@@ -344,6 +403,7 @@ export function AgentConfigModal({
       mutate();
       setDeploymentType("cloud");
       setProvider("google");
+      setSelfHostedProvider("ollama");
       setModelId("");
       setApiKey("");
       setBaseUrl("");
@@ -360,7 +420,7 @@ export function AgentConfigModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg h-[600px] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             {Icon && (
@@ -378,6 +438,11 @@ export function AgentConfigModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {isLoadingConfig ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (<>
           {/* Agent-specific secrets section */}
           {secretFields.length > 0 && (
             <div className="space-y-4">
@@ -521,28 +586,25 @@ export function AgentConfigModal({
                   <Select
                     value={modelId}
                     onValueChange={setModelId}
-                    disabled={isLoadingModels || models.length === 0}
                   >
                     <SelectTrigger>
-                      {isLoadingModels ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Loading models...</span>
-                        </div>
-                      ) : (
-                        <SelectValue
-                          placeholder={
-                            models.length === 0
-                              ? "Enter API key to load models"
-                              : "Select a model"
-                          }
-                        />
-                      )}
+                      <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Show saved modelId first if not in loaded models */}
+                      {modelId && !models.find(m => m.id === modelId) && (
+                        <SelectItem key={modelId} value={modelId}>
+                          {modelId}
+                        </SelectItem>
+                      )}
+                      {isLoadingModels && models.length === 0 && (
+                        <SelectItem value="_loading" disabled>
+                          Loading models...
+                        </SelectItem>
+                      )}
                       {models.map((model) => (
                         <SelectItem key={model.id} value={model.id}>
-                          {model.name}
+                          {model.id}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -554,6 +616,26 @@ export function AgentConfigModal({
               </>
             ) : (
               <>
+                {/* Provider Selection for Self-hosted */}
+                <div className="space-y-2">
+                  <Label>Provider</Label>
+                  <Select
+                    value={selfHostedProvider}
+                    onValueChange={(v) => setSelfHostedProvider(v as LLMProvider)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SELF_HOSTED_PROVIDERS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Self-hosted URL */}
                 <div className="space-y-2">
                   <Label htmlFor="baseUrl">Deployment URL</Label>
@@ -574,28 +656,25 @@ export function AgentConfigModal({
                   <Select
                     value={modelId}
                     onValueChange={setModelId}
-                    disabled={isLoadingModels || models.length === 0}
                   >
                     <SelectTrigger>
-                      {isLoadingModels ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Loading models...</span>
-                        </div>
-                      ) : (
-                        <SelectValue
-                          placeholder={
-                            models.length === 0
-                              ? "Enter URL to load models"
-                              : "Select a model"
-                          }
-                        />
-                      )}
+                      <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Show saved modelId first if not in loaded models */}
+                      {modelId && !models.find(m => m.id === modelId) && (
+                        <SelectItem key={modelId} value={modelId}>
+                          {modelId}
+                        </SelectItem>
+                      )}
+                      {isLoadingModels && models.length === 0 && (
+                        <SelectItem value="_loading" disabled>
+                          Loading models...
+                        </SelectItem>
+                      )}
                       {models.map((model) => (
                         <SelectItem key={model.id} value={model.id}>
-                          {model.name}
+                          {model.id}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -607,6 +686,7 @@ export function AgentConfigModal({
               </>
             )}
           </div>
+          </>)}
         </div>
 
         <DialogFooter className="flex gap-2 sm:gap-0">
