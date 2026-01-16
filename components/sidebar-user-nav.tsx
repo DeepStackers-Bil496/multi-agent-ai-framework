@@ -95,9 +95,11 @@ export function SidebarUserNav({ user }: { user: User }) {
             data-testid="user-nav-menu"
             side="top"
             align="start"
+            sideOffset={8}
+            alignOffset={-8}
           >
             {/* Email Label */}
-            <DropdownMenuLabel className="font-normal">
+            <DropdownMenuLabel className="font-normal" inset>
               <p className="text-sm text-muted-foreground truncate">
                 {isGuest ? "Guest Account" : user?.email}
               </p>
@@ -111,14 +113,14 @@ export function SidebarUserNav({ user }: { user: User }) {
                 data-testid="user-nav-item-settings"
                 onSelect={() => router.push("/settings")}
               >
-                <Settings className="mr-2 h-4 w-4" />
+                <Settings className="h-4 w-4" />
                 Settings
                 <DropdownMenuShortcut>⌘,</DropdownMenuShortcut>
               </DropdownMenuItem>
 
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="cursor-pointer">
-                  <Globe className="mr-2 h-4 w-4" />
+                  <Globe className="h-4 w-4" />
                   Language
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
@@ -135,7 +137,7 @@ export function SidebarUserNav({ user }: { user: User }) {
                 className="cursor-pointer"
                 onSelect={() => window.open("https://github.com/DeepStackers-Bil496/multi-agent-ai-framework", "_blank")}
               >
-                <HelpCircle className="mr-2 h-4 w-4" />
+                <HelpCircle className="h-4 w-4" />
                 Get help
               </DropdownMenuItem>
             </DropdownMenuGroup>
@@ -146,7 +148,7 @@ export function SidebarUserNav({ user }: { user: User }) {
             <DropdownMenuGroup>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="cursor-pointer">
-                  <BookOpen className="mr-2 h-4 w-4" />
+                  <BookOpen className="h-4 w-4" />
                   Learn more
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
@@ -199,12 +201,12 @@ export function SidebarUserNav({ user }: { user: User }) {
             >
               {isGuest ? (
                 <>
-                  <LogIn className="mr-2 h-4 w-4" />
+                  <LogIn className="h-4 w-4" />
                   Login to your account
                 </>
               ) : (
                 <>
-                  <LogOut className="mr-2 h-4 w-4" />
+                  <LogOut className="h-4 w-4" />
                   Sign out
                 </>
               )}
