@@ -1,0 +1,3 @@
+[submodule "docs"]
+	path = docs
+	url = https://github.com/DeepStackers-Bil496/multi-agent-ai-docs.git
