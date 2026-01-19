@@ -460,6 +460,7 @@ export function Chat({
         <ChatHeader
           chatId={id}
           isReadonly={isReadonly}
+          selectedModelId={currentModelId}
           selectedVisibilityType={initialVisibilityType}
         />
 

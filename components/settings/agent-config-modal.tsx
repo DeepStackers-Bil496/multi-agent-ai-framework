@@ -29,6 +29,7 @@ interface AgentConfigModalProps {
   agent: AgentUserMetadata;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  hideOverlay?: boolean;
 }
 
 interface AgentConfigResponse {
@@ -102,6 +103,7 @@ export function AgentConfigModal({
   agent,
   open,
   onOpenChange,
+  hideOverlay,
 }: AgentConfigModalProps) {
   const [deploymentType, setDeploymentType] = useState<"cloud" | "self-hosted">(
     "cloud"
@@ -420,7 +422,7 @@ export function AgentConfigModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg h-[600px] overflow-y-auto">
+      <DialogContent className="max-w-lg h-[600px] overflow-y-auto" hideOverlay={hideOverlay}>
         <DialogHeader>
           <div className="flex items-center gap-3">
             {Icon && (

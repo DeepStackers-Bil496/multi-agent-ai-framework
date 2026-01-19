@@ -17,13 +17,14 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import useSWR from "swr";
 import { useLocalStorage, useWindowSize } from "usehooks-ts";
 import { saveChatModelAsCookie } from "@/app/(chat)/actions";
 import { SelectItem } from "@/components/ui/select";
 import { agentUserMetadataList } from "@/lib/agents/user_metadata";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
-import { cn } from "@/lib/utils";
+import { cn, fetcher } from "@/lib/utils";
 import { Context } from "./elements/context";
 import {
   PromptInput,
@@ -460,33 +461,29 @@ function PureModelSelectorCompact({
   onModelChange?: (modelId: string) => void;
 }) {
   const [optimisticModelId, setOptimisticModelId] = useState(selectedModelId);
-  const [disabledAgents, setDisabledAgents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setOptimisticModelId(selectedModelId);
   }, [selectedModelId]);
 
-  // Fetch user's agent preferences
-  useEffect(() => {
-    async function fetchPreferences() {
-      try {
-        const response = await fetch("/api/user_dashboard/preferences");
-        if (response.ok) {
-          const data = await response.json();
-          const disabled = new Set<string>();
-          for (const pref of data.preferences as AgentPreference[]) {
-            if (!pref.enabled) {
-              disabled.add(pref.agentId);
-            }
-          }
-          setDisabledAgents(disabled);
+  // Fetch user's agent preferences using SWR (shared cache with agent panel)
+  const { data: preferencesData } = useSWR<{ preferences: AgentPreference[] }>(
+    "/api/user_dashboard/preferences",
+    fetcher
+  );
+
+  // Compute disabled agents from preferences
+  const disabledAgents = useMemo(() => {
+    const disabled = new Set<string>();
+    if (preferencesData?.preferences) {
+      for (const pref of preferencesData.preferences) {
+        if (!pref.enabled) {
+          disabled.add(pref.agentId);
         }
-      } catch {
-        // Silently fail - show all agents if preferences can't be fetched
       }
     }
-    fetchPreferences();
-  }, []);
+    return disabled;
+  }, [preferencesData]);
 
   // Filter agents by user preferences
   const availableAgents = useMemo(() => {
