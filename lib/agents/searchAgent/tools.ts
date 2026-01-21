@@ -2,12 +2,18 @@ import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import * as DDG from "duck-duck-scrape";
 import * as cheerio from "cheerio";
+import Exa from "exa-js";
 
 // User agent to look like a real browser
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 // Timeout for fetch requests (10 seconds)
 const FETCH_TIMEOUT = 10000;
+
+// Helper to get Exa API key from runtime secrets or env
+function getExaApiKey(runtimeSecrets?: Record<string, string>): string {
+    return runtimeSecrets?.EXA_API_KEY || process.env.EXA_API_KEY || "";
+}
 
 // =============================================================================
 // WEB SEARCH (DuckDuckGo)
@@ -622,17 +628,124 @@ export function createExtractMetadataTool(): DynamicStructuredTool {
 }
 
 // =============================================================================
+// EXA AI SEARCH (Semantic Web Search)
+// =============================================================================
+
+/**
+ * exa_web_search - AI-powered semantic web search using Exa
+ */
+export function createExaWebSearchTool(runtimeSecrets?: Record<string, string>): DynamicStructuredTool {
+    return new DynamicStructuredTool({
+        name: "exa_web_search",
+        description: "AI-powered semantic web search using Exa. Returns high-quality, relevant results optimized for AI agents. Use for general queries when you need accurate, up-to-date information.",
+        schema: z.object({
+            query: z.string().describe("The search query"),
+            numResults: z.number().optional().describe("Number of results to return (default 10, max 25)"),
+            includeText: z.boolean().optional().describe("Include full text content from pages (default false)"),
+        }),
+        func: async ({ query, numResults = 10, includeText = false }) => {
+            try {
+                const apiKey = getExaApiKey(runtimeSecrets);
+                if (!apiKey) {
+                    return "Error: EXA_API_KEY is not configured. Please add it in Settings > Capabilities or your .env.local file.";
+                }
+
+                const exa = new Exa(apiKey);
+                const results = await exa.searchAndContents(query, {
+                    numResults: Math.min(numResults, 25),
+                    text: includeText ? { maxCharacters: 1000 } : undefined,
+                    highlights: true,
+                });
+
+                if (!results.results || results.results.length === 0) {
+                    return `No results found for "${query}". Try different search terms.`;
+                }
+
+                const formatted = results.results.map((r: any, i: number) => {
+                    let output = `${i + 1}. **${r.title || "(no title)"}**\n   URL: ${r.url}`;
+                    if (r.highlights && r.highlights.length > 0) {
+                        output += `\n   ${r.highlights.slice(0, 2).join(" ... ")}`;
+                    }
+                    if (includeText && r.text) {
+                        output += `\n   Content: ${r.text.substring(0, 500)}...`;
+                    }
+                    return output;
+                }).join("\n\n");
+
+                return `**Exa Search Results for "${query}":**\n\n${formatted}`;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                return `Error performing Exa search: ${errorMessage}`;
+            }
+        },
+    });
+}
+
+/**
+ * exa_deep_search - Deep research with smart query expansion
+ */
+export function createExaDeepSearchTool(runtimeSecrets?: Record<string, string>): DynamicStructuredTool {
+    return new DynamicStructuredTool({
+        name: "exa_deep_search",
+        description: "Deep web search with content extraction using Exa. Best for research tasks requiring comprehensive information. Includes page content summaries.",
+        schema: z.object({
+            query: z.string().describe("The research query"),
+            numResults: z.number().optional().describe("Number of results to return (default 5, max 10)"),
+        }),
+        func: async ({ query, numResults = 5 }) => {
+            try {
+                const apiKey = getExaApiKey(runtimeSecrets);
+                if (!apiKey) {
+                    return "Error: EXA_API_KEY is not configured. Please add it in Settings > Capabilities or your .env.local file.";
+                }
+
+                const exa = new Exa(apiKey);
+                const results = await exa.searchAndContents(query, {
+                    numResults: Math.min(numResults, 10),
+                    text: { maxCharacters: 2000 },
+                    highlights: true,
+                    summary: true,
+                });
+
+                if (!results.results || results.results.length === 0) {
+                    return `No research results found for "${query}". Try a broader topic.`;
+                }
+
+                const formatted = results.results.map((r: any, i: number) => {
+                    let output = `### ${i + 1}. ${r.title || "(no title)"}\n**URL:** ${r.url}`;
+                    if (r.summary) {
+                        output += `\n**Summary:** ${r.summary}`;
+                    }
+                    if (r.highlights && r.highlights.length > 0) {
+                        output += `\n**Key Points:**\n${r.highlights.map((h: string) => `- ${h}`).join("\n")}`;
+                    }
+                    return output;
+                }).join("\n\n---\n\n");
+
+                return `# Deep Research Results for "${query}"\n\n${formatted}`;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                return `Error performing deep search: ${errorMessage}`;
+            }
+        },
+    });
+}
+
+// =============================================================================
 // EXPORT ALL TOOLS
 // =============================================================================
 
 /**
- * Create all Search Agent tools (search + web scraping)
+ * Create all Search Agent tools (search + web scraping + Exa AI)
  */
-export function createAllSearchAgentTools(): DynamicStructuredTool[] {
+export function createAllSearchAgentTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
     return [
-        // Search tools
-        createWebSearchTool(),
-        createNewsSearchTool(),
+        // Exa AI Search (primary)
+        createExaWebSearchTool(runtimeSecrets),
+        createExaDeepSearchTool(runtimeSecrets),
+        // Fallback search tools
+        //createWebSearchTool(),
+        //createNewsSearchTool(),
         createAcademicSearchTool(),
         // Web scraping tools
         createFetchUrlTool(),

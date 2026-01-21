@@ -85,7 +85,15 @@ const AGENT_SECRET_FIELDS: Record<
       placeholder: "1//xxxxxxxxxxxx",
     },
   ],
+  "search-agent": [
+    {
+      key: "EXA_API_KEY",
+      label: "Exa API Key",
+      placeholder: "exa-xxxxxxxxxxxx",
+    },
+  ],
 };
+
 
 const LLM_PROVIDERS: { value: LLMProvider; label: string }[] = [
   { value: "google", label: "Google" },
@@ -445,249 +453,249 @@ export function AgentConfigModal({
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (<>
-          {/* Agent-specific secrets section */}
-          {secretFields.length > 0 && (
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm">Authentication</h4>
-              {secretFields.map((field) => (
-                <div key={field.key} className="space-y-2">
-                  <Label htmlFor={field.key}>{field.label}</Label>
-                  <div className="relative">
-                    <Input
-                      id={field.key}
-                      type={showSecrets[field.key] ? "text" : "password"}
-                      placeholder={field.placeholder}
-                      value={agentSecrets[field.key] || ""}
-                      onChange={(e) =>
-                        setAgentSecrets((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        setShowSecrets((prev) => ({
-                          ...prev,
-                          [field.key]: !prev[field.key],
-                        }))
-                      }
-                    >
-                      {showSecrets[field.key] ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
+            {/* Agent-specific secrets section */}
+            {secretFields.length > 0 && (
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm">Authentication</h4>
+                {secretFields.map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <Label htmlFor={field.key}>{field.label}</Label>
+                    <div className="relative">
+                      <Input
+                        id={field.key}
+                        type={showSecrets[field.key] ? "text" : "password"}
+                        placeholder={field.placeholder}
+                        value={agentSecrets[field.key] || ""}
+                        onChange={(e) =>
+                          setAgentSecrets((prev) => ({
+                            ...prev,
+                            [field.key]: e.target.value,
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() =>
+                          setShowSecrets((prev) => ({
+                            ...prev,
+                            [field.key]: !prev[field.key],
+                          }))
+                        }
+                      >
+                        {showSecrets[field.key] ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    {data?.config?.configuredSecrets?.includes(field.key) && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        Already configured. Enter a new value to update.
+                      </p>
+                    )}
                   </div>
-                  {data?.config?.configuredSecrets?.includes(field.key) && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-green-500" />
-                      Already configured. Enter a new value to update.
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Model Configuration */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm">Model Configuration</h4>
-
-            {/* Deployment Type */}
-            <div className="space-y-2">
-              <Label>Deployment Type</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="deploymentType"
-                    checked={deploymentType === "cloud"}
-                    onChange={() => setDeploymentType("cloud")}
-                    className="h-4 w-4"
-                  />
-                  <span className="text-sm">Cloud API</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="deploymentType"
-                    checked={deploymentType === "self-hosted"}
-                    onChange={() => setDeploymentType("self-hosted")}
-                    className="h-4 w-4"
-                  />
-                  <span className="text-sm">Self-Hosted</span>
-                </label>
+                ))}
               </div>
-            </div>
-
-            {deploymentType === "cloud" ? (
-              <>
-                {/* Provider Selection */}
-                <div className="space-y-2">
-                  <Label>Provider</Label>
-                  <Select
-                    value={provider}
-                    onValueChange={(v) => setProvider(v as LLMProvider)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LLM_PROVIDERS.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* API Key */}
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">API Key</Label>
-                  <div className="relative">
-                    <Input
-                      id="apiKey"
-                      type={showApiKey ? "text" : "password"}
-                      placeholder="Enter your API key"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                    >
-                      {showApiKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                  {data?.config?.hasApiKey && !modelsError && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-green-500" />
-                      Already configured. Enter a new value to update.
-                    </p>
-                  )}
-                  {data?.config?.hasApiKey && modelsError && (
-                    <p className="text-xs text-amber-600 flex items-center gap-1">
-                      Stored API key may not be valid for this provider.
-                    </p>
-                  )}
-                </div>
-
-                {/* Model */}
-                <div className="space-y-2">
-                  <Label htmlFor="modelId">Model</Label>
-                  <Select
-                    value={modelId}
-                    onValueChange={setModelId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Show saved modelId first if not in loaded models */}
-                      {modelId && !models.find(m => m.id === modelId) && (
-                        <SelectItem key={modelId} value={modelId}>
-                          {modelId}
-                        </SelectItem>
-                      )}
-                      {isLoadingModels && models.length === 0 && (
-                        <SelectItem value="_loading" disabled>
-                          Loading models...
-                        </SelectItem>
-                      )}
-                      {models.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {modelsError && (
-                    <p className="text-xs text-destructive">{modelsError}</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Provider Selection for Self-hosted */}
-                <div className="space-y-2">
-                  <Label>Provider</Label>
-                  <Select
-                    value={selfHostedProvider}
-                    onValueChange={(v) => setSelfHostedProvider(v as LLMProvider)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SELF_HOSTED_PROVIDERS.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Self-hosted URL */}
-                <div className="space-y-2">
-                  <Label htmlFor="baseUrl">Deployment URL</Label>
-                  <Input
-                    id="baseUrl"
-                    placeholder="https://your-server.ngrok.app"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    URL of your Ollama, vLLM or local server
-                  </p>
-                </div>
-
-                {/* Model */}
-                <div className="space-y-2">
-                  <Label htmlFor="modelId">Model</Label>
-                  <Select
-                    value={modelId}
-                    onValueChange={setModelId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Show saved modelId first if not in loaded models */}
-                      {modelId && !models.find(m => m.id === modelId) && (
-                        <SelectItem key={modelId} value={modelId}>
-                          {modelId}
-                        </SelectItem>
-                      )}
-                      {isLoadingModels && models.length === 0 && (
-                        <SelectItem value="_loading" disabled>
-                          Loading models...
-                        </SelectItem>
-                      )}
-                      {models.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {modelsError && (
-                    <p className="text-xs text-destructive">{modelsError}</p>
-                  )}
-                </div>
-              </>
             )}
-          </div>
+
+            {/* Model Configuration */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm">Model Configuration</h4>
+
+              {/* Deployment Type */}
+              <div className="space-y-2">
+                <Label>Deployment Type</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deploymentType"
+                      checked={deploymentType === "cloud"}
+                      onChange={() => setDeploymentType("cloud")}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">Cloud API</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deploymentType"
+                      checked={deploymentType === "self-hosted"}
+                      onChange={() => setDeploymentType("self-hosted")}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">Self-Hosted</span>
+                  </label>
+                </div>
+              </div>
+
+              {deploymentType === "cloud" ? (
+                <>
+                  {/* Provider Selection */}
+                  <div className="space-y-2">
+                    <Label>Provider</Label>
+                    <Select
+                      value={provider}
+                      onValueChange={(v) => setProvider(v as LLMProvider)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LLM_PROVIDERS.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* API Key */}
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">API Key</Label>
+                    <div className="relative">
+                      <Input
+                        id="apiKey"
+                        type={showApiKey ? "text" : "password"}
+                        placeholder="Enter your API key"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    {data?.config?.hasApiKey && !modelsError && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        Already configured. Enter a new value to update.
+                      </p>
+                    )}
+                    {data?.config?.hasApiKey && modelsError && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        Stored API key may not be valid for this provider.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Model */}
+                  <div className="space-y-2">
+                    <Label htmlFor="modelId">Model</Label>
+                    <Select
+                      value={modelId}
+                      onValueChange={setModelId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Show saved modelId first if not in loaded models */}
+                        {modelId && !models.find(m => m.id === modelId) && (
+                          <SelectItem key={modelId} value={modelId}>
+                            {modelId}
+                          </SelectItem>
+                        )}
+                        {isLoadingModels && models.length === 0 && (
+                          <SelectItem value="_loading" disabled>
+                            Loading models...
+                          </SelectItem>
+                        )}
+                        {models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {modelsError && (
+                      <p className="text-xs text-destructive">{modelsError}</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Provider Selection for Self-hosted */}
+                  <div className="space-y-2">
+                    <Label>Provider</Label>
+                    <Select
+                      value={selfHostedProvider}
+                      onValueChange={(v) => setSelfHostedProvider(v as LLMProvider)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SELF_HOSTED_PROVIDERS.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Self-hosted URL */}
+                  <div className="space-y-2">
+                    <Label htmlFor="baseUrl">Deployment URL</Label>
+                    <Input
+                      id="baseUrl"
+                      placeholder="https://your-server.ngrok.app"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      URL of your Ollama, vLLM or local server
+                    </p>
+                  </div>
+
+                  {/* Model */}
+                  <div className="space-y-2">
+                    <Label htmlFor="modelId">Model</Label>
+                    <Select
+                      value={modelId}
+                      onValueChange={setModelId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Show saved modelId first if not in loaded models */}
+                        {modelId && !models.find(m => m.id === modelId) && (
+                          <SelectItem key={modelId} value={modelId}>
+                            {modelId}
+                          </SelectItem>
+                        )}
+                        {isLoadingModels && models.length === 0 && (
+                          <SelectItem value="_loading" disabled>
+                            Loading models...
+                          </SelectItem>
+                        )}
+                        {models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {modelsError && (
+                      <p className="text-xs text-destructive">{modelsError}</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </>)}
         </div>
 

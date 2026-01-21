@@ -15,10 +15,10 @@ class SearchAgent extends BaseAgent<LLMImplMetadata> {
     }
 
     /**
-     * Create Search tools - no runtime secrets needed for public search APIs
+     * Create Search tools, passing runtime secrets for Exa API key
      */
-    protected createTools(): DynamicStructuredTool[] {
-        return createAllSearchAgentTools();
+    protected createTools(runtimeSecrets?: Record<string, string>): DynamicStructuredTool[] {
+        return createAllSearchAgentTools(runtimeSecrets);
     }
 }
 
