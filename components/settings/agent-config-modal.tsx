@@ -100,11 +100,16 @@ const LLM_PROVIDERS: { value: LLMProvider; label: string }[] = [
   { value: "openai", label: "OpenAI" },
   { value: "anthropic", label: "Anthropic" },
   { value: "groq", label: "Groq" },
-  { value: "mistral", label: "Mistral AI" }
+  { value: "mistral", label: "Mistral AI" },
+  { value: "ollama-cloud", label: "Ollama Cloud" },
 ];
 
 const SELF_HOSTED_PROVIDERS: { value: LLMProvider; label: string }[] = [
-  { value: "ollama", label: "Ollama" }
+  { value: "ollama", label: "Ollama" },
+  { value: "lmstudio", label: "LM Studio" },
+  { value: "localai", label: "LocalAI" },
+  { value: "llamacpp", label: "llama.cpp Server" },
+  { value: "textgenwebui", label: "Text Generation WebUI" },
 ];
 
 export function AgentConfigModal({
@@ -175,8 +180,11 @@ export function AgentConfigModal({
     if (deploymentType === "cloud") {
       const hasNewApiKey = apiKey.trim().length > 0;
       const hasStoredApiKey = data?.config?.hasApiKey;
+      const storedProvider = data?.config?.provider;
+      const providerMatchesStored = provider === storedProvider;
 
-      if (!hasNewApiKey && !hasStoredApiKey) {
+      // Only use stored key if provider matches, otherwise require new key
+      if (!hasNewApiKey && (!hasStoredApiKey || !providerMatchesStored)) {
         setModelsError("Please enter an API key first");
         return;
       }
@@ -186,9 +194,10 @@ export function AgentConfigModal({
         const params = new URLSearchParams({ provider });
 
         // If user entered a new API key, use it; otherwise use stored key via agentId
+        // Only use stored key if provider matches the stored provider
         if (hasNewApiKey) {
           params.set("apiKey", apiKey.trim());
-        } else {
+        } else if (providerMatchesStored) {
           params.set("agentId", agent.id);
         }
 
@@ -276,8 +285,10 @@ export function AgentConfigModal({
       setModelId("");
     }
 
-    // For cloud: auto-fetch if there's a stored API key
-    if (deploymentType === "cloud" && data?.config?.hasApiKey && !apiKey.trim()) {
+    // For cloud: auto-fetch if there's a stored API key AND provider matches stored provider
+    // Don't auto-fetch if user switched to a different provider (stored key won't work)
+    const providerMatchesStored = provider === storedProvider;
+    if (deploymentType === "cloud" && data?.config?.hasApiKey && !apiKey.trim() && providerMatchesStored) {
       fetchModels();
     }
   }, [deploymentType, provider, data?.config?.provider, data?.config?.hasApiKey, data?.config?.deploymentType, data?.config?.modelId]);

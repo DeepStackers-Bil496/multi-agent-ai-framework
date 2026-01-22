@@ -48,10 +48,19 @@ export function createLLM(config: LLMImplMetadata): BaseChatModel {
             });
 
         case "ollama":
-            // Ollama runs locally, no API key needed
+            // Ollama local - no API key needed
             return new ChatOllama({
                 model: modelID,
                 baseUrl: baseURL || "http://localhost:11434",
+            });
+
+        case "ollama-cloud":
+            // Ollama Cloud - requires API key
+            if (!apiKey) throw new Error("Ollama Cloud requires an API key");
+            return new ChatOllama({
+                model: modelID,
+                baseUrl: baseURL || "https://api.ollama.com",
+                headers: { Authorization: `Bearer ${apiKey}` },
             });
 
         case "anthropic":
@@ -66,6 +75,47 @@ export function createLLM(config: LLMImplMetadata): BaseChatModel {
             return new ChatMistralAI({
                 model: modelID,
                 apiKey,
+            });
+
+        // Self-hosted servers (OpenAI-compatible APIs)
+        case "lmstudio":
+            // LM Studio exposes an OpenAI-compatible API
+            return new ChatOpenAI({
+                model: modelID,
+                apiKey: "lm-studio", // LM Studio doesn't require a real key
+                configuration: {
+                    baseURL: baseURL || "http://localhost:1234/v1",
+                },
+            });
+
+        case "localai":
+            // LocalAI is a drop-in OpenAI replacement
+            return new ChatOpenAI({
+                model: modelID,
+                apiKey: "localai", // LocalAI doesn't require a real key
+                configuration: {
+                    baseURL: baseURL || "http://localhost:8080/v1",
+                },
+            });
+
+        case "llamacpp":
+            // llama-cpp-python server with OpenAI-compatible API
+            return new ChatOpenAI({
+                model: modelID,
+                apiKey: "llamacpp", // llama.cpp server doesn't require a real key
+                configuration: {
+                    baseURL: baseURL || "http://localhost:8000/v1",
+                },
+            });
+
+        case "textgenwebui":
+            // text-generation-webui with OpenAI-compatible API extension
+            return new ChatOpenAI({
+                model: modelID,
+                apiKey: "textgenwebui", // text-gen-webui doesn't require a real key
+                configuration: {
+                    baseURL: baseURL || "http://localhost:5000/v1",
+                },
             });
 
         default:

@@ -18,10 +18,10 @@ interface ListModelsResponse {
  * Fetches available models from a specific provider.
  *
  * Query params:
- * - provider: google | openai | anthropic | groq | mistral | ollama
+ * - provider: google | openai | anthropic | groq | mistral | ollama | ollama-cloud | lmstudio | localai | llamacpp | textgenwebui
  * - apiKey: API key (optional if agentId is provided and key is stored)
  * - agentId: Agent ID to fetch stored API key from database (optional)
- * - baseUrl: Required for ollama (self-hosted)
+ * - baseUrl: Required for self-hosted providers (ollama, lmstudio, localai, llamacpp, textgenwebui)
  */
 export async function GET(request: Request) {
     const session = await auth();
@@ -86,6 +86,21 @@ export async function GET(request: Request) {
                 break;
             case "ollama":
                 models = await fetchOllamaModels(baseUrl);
+                break;
+            case "ollama-cloud":
+                models = await fetchOllamaCloudModels(apiKey);
+                break;
+            case "lmstudio":
+                models = await fetchOpenAICompatibleModels(baseUrl, "http://localhost:1234/v1", "LM Studio");
+                break;
+            case "localai":
+                models = await fetchOpenAICompatibleModels(baseUrl, "http://localhost:8080/v1", "LocalAI");
+                break;
+            case "llamacpp":
+                models = await fetchOpenAICompatibleModels(baseUrl, "http://localhost:8000/v1", "llama.cpp");
+                break;
+            case "textgenwebui":
+                models = await fetchOpenAICompatibleModels(baseUrl, "http://localhost:5000/v1", "Text Generation WebUI");
                 break;
             default:
                 return new ChatSDKError(
@@ -275,4 +290,64 @@ async function fetchOllamaModels(baseUrl: string | null): Promise<ModelInfo[]> {
         id: model.model || model.name,
         name: model.name,
     }));
+}
+
+/**
+ * Fetch models from Ollama Cloud (requires API key)
+ */
+async function fetchOllamaCloudModels(apiKey: string | null): Promise<ModelInfo[]> {
+    if (!apiKey) {
+        throw new Error("API key is required for Ollama Cloud");
+    }
+
+    const response = await fetch("https://api.ollama.com/api/tags", {
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+        },
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Ollama Cloud API error: ${error}`);
+    }
+
+    const data = await response.json();
+
+    return (data.models || []).map((model: { name: string; model?: string }) => ({
+        id: model.model || model.name,
+        name: model.name,
+    }));
+}
+
+/**
+ * Fetch models from OpenAI-compatible servers (LM Studio, LocalAI, llama.cpp, text-gen-webui)
+ */
+async function fetchOpenAICompatibleModels(
+    baseUrl: string | null,
+    defaultUrl: string,
+    providerName: string
+): Promise<ModelInfo[]> {
+    const url = baseUrl?.replace(/\/$/, "") || defaultUrl;
+
+    try {
+        const response = await fetch(`${url}/models`);
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`${providerName} API error: ${error}`);
+        }
+
+        const data = await response.json();
+
+        // OpenAI-compatible format: { data: [{ id: "model-name" }] }
+        return (data.data || []).map((model: { id: string; name?: string }) => ({
+            id: model.id,
+            name: model.name || model.id,
+        }));
+    } catch (error) {
+        if (error instanceof TypeError && error.message.includes("fetch")) {
+            throw new Error(`Cannot connect to ${providerName} at ${url}. Is the server running?`);
+        }
+        throw error;
+    }
 }
