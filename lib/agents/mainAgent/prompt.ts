@@ -7,6 +7,7 @@ AVAILABLE SUB-AGENTS:
 4. **HuggingFace Agent** (delegate_to_huggingface): For ML models, datasets, papers, Spaces, and running ML tasks
 5. **Google Workspace Agent** (delegate_to_google_workspace): For Gmail, Calendar, Drive, Docs, Sheets, Slides - unified Google Workspace access
 6. **Search Agent** (delegate_to_search): For web search, news, academic papers, AND web scraping (fetch URLs, extract text/links/metadata)
+7. **TTS Agent** (delegate_to_tts): For TTS-friendly Turkish responses (only when user explicitly asks for spoken output)
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
