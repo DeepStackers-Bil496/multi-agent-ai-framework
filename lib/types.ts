@@ -96,12 +96,18 @@ export type AgentChatMessage = { role: AgentChatRole; content: string };
  * Supported LLM providers
  */
 export type LLMProvider =
-  | "google"     // Google Gemini
-  | "openai"     // OpenAI (also works with vLLM via baseURL)
-  | "groq"       // Groq (fast inference)
-  | "ollama"     // Ollama (local)
-  | "anthropic"  // Anthropic Claude
-  | "mistral";   // Mistral AI
+  | "google"        // Google Gemini
+  | "openai"        // OpenAI (also works with vLLM via baseURL)
+  | "groq"          // Groq (fast inference)
+  | "ollama"        // Ollama (local self-hosted)
+  | "ollama-cloud"  // Ollama Cloud (requires API key)
+  | "anthropic"     // Anthropic Claude
+  | "mistral"       // Mistral AI
+  // Self-hosted servers (OpenAI-compatible)
+  | "lmstudio"      // LM Studio (default: http://localhost:1234/v1)
+  | "localai"       // LocalAI (default: http://localhost:8080/v1)
+  | "llamacpp"      // llama-cpp-python server (default: http://localhost:8000/v1)
+  | "textgenwebui"; // text-generation-webui (default: http://localhost:5000/v1)
 
 export type LLMImplMetadata = {
   type: typeof API_MODEL_TYPE;

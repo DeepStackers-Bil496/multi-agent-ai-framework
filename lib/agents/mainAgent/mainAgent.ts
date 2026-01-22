@@ -13,12 +13,12 @@ import { createLLM } from "../llmFactory";
 
 // Import agents to trigger self-registration
 import "../githubAgent/githubAgent";
-import "../webAgent/webAgent";
 import "../codebaseAgent/codebaseAgent";
 import "../frontendAgent/frontendAgent";
 import "../huggingFaceAgent/huggingFaceAgent";
 import "../googleWorkspaceAgent/googleWorkspaceAgent";
 import "../ttsAgent/ttsAgent";
+import "../searchAgent/searchAgent";
 
 class MainAgent extends BaseAgent<LLMImplMetadata> {
 

@@ -12,10 +12,26 @@ function formatDateTime(dateTime: string, timeZone?: string) {
     return { dateTime, timeZone };
 }
 
-function formatEventSummary(event: { id?: string | null; summary?: string | null; start?: any; end?: any }) {
+function formatEventDetail(event: any) {
     const start = event.start?.dateTime || event.start?.date || "";
     const end = event.end?.dateTime || event.end?.date || "";
-    return `- ${event.summary || "(no title)"} (${start} → ${end}) [${event.id ?? "no-id"}]`;
+    return {
+        id: event.id,
+        summary: event.summary || "(no title)",
+        description: event.description || "",
+        location: event.location || "",
+        start,
+        end,
+        hangoutLink: event.hangoutLink || "",
+        status: event.status,
+        link: event.htmlLink || "",
+        attendees: event.attendees?.map((a: any) => ({
+            email: a.email,
+            responseStatus: a.responseStatus,
+            organizer: a.organizer
+        })) || [],
+        organizer: event.organizer?.email || ""
+    };
 }
 
 function parseDate(value: string) {
@@ -100,10 +116,20 @@ export function createCalendarListEventsTool(runtimeSecrets?: Record<string, str
 
                 const events = response.items ?? [];
                 if (events.length === 0) {
-                    return "No events found for the given criteria.";
+                    return JSON.stringify({
+                        status: "success",
+                        message: "No events found for the given criteria.",
+                        count: 0,
+                        events: []
+                    });
                 }
 
-                return `Upcoming events:\n${events.map(formatEventSummary).join("\n")}`;
+                return JSON.stringify({
+                    status: "success",
+                    count: events.length,
+                    events: events.map(formatEventDetail),
+                    message: `Found ${events.length} upcoming event(s).`
+                });
             } catch (error) {
                 const message = error instanceof Error ? error.message : "Unknown error";
                 return `Failed to list events: ${message}`;

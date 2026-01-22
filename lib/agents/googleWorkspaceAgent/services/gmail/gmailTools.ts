@@ -129,7 +129,7 @@ export function createGmailSendEmailTool(runtimeSecrets?: Record<string, string>
                 // Send via Gmail API
                 const response = await googleApiRequest<{ id: string; threadId: string }>(
                     "gmail",
-                    "/gmail/v1/users/me/messages/send",
+                    "/users/me/messages/send",
                     {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -222,15 +222,41 @@ export function createGmailSearchEmailsTool(runtimeSecrets?: Record<string, stri
                     });
                 }
 
+                // Fetch metadata for each message in parallel
+                const emails = await Promise.all(
+                    response.messages.map(async (m) => {
+                        try {
+                            const detail = await googleApiRequest<{
+                                payload?: { headers?: Array<{ name: string; value: string }> };
+                                snippet?: string;
+                            }>("gmail", `/users/me/messages/${m.id}?format=metadata`, {}, runtimeSecrets);
+
+                            const headers = detail.payload?.headers || [];
+                            const getHeader = (name: string) =>
+                                headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+
+                            return {
+                                id: m.id,
+                                threadId: m.threadId,
+                                from: getHeader("From"),
+                                to: getHeader("To"),
+                                subject: getHeader("Subject"),
+                                date: getHeader("Date"),
+                                snippet: detail.snippet,
+                                link: `https://mail.google.com/mail/u/0/#inbox/${m.threadId}`,
+                            };
+                        } catch (e) {
+                            return { id: m.id, threadId: m.threadId, error: "Failed to fetch metadata" };
+                        }
+                    })
+                );
+
                 return JSON.stringify({
                     status: "success",
-                    count: response.messages.length,
+                    count: emails.length,
                     estimatedTotal: response.resultSizeEstimate,
-                    emails: response.messages.map((m) => ({
-                        id: m.id,
-                        threadId: m.threadId,
-                    })),
-                    message: `Found ${response.messages.length} email(s). Use gmail_get_email with an ID to read details.`,
+                    emails,
+                    message: `Found ${emails.length} email(s).`,
                 });
             } catch (error) {
                 const message = error instanceof Error ? error.message : "Unknown error";
@@ -275,14 +301,40 @@ export function createGmailListEmailsTool(runtimeSecrets?: Record<string, string
                     });
                 }
 
+                // Fetch metadata for each message in parallel
+                const emails = await Promise.all(
+                    response.messages.map(async (m) => {
+                        try {
+                            const detail = await googleApiRequest<{
+                                payload?: { headers?: Array<{ name: string; value: string }> };
+                                snippet?: string;
+                            }>("gmail", `/users/me/messages/${m.id}?format=metadata`, {}, runtimeSecrets);
+
+                            const headers = detail.payload?.headers || [];
+                            const getHeader = (name: string) =>
+                                headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+
+                            return {
+                                id: m.id,
+                                threadId: m.threadId,
+                                from: getHeader("From"),
+                                to: getHeader("To"),
+                                subject: getHeader("Subject"),
+                                date: getHeader("Date"),
+                                snippet: detail.snippet,
+                                link: `https://mail.google.com/mail/u/0/#inbox/${m.threadId}`,
+                            };
+                        } catch (e) {
+                            return { id: m.id, threadId: m.threadId, error: "Failed to fetch metadata" };
+                        }
+                    })
+                );
+
                 return JSON.stringify({
                     status: "success",
-                    count: response.messages.length,
-                    emails: response.messages.map((m) => ({
-                        id: m.id,
-                        threadId: m.threadId,
-                    })),
-                    message: `Listed ${response.messages.length} email(s). Use gmail_get_email with an ID to read details.`,
+                    count: emails.length,
+                    emails,
+                    message: `Listed ${emails.length} email(s).`,
                 });
             } catch (error) {
                 const message = error instanceof Error ? error.message : "Unknown error";
@@ -321,7 +373,7 @@ export function createGmailGetEmailTool(runtimeSecrets?: Record<string, string>)
                     internalDate?: string;
                 }>(
                     "gmail",
-                    `/gmail/v1/users/me/messages/${emailId}?format=${format}`,
+                    `/users/me/messages/${emailId}?format=${format}`,
                     {},
                     runtimeSecrets
                 ); // Extract headers
@@ -377,7 +429,7 @@ export function createGmailDeleteEmailTool(runtimeSecrets?: Record<string, strin
             try {
                 await googleApiRequest<{ id: string }>(
                     "gmail",
-                    `/gmail/v1/users/me/messages/${emailId}/trash`,
+                    `/users/me/messages/${emailId}/trash`,
                     { method: "POST" },
                     runtimeSecrets
                 );
