@@ -17,6 +17,7 @@ type ArtifactMessagesProps = {
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
   artifactStatus: UIArtifact["status"];
+  selectedModelId: string;
 };
 
 function PureArtifactMessages({
@@ -27,6 +28,7 @@ function PureArtifactMessages({
   setMessages,
   regenerate,
   isReadonly,
+  selectedModelId,
 }: ArtifactMessagesProps) {
   const {
     containerRef: messagesContainerRef,
@@ -54,6 +56,7 @@ function PureArtifactMessages({
           requiresScrollPadding={
             hasSentMessage && index === messages.length - 1
           }
+          selectedModelId={selectedModelId}
           setMessages={setMessages}
           vote={
             votes
@@ -98,6 +101,9 @@ function areEqual(
     return false;
   }
   if (!equal(prevProps.votes, nextProps.votes)) {
+    return false;
+  }
+  if (prevProps.selectedModelId !== nextProps.selectedModelId) {
     return false;
   }
 
