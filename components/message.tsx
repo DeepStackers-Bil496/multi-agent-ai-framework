@@ -26,6 +26,7 @@ import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
 import { ExecutionFlow, ThinkingFlow } from "./execution-flow";
 import { AudioPlayer } from "./audio-player";
+import { Loader } from "./elements/loader";
 
 const PurePreviewMessage = ({
   chatId,
@@ -278,6 +279,36 @@ const PurePreviewMessage = ({
                   key={key}
                   steps={data as ExecutionStep[]}
                 />
+              );
+            }
+
+            if (type === "data-audio-status") {
+              const status = part.data as {
+                state: "loading" | "error";
+                message?: string;
+              };
+              const message =
+                status.message ||
+                (status.state === "loading"
+                  ? "Preparing audio..."
+                  : "Unable to generate audio.");
+
+              if (status.state === "error") {
+                return (
+                  <div className="mt-2 text-red-500 text-sm" key={key}>
+                    {message}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  className="mt-2 inline-flex items-center gap-2 text-muted-foreground text-sm"
+                  key={key}
+                >
+                  <Loader size={14} />
+                  <span>{message}</span>
+                </div>
               );
             }
 

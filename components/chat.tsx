@@ -392,6 +392,34 @@ export function Chat({
         const cleanText = stripUIActionTags(accumulatedText).trim();
         if (cleanText) {
           try {
+            setMessages((prev) =>
+              prev.map((current) => {
+                if (current.id !== assistantMessageId) {
+                  return current;
+                }
+
+                const nextParts = current.parts.filter(
+                  (part) =>
+                    part.type !== "data-audio" &&
+                    part.type !== "data-audio-status"
+                );
+
+                return {
+                  ...current,
+                  parts: [
+                    ...nextParts,
+                    {
+                      type: "data-audio-status",
+                      data: {
+                        state: "loading",
+                        message: "Preparing audio...",
+                      },
+                    } as any,
+                  ],
+                };
+              })
+            );
+
             const response = await fetch("/api/speech/tts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -412,7 +440,9 @@ export function Chat({
                 }
 
                 const nextParts = current.parts.filter(
-                  (part) => part.type !== "data-audio"
+                  (part) =>
+                    part.type !== "data-audio" &&
+                    part.type !== "data-audio-status"
                 );
 
                 return {
@@ -434,6 +464,33 @@ export function Chat({
           } catch (error) {
             console.error("TTS error:", error);
             toast({ type: "error", description: "Failed to generate speech" });
+            setMessages((prev) =>
+              prev.map((current) => {
+                if (current.id !== assistantMessageId) {
+                  return current;
+                }
+
+                const nextParts = current.parts.filter(
+                  (part) =>
+                    part.type !== "data-audio" &&
+                    part.type !== "data-audio-status"
+                );
+
+                return {
+                  ...current,
+                  parts: [
+                    ...nextParts,
+                    {
+                      type: "data-audio-status",
+                      data: {
+                        state: "error",
+                        message: "Unable to generate audio.",
+                      },
+                    } as any,
+                  ],
+                };
+              })
+            );
           }
         }
       }

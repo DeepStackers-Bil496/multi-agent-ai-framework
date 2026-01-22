@@ -70,6 +70,33 @@ export function PureMessageActions({
 
     setIsSpeaking(true);
     try {
+      setMessages((prev) =>
+        prev.map((current) => {
+          if (current.id !== message.id) {
+            return current;
+          }
+
+          const nextParts = current.parts.filter(
+            (part) =>
+              part.type !== "data-audio" && part.type !== "data-audio-status"
+          );
+
+          return {
+            ...current,
+            parts: [
+              ...nextParts,
+              {
+                type: "data-audio-status",
+                data: {
+                  state: "loading",
+                  message: "Preparing audio...",
+                },
+              } as any,
+            ],
+          };
+        })
+      );
+
       const response = await fetch("/api/speech/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,7 +120,8 @@ export function PureMessageActions({
           }
 
           const nextParts = current.parts.filter(
-            (part) => part.type !== "data-audio"
+            (part) =>
+              part.type !== "data-audio" && part.type !== "data-audio-status"
           );
 
           return {
@@ -116,6 +144,32 @@ export function PureMessageActions({
       const errorMessage =
         error instanceof Error ? error.message : "Failed to generate speech";
       toast.error(errorMessage);
+      setMessages((prev) =>
+        prev.map((current) => {
+          if (current.id !== message.id) {
+            return current;
+          }
+
+          const nextParts = current.parts.filter(
+            (part) =>
+              part.type !== "data-audio" && part.type !== "data-audio-status"
+          );
+
+          return {
+            ...current,
+            parts: [
+              ...nextParts,
+              {
+                type: "data-audio-status",
+                data: {
+                  state: "error",
+                  message: "Unable to generate audio.",
+                },
+              } as any,
+            ],
+          };
+        })
+      );
     } finally {
       setIsSpeaking(false);
     }

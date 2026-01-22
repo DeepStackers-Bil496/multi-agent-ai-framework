@@ -49,6 +49,10 @@ export type CustomUIDataTypes = {
     mimeType: string;
     autoPlay?: boolean;
   };
+  "audio-status": {
+    state: "loading" | "error";
+    message?: string;
+  };
 };
 
 export type ChatMessage = UIMessage<
