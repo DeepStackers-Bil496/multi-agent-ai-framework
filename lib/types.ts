@@ -47,6 +47,7 @@ export type CustomUIDataTypes = {
   audio: {
     url: string;
     mimeType: string;
+    autoPlay?: boolean;
   };
 };
 

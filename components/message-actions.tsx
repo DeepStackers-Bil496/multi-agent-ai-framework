@@ -11,7 +11,7 @@ import { Action, Actions } from "./elements/actions";
 import {
   CopyIcon,
   PencilEditIcon,
-  PlayIcon,
+  SpeakerIcon,
   ThumbDownIcon,
   ThumbUpIcon,
 } from "./icons";
@@ -102,7 +102,11 @@ export function PureMessageActions({
               ...nextParts,
               {
                 type: "data-audio",
-                data: { url, mimeType: blob.type || "audio/wav" },
+                data: {
+                  url,
+                  mimeType: blob.type || "audio/wav",
+                  autoPlay: true,
+                },
               } as any,
             ],
           };
@@ -148,7 +152,7 @@ export function PureMessageActions({
           onClick={handleSpeak}
           tooltip="Speak"
         >
-          <PlayIcon />
+          <SpeakerIcon />
         </Action>
       )}
       <Action onClick={handleCopy} tooltip="Copy">

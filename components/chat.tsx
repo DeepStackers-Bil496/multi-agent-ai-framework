@@ -421,7 +421,11 @@ export function Chat({
                     ...nextParts,
                     {
                       type: "data-audio",
-                      data: { url, mimeType: blob.type || "audio/wav" },
+                      data: {
+                        url,
+                        mimeType: blob.type || "audio/wav",
+                        autoPlay: true,
+                      },
                     } as any,
                   ],
                 };

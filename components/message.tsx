@@ -282,10 +282,17 @@ const PurePreviewMessage = ({
             }
 
             if (type === "data-audio") {
-              const audioData = part.data as { url: string; mimeType?: string };
+              const audioData = part.data as {
+                url: string;
+                mimeType?: string;
+                autoPlay?: boolean;
+              };
               return (
                 <div className="mt-2" key={key}>
-                  <AudioPlayer src={audioData.url} />
+                  <AudioPlayer
+                    autoPlay={audioData.autoPlay}
+                    src={audioData.url}
+                  />
                 </div>
               );
             }
