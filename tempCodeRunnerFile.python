@@ -1,0 +1,30 @@
+import cv2
+ 
+camera_url = "rtsp://sapservice:Mitas1955!@192.168.195.5/Streaming/Channels/101"
+ 
+# RTSP akışını aç
+cap = cv2.VideoCapture(camera_url)
+ 
+if not cap.isOpened():
+    print("Kamera bağlantısı başarısız!")
+    exit()
+ 
+print("Kamera bağlantısı başarılı. Çıkmak için 'q' tuşuna basın.")
+ 
+while True:
+    ret, frame = cap.read()
+   
+    if not ret:
+        print("Frame alınamadı!")
+        break
+   
+    # Görüntüyü göster
+    cv2.imshow('RTSP Stream', frame)
+   
+    # 'q' tuşuna basıldığında çık
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+ 
+# Temizlik
+cap.release()
+cv2.destroyAllWindows()

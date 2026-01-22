@@ -94,6 +94,7 @@ function PureMessages({
               requiresScrollPadding={
                 hasSentMessage && index === messages.length - 1
               }
+              selectedModelId={selectedModelId}
               setMessages={setMessages}
               vote={
                 votes

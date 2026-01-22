@@ -25,6 +25,7 @@ import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
 import { ExecutionFlow, ThinkingFlow } from "./execution-flow";
+import { AudioPlayer } from "./audio-player";
 
 const PurePreviewMessage = ({
   chatId,
@@ -35,6 +36,7 @@ const PurePreviewMessage = ({
   regenerate,
   isReadonly,
   requiresScrollPadding,
+  selectedModelId,
 }: {
   chatId: string;
   message: ChatMessage;
@@ -44,6 +46,7 @@ const PurePreviewMessage = ({
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
   requiresScrollPadding: boolean;
+  selectedModelId: string;
 }) => {
   const [mode, setMode] = useState<"view" | "edit">("view");
 
@@ -278,6 +281,15 @@ const PurePreviewMessage = ({
               );
             }
 
+            if (type === "data-audio") {
+              const audioData = part.data as { url: string; mimeType?: string };
+              return (
+                <div className="mt-2" key={key}>
+                  <AudioPlayer src={audioData.url} />
+                </div>
+              );
+            }
+
             return null;
           })}
 
@@ -287,6 +299,8 @@ const PurePreviewMessage = ({
               isLoading={isLoading}
               key={`action-${message.id}`}
               message={message}
+              selectedModelId={selectedModelId}
+              setMessages={setMessages}
               setMode={setMode}
               vote={vote}
             />
@@ -313,6 +327,9 @@ export const PreviewMessage = memo(
       return false;
     }
     if (!equal(prevProps.vote, nextProps.vote)) {
+      return false;
+    }
+    if (prevProps.selectedModelId !== nextProps.selectedModelId) {
       return false;
     }
 

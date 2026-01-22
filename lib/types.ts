@@ -44,6 +44,10 @@ export type CustomUIDataTypes = {
   finish: null;
   usage: AppUsage;
   "agent-execution": ExecutionStep[];
+  audio: {
+    url: string;
+    mimeType: string;
+  };
 };
 
 export type ChatMessage = UIMessage<

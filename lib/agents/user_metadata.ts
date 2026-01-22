@@ -6,6 +6,7 @@ import { CodebaseAgentConfig } from "./codebaseAgent/config";
 import { FrontendAgentConfig } from "./frontendAgent/config";
 import { HuggingFaceAgentConfig } from "./huggingFaceAgent/config";
 import { GoogleWorkspaceAgentConfig } from "./googleWorkspaceAgent/config";
+import { TtsAgentConfig } from "./ttsAgent/config";
 
 /**
  * Static list of agent metadata used by the UI.
@@ -20,4 +21,5 @@ export const agentUserMetadataList: AgentUserMetadata[] = [
     FrontendAgentConfig.user_metadata,
     HuggingFaceAgentConfig.user_metadata,
     GoogleWorkspaceAgentConfig.user_metadata,
+    TtsAgentConfig.user_metadata,
 ];
