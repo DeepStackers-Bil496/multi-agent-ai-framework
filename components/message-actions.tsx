@@ -1,12 +1,20 @@
+import type { UseChatHelpers } from "@ai-sdk/react";
 import equal from "fast-deep-equal";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { useCopyToClipboard } from "usehooks-ts";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
+import { stripUIActionTags } from "@/hooks/use-ui-preferences";
 import { Action, Actions } from "./elements/actions";
-import { CopyIcon, PencilEditIcon, ThumbDownIcon, ThumbUpIcon } from "./icons";
+import {
+  CopyIcon,
+  PencilEditIcon,
+  SpeakerIcon,
+  ThumbDownIcon,
+  ThumbUpIcon,
+} from "./icons";
 
 export function PureMessageActions({
   chatId,
@@ -14,15 +22,20 @@ export function PureMessageActions({
   vote,
   isLoading,
   setMode,
+  setMessages,
+  selectedModelId,
 }: {
   chatId: string;
   message: ChatMessage;
   vote: Vote | undefined;
   isLoading: boolean;
   setMode?: (mode: "view" | "edit") => void;
+  setMessages?: UseChatHelpers<ChatMessage>["setMessages"];
+  selectedModelId?: string;
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   if (isLoading) {
     return null;
@@ -42,6 +55,124 @@ export function PureMessageActions({
 
     await copyToClipboard(textFromParts);
     toast.success("Copied to clipboard!");
+  };
+
+  const handleSpeak = async () => {
+    if (!setMessages || isSpeaking) {
+      return;
+    }
+
+    const cleanText = stripUIActionTags(textFromParts || "").trim();
+    if (!cleanText) {
+      toast.error("There's no text to speak!");
+      return;
+    }
+
+    setIsSpeaking(true);
+    try {
+      setMessages((prev) =>
+        prev.map((current) => {
+          if (current.id !== message.id) {
+            return current;
+          }
+
+          const nextParts = current.parts.filter(
+            (part) =>
+              part.type !== "data-audio" && part.type !== "data-audio-status"
+          );
+
+          return {
+            ...current,
+            parts: [
+              ...nextParts,
+              {
+                type: "data-audio-status",
+                data: {
+                  state: "loading",
+                  message: "Preparing audio...",
+                },
+              } as any,
+            ],
+          };
+        })
+      );
+
+      const response = await fetch("/api/speech/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const errorMessage =
+          errorBody?.message || "Failed to generate speech output";
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      setMessages((prev) =>
+        prev.map((current) => {
+          if (current.id !== message.id) {
+            return current;
+          }
+
+          const nextParts = current.parts.filter(
+            (part) =>
+              part.type !== "data-audio" && part.type !== "data-audio-status"
+          );
+
+          return {
+            ...current,
+            parts: [
+              ...nextParts,
+              {
+                type: "data-audio",
+                data: {
+                  url,
+                  mimeType: blob.type || "audio/wav",
+                  autoPlay: true,
+                },
+              } as any,
+            ],
+          };
+        })
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to generate speech";
+      toast.error(errorMessage);
+      setMessages((prev) =>
+        prev.map((current) => {
+          if (current.id !== message.id) {
+            return current;
+          }
+
+          const nextParts = current.parts.filter(
+            (part) =>
+              part.type !== "data-audio" && part.type !== "data-audio-status"
+          );
+
+          return {
+            ...current,
+            parts: [
+              ...nextParts,
+              {
+                type: "data-audio-status",
+                data: {
+                  state: "error",
+                  message: "Unable to generate audio.",
+                },
+              } as any,
+            ],
+          };
+        })
+      );
+    } finally {
+      setIsSpeaking(false);
+    }
   };
 
   // User messages get edit (on hover) and copy actions
@@ -69,6 +200,15 @@ export function PureMessageActions({
 
   return (
     <Actions className="-ml-0.5">
+      {message.role === "assistant" && selectedModelId === "main-agent" && (
+        <Action
+          disabled={!textFromParts || isSpeaking}
+          onClick={handleSpeak}
+          tooltip="Speak"
+        >
+          <SpeakerIcon />
+        </Action>
+      )}
       <Action onClick={handleCopy} tooltip="Copy">
         <CopyIcon />
       </Action>
@@ -181,6 +321,9 @@ export const MessageActions = memo(
       return false;
     }
     if (prevProps.isLoading !== nextProps.isLoading) {
+      return false;
+    }
+    if (prevProps.selectedModelId !== nextProps.selectedModelId) {
       return false;
     }
 

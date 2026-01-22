@@ -17,6 +17,7 @@ import "../codebaseAgent/codebaseAgent";
 import "../frontendAgent/frontendAgent";
 import "../huggingFaceAgent/huggingFaceAgent";
 import "../googleWorkspaceAgent/googleWorkspaceAgent";
+import "../ttsAgent/ttsAgent";
 import "../searchAgent/searchAgent";
 
 class MainAgent extends BaseAgent<LLMImplMetadata> {

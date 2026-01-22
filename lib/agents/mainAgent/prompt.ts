@@ -16,6 +16,7 @@ DELEGATION RULES:
 - For ML models, datasets, Hugging Face Spaces, or running ML tasks → delegate_to_huggingface
 - For Google Drive, Docs, Sheets, Slides operations → delegate_to_google_workspace
 - For unified Gmail + Calendar + Drive operations → delegate_to_google_workspace
+- For spoken output requests → delegate_to_tts (only if explicitly asked)
 - For web search, news, current events, or research → delegate_to_search
 - For academic papers, scientific research, arXiv, or Semantic Scholar → delegate_to_search
 - For fetching web content, scraping URLs, extracting page info → delegate_to_search

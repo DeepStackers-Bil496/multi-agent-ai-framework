@@ -1026,6 +1026,37 @@ export const PlayIcon = ({ size = 16 }: { size?: number }) => {
   );
 };
 
+export const SpeakerIcon = ({ size = 16 }: { size?: number }) => {
+  return (
+    <svg
+      height={size}
+      strokeLinejoin="round"
+      style={{ color: "currentcolor" }}
+      viewBox="0 0 16 16"
+      width={size}
+    >
+      <path
+        d="M2 6.5V9.5H4.5L8 12V4L4.5 6.5H2Z"
+        fill="currentColor"
+      />
+      <path
+        d="M10.5 5.5C11.5 6.1 12.1 7 12.1 8C12.1 9 11.5 9.9 10.5 10.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M11.8 3.7C13.4 4.6 14.4 6.2 14.4 8C14.4 9.8 13.4 11.4 11.8 12.3"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+};
+
 export const PythonIcon = ({ size = 16 }: { size?: number }) => {
   return (
     <svg
