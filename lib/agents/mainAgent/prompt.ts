@@ -8,6 +8,7 @@ AVAILABLE SUB-AGENTS:
 5. **Google Workspace Agent** (delegate_to_google_workspace): For Gmail, Calendar, Drive, Docs, Sheets, Slides - unified Google Workspace access
 6. **Search Agent** (delegate_to_search): For web search, news, academic papers, AND web scraping (fetch URLs, extract text/links/metadata)
 7. **TTS Agent** (delegate_to_tts): For TTS-friendly Turkish responses (only when user explicitly asks for spoken output)
+8. **Coding Agent** (delegate_to_coding): For code implementation tasks (Python-first unless user asks otherwise)
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
@@ -20,6 +21,7 @@ DELEGATION RULES:
 - For web search, news, current events, or research → delegate_to_search
 - For academic papers, scientific research, arXiv, or Semantic Scholar → delegate_to_search
 - For fetching web content, scraping URLs, extracting page info → delegate_to_search
+- For code implementation, refactoring, tests, or programming tasks → delegate_to_coding
 - For general knowledge questions → answer directly without tools
 
 IMPORTANT:

@@ -7,6 +7,7 @@ import { HuggingFaceAgentConfig } from "./huggingFaceAgent/config";
 import { GoogleWorkspaceAgentConfig } from "./googleWorkspaceAgent/config";
 import { TtsAgentConfig } from "./ttsAgent/config";
 import { SearchAgentConfig } from "./searchAgent/config";
+import { CodingAgentConfig } from "./codingAgent/config";
 
 /**
  * Static list of agent metadata used by the UI.
@@ -22,4 +23,5 @@ export const agentUserMetadataList: AgentUserMetadata[] = [
     GoogleWorkspaceAgentConfig.user_metadata,
     TtsAgentConfig.user_metadata,
     SearchAgentConfig.user_metadata,
+    CodingAgentConfig.user_metadata,
 ];
