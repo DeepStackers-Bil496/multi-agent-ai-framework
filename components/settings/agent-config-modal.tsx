@@ -94,6 +94,23 @@ const AGENT_SECRET_FIELDS: Record<
   ],
 };
 
+type AgentDefaults = {
+  deploymentType: "cloud" | "self-hosted";
+  provider?: LLMProvider;
+  selfHostedProvider?: LLMProvider;
+  modelId?: string;
+  baseUrl?: string;
+};
+
+const AGENT_DEFAULTS: Record<string, AgentDefaults> = {
+  "coding-agent": {
+    deploymentType: "self-hosted",
+    selfHostedProvider: "ollama",
+    modelId: "glm-4.7-flash",
+    baseUrl: "http://localhost:11434",
+  },
+};
+
 
 const LLM_PROVIDERS: { value: LLMProvider; label: string }[] = [
   { value: "google", label: "Google" },
@@ -160,12 +177,15 @@ export function AgentConfigModal({
       setApiKey("");
       setAgentSecrets({});
     } else {
+      const defaults = AGENT_DEFAULTS[agent.id];
+      const defaultDeploymentType = defaults?.deploymentType ?? "cloud";
+
       // Reset form when no config exists
-      setDeploymentType("cloud");
-      setProvider("google");
-      setSelfHostedProvider("ollama");
-      setModelId("");
-      setBaseUrl("");
+      setDeploymentType(defaultDeploymentType);
+      setProvider(defaults?.provider ?? "google");
+      setSelfHostedProvider(defaults?.selfHostedProvider ?? "ollama");
+      setModelId(defaults?.modelId ?? "");
+      setBaseUrl(defaults?.baseUrl ?? "");
       setApiKey("");
       setAgentSecrets({});
     }
