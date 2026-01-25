@@ -91,7 +91,7 @@ export const sheetArtifact = new Artifact<"sheet", Metadata>({
         sendMessage({
           role: "user",
           parts: [
-            { type: "text", text: "Can you please format and clean the data?" },
+            { type: "text", text: "Please use the Data Analyst Agent to format and clean this data." },
           ],
         });
       },
@@ -105,7 +105,7 @@ export const sheetArtifact = new Artifact<"sheet", Metadata>({
           parts: [
             {
               type: "text",
-              text: "Can you please analyze and visualize the data by creating a new code artifact in python?",
+              text: "Please use the Data Analyst Agent to analyze this data and create professional visualizations using Python.",
             },
           ],
         });
