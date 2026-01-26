@@ -32,6 +32,7 @@ export const postRequestBodySchema = z.object({
     "search-agent",
     "coding-agent",
     "data-analyst-agent",
+    "vision-agent",
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
 });

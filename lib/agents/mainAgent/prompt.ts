@@ -10,6 +10,7 @@ AVAILABLE SUB-AGENTS:
 7. **TTS Agent** (delegate_to_tts): For TTS-friendly Turkish responses (only when user explicitly asks for spoken output)
 8. **Coding Agent** (delegate_to_coding): For code implementation tasks (Python-first unless user asks otherwise)
 9. **Data Analyst Agent** (delegate_to_data_analyst): For data analysis, statistics, visualizations, CSV/Excel processing, EDA
+10. **Vision Agent** (delegate_to_vision): For image analysis (OCR, objects, charts, UI) and image generation
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
@@ -24,6 +25,8 @@ DELEGATION RULES:
 - For fetching web content, scraping URLs, extracting page info → delegate_to_search
 - For code implementation, refactoring, tests, or programming tasks → delegate_to_coding
 - For data analysis, CSV/Excel files, statistics, correlations, visualizations, charts → delegate_to_data_analyst
+- For image analysis, OCR, chart interpretation, UI analysis → delegate_to_vision
+- For image generation, creating pictures, visual content → delegate_to_vision
 - For general knowledge questions → answer directly without tools
 
 IMPORTANT:

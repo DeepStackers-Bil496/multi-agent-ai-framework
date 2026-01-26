@@ -246,6 +246,13 @@ export function Chat({
       const rootSteps: ExecutionStep[] = [];
       const appliedActions = new Set<string>();
       let hadStreamError = false;
+      // Track generated images for real-time display
+      const generatedImages: Array<{
+        imageUrl: string;
+        prompt: string;
+        model: string;
+        dimensions: { width: number; height: number };
+      }> = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -345,6 +352,29 @@ export function Chat({
                   console.log("[Chat] Applied UI action from tool:", action);
                 }
               }
+
+              // Check for generated images in tool output
+              // Note: Backend double-stringifies, so we may need to parse twice
+              try {
+                let parsedOutput = typeof data.payload.content === "string"
+                  ? JSON.parse(data.payload.content)
+                  : data.payload.content;
+
+                // If still a string after first parse, parse again (double-stringified)
+                if (typeof parsedOutput === "string") {
+                  try {
+                    parsedOutput = JSON.parse(parsedOutput);
+                  } catch {
+                    // Not valid JSON, keep as string
+                  }
+                }
+
+                if (parsedOutput?.__generatedImage) {
+                  generatedImages.push(parsedOutput.__generatedImage);
+                }
+              } catch {
+                // Not JSON or no image data, ignore
+              }
             }
             else if (data.type === AGENT_STREAM) {
               const textChunk = extractTextContent(data.payload.content);
@@ -368,7 +398,7 @@ export function Chat({
               toast({ type: "error", description: errorContent });
             }
 
-            // Update messages with both text and execution flow
+            // Update messages with execution flow, generated images, and text
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMessageId
@@ -376,6 +406,11 @@ export function Chat({
                     ...msg,
                     parts: [
                       { type: "data-agent-execution" as const, data: [...rootSteps] },
+                      // Add generated images
+                      ...generatedImages.map((img) => ({
+                        type: "data-generated-image" as const,
+                        data: img,
+                      })),
                       { type: "text" as const, text: accumulatedText }
                     ] as any
                   }

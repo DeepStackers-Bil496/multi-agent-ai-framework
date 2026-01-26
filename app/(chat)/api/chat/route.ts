@@ -306,7 +306,7 @@ export async function POST(request: Request) {
     // ============================================================
     // AGENT INTEGRATION - NEW CODE
     // ============================================================
-    // Convert UI messages to Agent format
+    // Convert UI messages to Agent format (including image URLs for multimodal support)
     const agentMessages: AgentChatMessage[] = uiMessages.map((msg) => {
       // Extract text content from message parts
       const textContent = msg.parts
@@ -314,10 +314,17 @@ export async function POST(request: Request) {
         .map((part) => part.text)
         .join("") || "";
 
-      // Extract file attachments
+      // Extract ALL file attachments (images, CSV, Excel, etc.)
       const fileAttachments = msg.parts
         ?.filter((part): part is { type: "file"; url: string; name: string; mediaType: string } => part.type === "file")
-        .map((part) => `[File: ${part.name} (${part.mediaType}) - URL: ${part.url}]`)
+        .map((part) => {
+          // For images: Vision Agent format
+          if (part.mediaType?.startsWith("image/")) {
+            return `[Image: ${part.url}]`;
+          }
+          // For data files: Data Analyst format
+          return `[File: ${part.name} (${part.mediaType}) - URL: ${part.url}]`;
+        })
         .join("\n") || "";
 
       // Combine text and file info
@@ -387,6 +394,14 @@ export async function POST(request: Request) {
     const originalStream = agentResponse.body;
     const reader = originalStream.getReader();
     const decoder = new TextDecoder();
+
+    // Track generated images from tool outputs
+    const generatedImages: Array<{
+      imageUrl: string;
+      prompt: string;
+      model: string;
+      dimensions: { width: number; height: number };
+    }> = [];
 
     const passthroughStream = new ReadableStream({
       async start(controller) {
@@ -459,6 +474,29 @@ export async function POST(request: Request) {
                     step.endTime = Date.now();
                     try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
                   }
+
+                  // Check if this tool output contains a generated image
+                  // Note: Backend double-stringifies, so we may need to parse twice
+                  try {
+                    let toolOutput = typeof data.payload.content === "string"
+                      ? JSON.parse(data.payload.content)
+                      : data.payload.content;
+
+                    // If still a string after first parse, parse again (double-stringified)
+                    if (typeof toolOutput === "string") {
+                      try {
+                        toolOutput = JSON.parse(toolOutput);
+                      } catch {
+                        // Not valid JSON, keep as string
+                      }
+                    }
+
+                    if (toolOutput?.__generatedImage) {
+                      generatedImages.push(toolOutput.__generatedImage);
+                    }
+                  } catch {
+                    // Not JSON or no image data, ignore
+                  }
                 }
                 else if (data.type === AGENT_ERROR) {
                   if (activeAgentStack.length > 0) {
@@ -490,13 +528,25 @@ export async function POST(request: Request) {
 
           controller.close();
 
-          // Save assistant message to database after stream ends with execution flow part
+          // Save assistant message to database after stream ends
           const parts = [];
+
+          // Add execution flow
           if (rootSteps.length > 0) {
             parts.push({ type: "data-agent-execution", data: rootSteps });
           }
-          if (accumulatedContent) {
-            parts.push({ type: "text", text: accumulatedContent });
+
+          // Add generated images
+          for (const imageData of generatedImages) {
+            parts.push({
+              type: "data-generated-image",
+              data: imageData,
+            });
+          }
+
+          // Add text content
+          if (accumulatedContent.trim()) {
+            parts.push({ type: "text", text: accumulatedContent.trim() });
           }
 
           if (parts.length > 0) {

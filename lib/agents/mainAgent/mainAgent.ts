@@ -21,6 +21,7 @@ import "../ttsAgent/ttsAgent";
 import "../searchAgent/searchAgent";
 import "../codingAgent/codingAgent";
 import "../dataAnalystAgent/dataAnalystAgent";
+import "../visionAgent/visionAgent";
 
 class MainAgent extends BaseAgent<LLMImplMetadata> {
 

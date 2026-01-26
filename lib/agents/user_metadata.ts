@@ -9,6 +9,7 @@ import { TtsAgentConfig } from "./ttsAgent/config";
 import { SearchAgentConfig } from "./searchAgent/config";
 import { CodingAgentConfig } from "./codingAgent/config";
 import { DataAnalystAgentConfig } from "./dataAnalystAgent/config";
+import { VisionAgentConfig } from "./visionAgent/config";
 
 /**
  * Static list of agent metadata used by the UI.
@@ -26,4 +27,5 @@ export const agentUserMetadataList: AgentUserMetadata[] = [
     SearchAgentConfig.user_metadata,
     CodingAgentConfig.user_metadata,
     DataAnalystAgentConfig.user_metadata,
+    VisionAgentConfig.user_metadata,
 ];
