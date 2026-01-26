@@ -20,6 +20,7 @@ import "../googleWorkspaceAgent/googleWorkspaceAgent";
 import "../ttsAgent/ttsAgent";
 import "../searchAgent/searchAgent";
 import "../codingAgent/codingAgent";
+import "../visionAgent/visionAgent";
 
 class MainAgent extends BaseAgent<LLMImplMetadata> {
 

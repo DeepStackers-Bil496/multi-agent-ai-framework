@@ -27,6 +27,7 @@ import { Weather } from "./weather";
 import { ExecutionFlow, ThinkingFlow } from "./execution-flow";
 import { AudioPlayer } from "./audio-player";
 import { Loader } from "./elements/loader";
+import { GeneratedImage, type GeneratedImageData } from "./generated-image";
 
 const PurePreviewMessage = ({
   chatId,
@@ -328,9 +329,24 @@ const PurePreviewMessage = ({
               );
             }
 
+            if (type === "data-generated-image") {
+              const imageData = part.data as GeneratedImageData;
+              // Validate that we have the required data
+              if (!imageData?.imageUrl) {
+                console.warn("[Message] data-generated-image part missing imageUrl:", part);
+                return null;
+              }
+              return (
+                <div className="my-3" key={key}>
+                  <GeneratedImage data={imageData} />
+                </div>
+              );
+            }
+
             return null;
           })}
 
+          {/*
           {!isReadonly && (
             <MessageActions
               chatId={chatId}
@@ -343,6 +359,7 @@ const PurePreviewMessage = ({
               vote={vote}
             />
           )}
+          */}
         </div>
       </div>
     </motion.div>
