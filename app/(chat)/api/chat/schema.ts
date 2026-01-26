@@ -30,6 +30,7 @@ export const postRequestBodySchema = z.object({
     "google-workspace-agent",
     "tts-agent",
     "search-agent",
+    "coding-agent",
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
 });
