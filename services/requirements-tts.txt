@@ -1,6 +1,6 @@
 fastapi==0.111.0
 uvicorn==0.30.6
-torch==2.4.1
+torch
 transformers==4.44.2
 soundfile==0.12.1
 numpy==2.0.2

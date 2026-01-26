@@ -110,10 +110,9 @@ const AGENT_DEFAULTS: Record<string, AgentDefaults> = {
     baseUrl: "http://localhost:11434",
   },
   "data-analyst-agent": {
-    deploymentType: "self-hosted",
-    selfHostedProvider: "ollama",
-    modelId: "glm-4.7-flash",
-    baseUrl: "http://localhost:11434",
+    deploymentType: "cloud",
+    provider: "google",
+    modelId: "gemini-1.5-flash",
   },
 };
 

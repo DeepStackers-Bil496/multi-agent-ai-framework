@@ -11,10 +11,21 @@ const FileSchema = z.object({
     .refine((file) => file.size <= 5 * 1024 * 1024, {
       message: "File size should be less than 5MB",
     })
-    // Update the file type based on the kind of files you want to accept
-    .refine((file) => ["image/jpeg", "image/png"].includes(file.type), {
-      message: "File type should be JPEG or PNG",
-    }),
+    // Accept images, CSV, and Excel files
+    .refine(
+      (file) =>
+        [
+          "image/jpeg",
+          "image/png",
+          "text/csv",
+          "application/csv",
+          "application/vnd.ms-excel",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ].includes(file.type),
+      {
+        message: "File type should be JPEG, PNG, CSV, or Excel",
+      }
+    ),
 });
 
 export async function POST(request: Request) {
@@ -51,12 +62,14 @@ export async function POST(request: Request) {
     const fileBuffer = await file.arrayBuffer();
 
     try {
+      console.log('[Upload] Uploading file:', filename, 'Size:', fileBuffer.byteLength, 'bytes');
       const data = await put(`${filename}`, fileBuffer, {
         access: "public",
       });
-
+      console.log('[Upload] Success:', data);
       return NextResponse.json(data);
-    } catch (_error) {
+    } catch (error) {
+      console.error('[Upload] Error:', error);
       return NextResponse.json({ error: "Upload failed" }, { status: 500 });
     }
   } catch (_error) {

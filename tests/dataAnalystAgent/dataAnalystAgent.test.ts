@@ -9,9 +9,9 @@ import { createDataAnalystAgentTools } from "../../lib/agents/dataAnalystAgent/t
 const DATA_ANALYST_AGENT_ID = "data-analyst-agent";
 
 describe("Data Analyst Agent", () => {
-  it("uses Ollama glm-4.7-flash by default", () => {
-    assert.equal(DataAnalystAgentConfig.implementation_metadata.provider, "ollama");
-    assert.equal(DataAnalystAgentConfig.implementation_metadata.modelID, "glm-4.7-flash");
+  it("uses Google gemini-1.5-flash by default", () => {
+    assert.equal(DataAnalystAgentConfig.implementation_metadata.provider, "google");
+    assert.equal(DataAnalystAgentConfig.implementation_metadata.modelID, "gemini-1.5-flash");
   });
 
   it("prompt covers data analysis and visualization", () => {

@@ -21,9 +21,10 @@ const dataAnalystAgentUserMetadata: AgentUserMetadata = {
 
 const dataAnalystAgentImplementationMetadata: LLMImplMetadata = {
   type: API_MODEL_TYPE,
-  provider: "ollama",
-  modelID: "glm-4.7-flash", // Following codingAgent's lead, but this can be changed by user
+  provider: "google",
+  modelID: "gemini-1.5-flash",
   systemInstruction: dataAnalystAgentSystemPrompt,
+  apiKey: process.env.GEMINI_API_KEY,
 };
 
 export const DataAnalystAgentConfig: AgentConfig<LLMImplMetadata> = {

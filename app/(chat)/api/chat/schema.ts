@@ -7,7 +7,7 @@ const textPartSchema = z.object({
 
 const filePartSchema = z.object({
   type: z.enum(["file"]),
-  mediaType: z.enum(["image/jpeg", "image/png"]),
+  mediaType: z.enum(["image/jpeg", "image/png", "text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]),
   name: z.string().min(1).max(100),
   url: z.string().url(),
 });
@@ -30,6 +30,8 @@ export const postRequestBodySchema = z.object({
     "google-workspace-agent",
     "tts-agent",
     "search-agent",
+    "coding-agent",
+    "data-analyst-agent",
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
 });

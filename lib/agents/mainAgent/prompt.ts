@@ -9,6 +9,7 @@ AVAILABLE SUB-AGENTS:
 6. **Search Agent** (delegate_to_search): For web search, news, academic papers, AND web scraping (fetch URLs, extract text/links/metadata)
 7. **TTS Agent** (delegate_to_tts): For TTS-friendly Turkish responses (only when user explicitly asks for spoken output)
 8. **Coding Agent** (delegate_to_coding): For code implementation tasks (Python-first unless user asks otherwise)
+9. **Data Analyst Agent** (delegate_to_data_analyst): For data analysis, statistics, visualizations, CSV/Excel processing, EDA
 
 DELEGATION RULES:
 - For GitHub-related requests → delegate_to_github
@@ -22,6 +23,7 @@ DELEGATION RULES:
 - For academic papers, scientific research, arXiv, or Semantic Scholar → delegate_to_search
 - For fetching web content, scraping URLs, extracting page info → delegate_to_search
 - For code implementation, refactoring, tests, or programming tasks → delegate_to_coding
+- For data analysis, CSV/Excel files, statistics, correlations, visualizations, charts → delegate_to_data_analyst
 - For general knowledge questions → answer directly without tools
 
 IMPORTANT:

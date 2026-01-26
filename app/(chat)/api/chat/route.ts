@@ -314,9 +314,20 @@ export async function POST(request: Request) {
         .map((part) => part.text)
         .join("") || "";
 
+      // Extract file attachments
+      const fileAttachments = msg.parts
+        ?.filter((part): part is { type: "file"; url: string; name: string; mediaType: string } => part.type === "file")
+        .map((part) => `[File: ${part.name} (${part.mediaType}) - URL: ${part.url}]`)
+        .join("\n") || "";
+
+      // Combine text and file info
+      const fullContent = fileAttachments 
+        ? `${textContent}\n\n${fileAttachments}`
+        : textContent;
+
       return {
         role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,
-        content: textContent,
+        content: fullContent,
       };
     });
 
