@@ -53,6 +53,15 @@ export type CustomUIDataTypes = {
     state: "loading" | "error";
     message?: string;
   };
+  "generated-image": {
+    imageUrl: string;
+    prompt: string;
+    model: string;
+    dimensions: {
+      width: number;
+      height: number;
+    };
+  };
 };
 
 export type ChatMessage = UIMessage<

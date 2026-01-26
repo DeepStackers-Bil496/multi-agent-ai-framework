@@ -38,6 +38,9 @@ importers:
       '@e2b/code-interpreter':
         specifier: ^2.3.3
         version: 2.3.3
+      '@huggingface/inference':
+        specifier: ^4.13.10
+        version: 4.13.10
       '@icons-pack/react-simple-icons':
         specifier: ^13.7.0
         version: 13.8.0(react@19.0.0-rc-45804af1-20241021)
@@ -46,7 +49,7 @@ importers:
         version: 1.3.3(@langchain/core@1.1.8(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76)))
       '@langchain/community':
         specifier: ^1.1.1
-        version: 1.1.1(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.958.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.51.0)(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.5)(@langchain/core@1.1.8(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76)))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(@vercel/postgres@0.10.0)(cheerio@1.1.2)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.2.5)(ibm-cloud-sdk-core@5.4.5)(jsonwebtoken@9.0.3)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(playwright@1.51.0)(redis@5.9.0)(ws@8.18.3(bufferutil@4.0.9))
+        version: 1.1.1(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.958.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.51.0)(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(zod@3.25.76))(@huggingface/inference@4.13.10)(@ibm-cloud/watsonx-ai@1.7.5)(@langchain/core@1.1.8(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76)))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(@vercel/postgres@0.10.0)(cheerio@1.1.2)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.2.5)(ibm-cloud-sdk-core@5.4.5)(jsonwebtoken@9.0.3)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(playwright@1.51.0)(redis@5.9.0)(ws@8.18.3(bufferutil@4.0.9))
       '@langchain/core':
         specifier: ^1.1.8
         version: 1.1.8(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))
@@ -1172,6 +1175,17 @@ packages:
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
+
+  '@huggingface/inference@4.13.10':
+    resolution: {integrity: sha512-aXVSXGNZqMnLxR4hbsxu2cgoY83EYUIc8bqC+5I5iRLqMlQb2E1g5Q+oIkZQQPLO7xfSSrjz2piZOVYF6Ia+og==}
+    engines: {node: '>=18'}
+
+  '@huggingface/jinja@0.5.3':
+    resolution: {integrity: sha512-asqfZ4GQS0hD876Uw4qiUb7Tr/V5Q+JZuo2L+BtdrD4U40QU58nIRq3ZSgAzJgT874VLjhGVacaYfrdpXtEvtA==}
+    engines: {node: '>=18'}
+
+  '@huggingface/tasks@0.19.80':
+    resolution: {integrity: sha512-lsrMP6Lapc0vT62uWCIM0fqsFNM0iexf2Inz1ZR4+a8W/ogaz5i450VrYlrXyNOxVj7D9KtKRatmNfaO/bHmCg==}
 
   '@ibm-cloud/watsonx-ai@1.7.5':
     resolution: {integrity: sha512-j9iQ7cuMbE3fYF+midMDMG16ziZLVZa0IMO3kd2HUFMjIxJ7JN6O29WSt9KaOeDAWRMb7wkN1jcdMcYWpFtytw==}
@@ -7347,6 +7361,15 @@ snapshots:
     dependencies:
       hono: 4.11.3
 
+  '@huggingface/inference@4.13.10':
+    dependencies:
+      '@huggingface/jinja': 0.5.3
+      '@huggingface/tasks': 0.19.80
+
+  '@huggingface/jinja@0.5.3': {}
+
+  '@huggingface/tasks@0.19.80': {}
+
   '@ibm-cloud/watsonx-ai@1.7.5':
     dependencies:
       '@types/node': 18.19.130
@@ -7543,7 +7566,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.1(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.958.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.51.0)(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.5)(@langchain/core@1.1.8(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76)))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(@vercel/postgres@0.10.0)(cheerio@1.1.2)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.2.5)(ibm-cloud-sdk-core@5.4.5)(jsonwebtoken@9.0.3)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(playwright@1.51.0)(redis@5.9.0)(ws@8.18.3(bufferutil@4.0.9))':
+  '@langchain/community@1.1.1(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.958.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.51.0)(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(zod@3.25.76))(@huggingface/inference@4.13.10)(@ibm-cloud/watsonx-ai@1.7.5)(@langchain/core@1.1.8(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76)))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(@vercel/postgres@0.10.0)(cheerio@1.1.2)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.2.5)(ibm-cloud-sdk-core@5.4.5)(jsonwebtoken@9.0.3)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(playwright@1.51.0)(redis@5.9.0)(ws@8.18.3(bufferutil@4.0.9))':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.51.0)(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@6.15.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76))(zod@3.25.76)
       '@ibm-cloud/watsonx-ai': 1.7.5
@@ -7562,6 +7585,7 @@ snapshots:
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/credential-provider-node': 3.958.0
       '@browserbasehq/sdk': 2.6.0
+      '@huggingface/inference': 4.13.10
       '@neondatabase/serverless': 1.0.2
       '@smithy/util-utf8': 2.3.0
       '@vercel/postgres': 0.10.0
