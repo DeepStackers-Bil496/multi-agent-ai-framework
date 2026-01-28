@@ -154,7 +154,7 @@ export function SidebarUserNav({ user }: { user: User }) {
                 <DropdownMenuSubContent>
                   <DropdownMenuItem
                     className="cursor-pointer"
-                    onSelect={() => window.open("https://github.com/DeepStackers-Bil496/multi-agent-ai-framework#readme", "_blank")}
+                    onSelect={() => window.open("https://multi-agent-ai-framework.mintlify.app", "_blank")}
                   >
                     Documentation
                   </DropdownMenuItem>

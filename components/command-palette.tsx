@@ -77,11 +77,25 @@ export function CommandPalette() {
             <CommandList>
                 <CommandEmpty>No results found.</CommandEmpty>
                 <CommandGroup heading="Navigation">
-                    <CommandItem onSelect={() => runCommand(handleContinueChat)}>
+                    <CommandItem 
+                        onSelect={() => runCommand(handleContinueChat)}
+                        onMouseDown={(e) => {
+                            console.log("DENEME")
+                            e.preventDefault();
+                            runCommand(handleContinueChat);
+                        }}
+                    >
                         <MessageSquare className="mr-2 h-4 w-4" />
                         <span>Continue Chat</span>
                     </CommandItem>
-                    <CommandItem onSelect={() => runCommand(() => router.push("/settings"))}>
+                    <CommandItem 
+                        onSelect={() => runCommand(() => router.push("/settings"))}
+                        onMouseDown={(e) => {
+                            console.log("SETTINGS")
+                            e.preventDefault();
+                            runCommand(() => router.push("/settings"));
+                        }}
+                    >
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Settings</span>
                         <CommandShortcut>⌘,</CommandShortcut>
@@ -91,6 +105,11 @@ export function CommandPalette() {
                 <CommandGroup heading="Dashboards">
                     <CommandItem
                         onSelect={() => runCommand(() => router.push("/agents_dashboard"))}
+                        onMouseDown={(e) => {
+                            console.log("AGENTS DASHBOARD")
+                            e.preventDefault();
+                            runCommand(() => router.push("/agents_dashboard"));
+                        }}
                     >
                         <Bot className="mr-2 h-4 w-4" />
                         <span>Agents Dashboard</span>
