@@ -636,7 +636,7 @@ export function AgentConfigModal({
                       <SelectTrigger>
                         <SelectValue placeholder="Select a model" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-[180px] overflow-y-auto">
                         {/* Show saved modelId first if not in loaded models */}
                         {modelId && !models.find(m => m.id === modelId) && (
                           <SelectItem key={modelId} value={modelId}>
@@ -706,7 +706,7 @@ export function AgentConfigModal({
                       <SelectTrigger>
                         <SelectValue placeholder="Select a model" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-[180px] overflow-y-auto">
                         {/* Show saved modelId first if not in loaded models */}
                         {modelId && !models.find(m => m.id === modelId) && (
                           <SelectItem key={modelId} value={modelId}>
