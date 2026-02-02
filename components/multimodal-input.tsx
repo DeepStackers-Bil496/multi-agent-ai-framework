@@ -4,6 +4,7 @@ import type { UseChatHelpers } from "@ai-sdk/react";
 import { Trigger } from "@radix-ui/react-select";
 import type { UIMessage } from "ai";
 import equal from "fast-deep-equal";
+import { Loader2, Mic, Square } from "lucide-react";
 import {
   type ChangeEvent,
   type Dispatch,
@@ -128,6 +129,182 @@ function PureMultimodalInput({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<string[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
+
+  const stopActiveRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }, []);
+
+  const releaseAudioResources = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    mediaRecorderRef.current = null;
+  }, []);
+
+  const blobToBase64 = useCallback((blob: Blob) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result !== "string") {
+          reject(new Error("Failed to read audio buffer"));
+          return;
+        }
+
+        const commaIndex = result.indexOf(",");
+        if (commaIndex < 0) {
+          reject(new Error("Invalid base64 payload"));
+          return;
+        }
+
+        resolve(result.slice(commaIndex + 1));
+      };
+      reader.onerror = () => reject(new Error("Failed to convert audio"));
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  const transcribeAudioBlob = useCallback(
+    async (blob: Blob) => {
+      if (blob.size === 0) {
+        toast.error("No audio captured. Please try again.");
+        return;
+      }
+
+      setIsTranscribingAudio(true);
+
+      try {
+        const audioBase64 = await blobToBase64(blob);
+        const languageHint =
+          typeof navigator !== "undefined" ? navigator.language : undefined;
+
+        const response = await fetch("/api/speech/stt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audioBase64,
+            mimeType: blob.type || "audio/webm",
+            languageHint,
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const message =
+            payload?.cause || payload?.message || "Failed to transcribe audio.";
+          throw new Error(message);
+        }
+
+        const payload = await response.json();
+        const transcript =
+          typeof payload?.transcript === "string" ? payload.transcript.trim() : "";
+
+        if (!transcript) {
+          toast.error("No speech detected. Please try again.");
+          return;
+        }
+
+        setInput((current) => {
+          const prefix = current.trim().length > 0 ? `${current.trim()} ` : "";
+          return `${prefix}${transcript}`;
+        });
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to transcribe audio."
+        );
+      } finally {
+        setIsTranscribingAudio(false);
+      }
+    },
+    [blobToBase64, setInput]
+  );
+
+  const handleMicrophoneToggle = useCallback(async () => {
+    if (selectedModelId !== "main-agent") {
+      return;
+    }
+
+    if (status !== "ready" || isTranscribingAudio) {
+      return;
+    }
+
+    if (isRecordingAudio) {
+      stopActiveRecording();
+      return;
+    }
+
+    if (
+      typeof window === "undefined" ||
+      !navigator?.mediaDevices ||
+      typeof MediaRecorder === "undefined"
+    ) {
+      toast.error("Audio recording is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm",
+      });
+
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        setIsRecordingAudio(false);
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        audioChunksRef.current = [];
+        releaseAudioResources();
+        await transcribeAudioBlob(audioBlob);
+      };
+
+      recorder.onerror = () => {
+        setIsRecordingAudio(false);
+        releaseAudioResources();
+        toast.error("Audio recording failed. Please try again.");
+      };
+
+      recorder.start();
+      setIsRecordingAudio(true);
+    } catch (error) {
+      releaseAudioResources();
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Microphone access denied or unavailable."
+      );
+    }
+  }, [
+    isRecordingAudio,
+    isTranscribingAudio,
+    releaseAudioResources,
+    selectedModelId,
+    status,
+    stopActiveRecording,
+    transcribeAudioBlob,
+  ]);
 
   const submitForm = useCallback(() => {
     window.history.pushState({}, "", `/chat/${chatId}`);
@@ -283,6 +460,16 @@ function PureMultimodalInput({
     return () => textarea.removeEventListener('paste', handlePaste);
   }, [handlePaste]);
 
+  useEffect(() => {
+    return () => {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+      releaseAudioResources();
+    };
+  }, [releaseAudioResources]);
+
   return (
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
       {messages.length === 0 &&
@@ -373,6 +560,13 @@ function PureMultimodalInput({
               selectedModelId={selectedModelId}
               status={status}
             />
+            <SpeechToTextButton
+              isRecording={isRecordingAudio}
+              isTranscribing={isTranscribingAudio}
+              onClick={handleMicrophoneToggle}
+              selectedModelId={selectedModelId}
+              status={status}
+            />
             <ModelSelectorCompact
               onModelChange={onModelChange}
               selectedModelId={selectedModelId}
@@ -449,6 +643,61 @@ function PureAttachmentsButton({
 
 const AttachmentsButton = memo(PureAttachmentsButton);
 
+function PureSpeechToTextButton({
+  selectedModelId,
+  status,
+  isRecording,
+  isTranscribing,
+  onClick,
+}: {
+  selectedModelId: string;
+  status: UseChatHelpers<ChatMessage>["status"];
+  isRecording: boolean;
+  isTranscribing: boolean;
+  onClick: () => void;
+}) {
+  if (selectedModelId !== "main-agent") {
+    return null;
+  }
+
+  const isDisabled = status !== "ready" || isTranscribing;
+
+  return (
+    <Button
+      className={cn(
+        "aspect-square h-8 rounded-lg p-1 transition-colors",
+        isRecording
+          ? "bg-red-500/15 text-red-600 hover:bg-red-500/20"
+          : "hover:bg-accent"
+      )}
+      data-testid="stt-button"
+      disabled={isDisabled}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick();
+      }}
+      title={
+        isTranscribing
+          ? "Transcribing..."
+          : isRecording
+            ? "Stop recording"
+            : "Start voice input"
+      }
+      variant="ghost"
+    >
+      {isTranscribing ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isRecording ? (
+        <Square className="h-3.5 w-3.5 fill-current" />
+      ) : (
+        <Mic className="h-4 w-4" />
+      )}
+    </Button>
+  );
+}
+
+const SpeechToTextButton = memo(PureSpeechToTextButton);
+
 interface AgentPreference {
   agentId: string;
   enabled: boolean;
@@ -461,7 +710,12 @@ function PureModelSelectorCompact({
   selectedModelId: string;
   onModelChange?: (modelId: string) => void;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [optimisticModelId, setOptimisticModelId] = useState(selectedModelId);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setOptimisticModelId(selectedModelId);
@@ -515,6 +769,16 @@ function PureModelSelectorCompact({
       }
     }
   }, [selectedModel, availableAgents, onModelChange]);
+
+  if (!mounted) {
+    return (
+      <Button variant="ghost" className="h-8 px-2" disabled>
+        <CpuIcon size={16} />
+        <span className="hidden font-medium text-xs sm:block">Loading...</span>
+        <ChevronDownIcon size={16} />
+      </Button>
+    );
+  }
 
   return (
     <PromptInputModelSelect
