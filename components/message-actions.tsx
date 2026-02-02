@@ -15,6 +15,155 @@ import {
   ThumbUpIcon,
 } from "./icons";
 
+type SupportedSpeechBaseLang = "tr" | "en" | "fr" | "es" | "pt" | "it" | "de" | "nl";
+
+function guessBaseLangFromChars(text: string): SupportedSpeechBaseLang | null {
+  const lower = text.toLowerCase();
+
+  // Strong signals
+  if (/[ğüşöçıİı]/i.test(text)) return "tr";
+  if (/[¿¡ñ]/.test(lower)) return "es";
+  if (/[ßä]/.test(lower)) return "de";
+  if (/[ãõ]/.test(lower)) return "pt";
+  if (/[œ]/.test(lower)) return "fr";
+
+  return null;
+}
+
+function tokenizeForLangDetect(text: string): string[] {
+  return text
+    .toLowerCase()
+    .slice(0, 600)
+    .split(/[^a-zA-ZÀ-ÿİıĞğÜüŞşÖöÇçÑñ]+/u)
+    .filter(Boolean);
+}
+
+function detectBaseLang(text: string): SupportedSpeechBaseLang {
+  const charGuess = guessBaseLangFromChars(text);
+  if (charGuess) return charGuess;
+
+  const tokens = tokenizeForLangDetect(text);
+  if (tokens.length === 0) return "en";
+
+  const stopwords: Record<SupportedSpeechBaseLang, string[]> = {
+    tr: ["ve", "bir", "bu", "şu", "için", "ile", "ama", "değil", "çok", "daha", "ben", "sen", "biz", "siz", "ne"],
+    en: ["the", "and", "is", "are", "to", "of", "in", "for", "with", "that", "this", "you", "it", "not"],
+    fr: ["le", "la", "les", "et", "est", "des", "une", "dans", "pour", "avec", "que", "pas", "vous", "ce"],
+    es: ["el", "la", "los", "las", "y", "que", "en", "una", "para", "con", "por", "no", "esto", "como"],
+    pt: ["o", "a", "os", "as", "e", "que", "em", "uma", "para", "com", "por", "não", "isso", "como"],
+    it: ["il", "lo", "la", "e", "che", "in", "una", "per", "con", "non", "questo", "come", "anche"],
+    de: ["der", "die", "das", "und", "ist", "in", "ein", "für", "mit", "nicht", "dass", "sie", "ich"],
+    nl: ["de", "het", "een", "en", "is", "in", "voor", "met", "niet", "dat", "je", "ik", "zijn"],
+  };
+
+  const scores: Record<SupportedSpeechBaseLang, number> = {
+    tr: 0,
+    en: 0,
+    fr: 0,
+    es: 0,
+    pt: 0,
+    it: 0,
+    de: 0,
+    nl: 0,
+  };
+
+  for (const [lang, words] of Object.entries(stopwords) as Array<
+    [SupportedSpeechBaseLang, string[]]
+  >) {
+    const set = new Set(words);
+    for (const token of tokens) {
+      if (set.has(token)) scores[lang] += 1;
+    }
+  }
+
+  // Soft character bonuses (helps FR/IT/ES/PT differentiation)
+  if (/[ç]/.test(text)) scores.fr += 0.5;
+  if (/[éèêàùûîï]/i.test(text)) scores.fr += 0.5;
+  if (/[áíóú]/i.test(text)) scores.es += 0.5;
+  if (/[àèéìòù]/i.test(text)) scores.it += 0.5;
+  if (/[ãõç]/i.test(text)) scores.pt += 0.5;
+  if (/[äöü]/i.test(text)) scores.de += 0.5;
+
+  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0]?.[0] as
+    | SupportedSpeechBaseLang
+    | undefined;
+
+  if (best && scores[best] > 0) return best;
+
+  const browserBase =
+    typeof navigator !== "undefined" ? navigator.language?.slice(0, 2) : "";
+  if (
+    browserBase === "tr" ||
+    browserBase === "en" ||
+    browserBase === "fr" ||
+    browserBase === "es" ||
+    browserBase === "pt" ||
+    browserBase === "it" ||
+    browserBase === "de" ||
+    browserBase === "nl"
+  ) {
+    return browserBase;
+  }
+
+  return "en";
+}
+
+function mapBaseToBCP47(base: SupportedSpeechBaseLang): string {
+  switch (base) {
+    case "tr":
+      return "tr-TR";
+    case "en":
+      return "en-US";
+    case "fr":
+      return "fr-FR";
+    case "es":
+      return "es-ES";
+    case "pt":
+      return "pt-PT";
+    case "it":
+      return "it-IT";
+    case "de":
+      return "de-DE";
+    case "nl":
+      return "nl-NL";
+    default:
+      return "en-US";
+  }
+}
+
+async function getVoicesWithRetry(timeoutMs = 500): Promise<SpeechSynthesisVoice[]> {
+  const initial = window.speechSynthesis.getVoices();
+  if (initial.length > 0) return initial;
+
+  return await new Promise((resolve) => {
+    const timer = window.setTimeout(() => {
+      cleanup();
+      resolve(window.speechSynthesis.getVoices());
+    }, timeoutMs);
+
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+
+    window.speechSynthesis.onvoiceschanged = () => {
+      cleanup();
+      resolve(window.speechSynthesis.getVoices());
+    };
+  });
+}
+
+function pickVoiceForLang(voices: SpeechSynthesisVoice[], targetLang: string) {
+  const normalizedTarget = targetLang.toLowerCase();
+  const base = normalizedTarget.split("-")[0];
+
+  return (
+    voices.find((voice) => voice.lang.toLowerCase() === normalizedTarget) ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith(`${base}-`)) ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith(base))
+  );
+}
+
 export function PureMessageActions({
   chatId,
   message,
@@ -79,15 +228,13 @@ export function PureMessageActions({
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.lang = "tr-TR";
+      const baseLang = detectBaseLang(cleanText);
+      const targetLang = mapBaseToBCP47(baseLang);
+      utterance.lang = targetLang;
 
-      const voices = window.speechSynthesis.getVoices();
-      const turkishVoice = voices.find((voice) =>
-        voice.lang.toLowerCase().startsWith("tr")
-      );
-      if (turkishVoice) {
-        utterance.voice = turkishVoice;
-      }
+      const voices = await getVoicesWithRetry();
+      const voice = pickVoiceForLang(voices, targetLang);
+      if (voice) utterance.voice = voice;
 
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => {
