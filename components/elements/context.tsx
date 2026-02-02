@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,6 +100,7 @@ function InfoRow({
 }
 
 export const Context = ({ className, usage, ...props }: ContextProps) => {
+  const [mounted, setMounted] = useState(false);
   const used = usage?.totalTokens ?? 0;
   const max =
     usage?.context?.totalMax ??
@@ -107,6 +108,27 @@ export const Context = ({ className, usage, ...props }: ContextProps) => {
     usage?.context?.inputMax;
   const hasMax = typeof max === "number" && Number.isFinite(max) && max > 0;
   const usedPercent = hasMax ? Math.min(100, (used / max) * 100) : 0;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <button
+        className={cn(
+          "inline-flex select-none items-center gap-1 rounded-md text-sm",
+          "bg-background text-foreground",
+          className
+        )}
+        disabled
+        type="button"
+      >
+        <ContextIcon percent={usedPercent} />
+      </button>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
