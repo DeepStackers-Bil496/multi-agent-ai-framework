@@ -4,7 +4,7 @@ import {
   decryptAgentSecrets,
   isEncryptionConfigured,
 } from "@/lib/encryption";
-import type { LLMImplMetadata, LLMProvider } from "@/lib/types";
+import type { LLMImplMetadata, LLMProvider, ChatTemplateType, CustomChatTemplateConfig } from "@/lib/types";
 import { createHash } from "crypto";
 
 /**
@@ -147,9 +147,36 @@ function processAgentConfiguration(userConfig: any): ResolvedAgentConfig {
   };
 
   // Process deployment type and provider
-  if (userConfig.deploymentType === "self-hosted") {
-    // Self-hosted: use Ollama provider with custom base URL
-    result.llmConfig.provider = "ollama";
+  if (userConfig.deploymentType === "custom") {
+    // Custom: OpenAI-compatible endpoint with chat template
+    result.llmConfig.provider = "custom";
+    if (userConfig.baseUrl) {
+      result.llmConfig.baseURL = userConfig.baseUrl;
+    }
+    if (userConfig.modelId) {
+      result.llmConfig.modelID = userConfig.modelId;
+    }
+    // Set chat template configuration
+    if (userConfig.chatTemplate) {
+      result.llmConfig.chatTemplate = userConfig.chatTemplate as ChatTemplateType;
+    }
+    if (userConfig.customTemplate) {
+      result.llmConfig.customTemplate = userConfig.customTemplate as CustomChatTemplateConfig;
+    }
+    // Decrypt and set API key if provided
+    if (userConfig.apiKey) {
+      try {
+        result.llmConfig.apiKey = decryptSecret(userConfig.apiKey);
+      } catch (error) {
+        console.error(
+          `Failed to decrypt API key for agent ${userConfig.agentId}:`,
+          error
+        );
+      }
+    }
+  } else if (userConfig.deploymentType === "self-hosted") {
+    // Self-hosted: use specified provider (ollama, lmstudio, etc.) with custom base URL
+    result.llmConfig.provider = (userConfig.provider as LLMProvider) || "ollama";
     if (userConfig.baseUrl) {
       result.llmConfig.baseURL = userConfig.baseUrl;
     }

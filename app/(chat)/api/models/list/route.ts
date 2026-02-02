@@ -102,6 +102,16 @@ export async function GET(request: Request) {
             case "textgenwebui":
                 models = await fetchOpenAICompatibleModels(baseUrl, "http://localhost:5000/v1", "Text Generation WebUI");
                 break;
+            case "custom":
+                // Custom OpenAI-compatible endpoint - requires baseUrl
+                if (!baseUrl) {
+                    return new ChatSDKError(
+                        "bad_request:api",
+                        "baseUrl is required for custom provider"
+                    ).toResponse();
+                }
+                models = await fetchCustomEndpointModels(baseUrl, apiKey);
+                break;
             default:
                 return new ChatSDKError(
                     "bad_request:api",
@@ -347,6 +357,54 @@ async function fetchOpenAICompatibleModels(
     } catch (error) {
         if (error instanceof TypeError && error.message.includes("fetch")) {
             throw new Error(`Cannot connect to ${providerName} at ${url}. Is the server running?`);
+        }
+        throw error;
+    }
+}
+
+/**
+ * Fetch models from a custom OpenAI-compatible endpoint
+ * Supports optional authentication
+ */
+async function fetchCustomEndpointModels(
+    baseUrl: string,
+    apiKey: string | null
+): Promise<ModelInfo[]> {
+    const url = baseUrl.replace(/\/$/, "");
+
+    try {
+        const headers: Record<string, string> = {};
+        if (apiKey) {
+            headers["Authorization"] = `Bearer ${apiKey}`;
+        }
+
+        const response = await fetch(`${url}/models`, { headers });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Custom endpoint error: ${error}`);
+        }
+
+        const data = await response.json();
+
+        // OpenAI-compatible format: { data: [{ id: "model-name" }] }
+        // Also handle Ollama-style format: { models: [{ name: "model-name" }] }
+        if (data.data) {
+            return (data.data || []).map((model: { id: string; name?: string }) => ({
+                id: model.id,
+                name: model.name || model.id,
+            }));
+        } else if (data.models) {
+            return (data.models || []).map((model: { name: string; model?: string }) => ({
+                id: model.model || model.name,
+                name: model.name,
+            }));
+        }
+
+        return [];
+    } catch (error) {
+        if (error instanceof TypeError && error.message.includes("fetch")) {
+            throw new Error(`Cannot connect to custom endpoint at ${url}. Is the server running?`);
         }
         throw error;
     }

@@ -63,6 +63,8 @@ export async function GET(request: Request) {
       modelId: config.modelId,
       hasApiKey: !!config.apiKey,
       baseUrl: config.baseUrl,
+      chatTemplate: config.chatTemplate,
+      customTemplate: config.customTemplate,
       hasAgentSecrets: !!config.agentSecrets,
       configuredSecrets,
     },
@@ -97,6 +99,8 @@ export async function POST(request: Request) {
     modelId,
     apiKey,
     baseUrl,
+    chatTemplate,
+    customTemplate,
     agentSecrets,
   } = body;
 
@@ -108,10 +112,10 @@ export async function POST(request: Request) {
   }
 
   // Validate deploymentType
-  if (deploymentType && !["cloud", "self-hosted"].includes(deploymentType)) {
+  if (deploymentType && !["cloud", "self-hosted", "custom"].includes(deploymentType)) {
     return new ChatSDKError(
       "bad_request:api",
-      "deploymentType must be 'cloud' or 'self-hosted'"
+      "deploymentType must be 'cloud', 'self-hosted', or 'custom'"
     ).toResponse();
   }
 
@@ -166,6 +170,9 @@ export async function POST(request: Request) {
     // Only pass apiKey if user entered a new one (not empty)
     apiKey: encryptedApiKey ?? undefined,
     baseUrl: baseUrl || undefined,
+    // Chat template configuration for custom deployment
+    chatTemplate: chatTemplate || undefined,
+    customTemplate: customTemplate || undefined,
     // Only pass agentSecrets if user entered new secrets (merged with existing)
     agentSecrets: encryptedSecrets ?? undefined,
   });

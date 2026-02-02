@@ -118,6 +118,21 @@ export function createLLM(config: LLMImplMetadata): BaseChatModel {
                 },
             });
 
+        case "custom":
+            // Custom OpenAI-compatible endpoint with user-specified URL
+            // Chat template formatting is handled separately when chatTemplate !== "auto"
+            if (!baseURL) {
+                throw new Error("Custom provider requires a baseURL");
+            }
+            console.log(`[LLMFactory] Creating custom LLM with baseURL: ${baseURL}`);
+            return new ChatOpenAI({
+                model: modelID,
+                apiKey: apiKey || "custom", // Some servers don't require API key
+                configuration: {
+                    baseURL,
+                },
+            });
+
         default:
             throw new Error(`Unknown LLM provider: ${provider}`);
     }

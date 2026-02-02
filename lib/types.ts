@@ -107,7 +107,50 @@ export type LLMProvider =
   | "lmstudio"      // LM Studio (default: http://localhost:1234/v1)
   | "localai"       // LocalAI (default: http://localhost:8080/v1)
   | "llamacpp"      // llama-cpp-python server (default: http://localhost:8000/v1)
-  | "textgenwebui"; // text-generation-webui (default: http://localhost:5000/v1)
+  | "textgenwebui"  // text-generation-webui (default: http://localhost:5000/v1)
+  | "custom";       // Custom OpenAI-compatible endpoint with chat template
+
+/**
+ * Chat template types for custom model integration
+ * These define how messages are formatted for different model architectures
+ */
+export type ChatTemplateType =
+  | "auto"      // Let the server handle formatting (default)
+  | "chatml"    // OpenAI/ChatML format: <|im_start|>role\ncontent<|im_end|>
+  | "llama2"    // Llama 2 format: [INST] <<SYS>> system <</SYS>> user [/INST]
+  | "llama3"    // Llama 3 format: <|begin_of_text|><|start_header_id|>role<|end_header_id|>
+  | "alpaca"    // Alpaca format: ### Instruction:\n### Response:
+  | "vicuna"    // Vicuna format: USER: message ASSISTANT:
+  | "mistral"   // Mistral instruct format: [INST] message [/INST]
+  | "zephyr"    // Zephyr format: <|system|>\n<|user|>\n<|assistant|>
+  | "phi"       // Microsoft Phi format: <|system|>\n<|user|>\n<|assistant|>
+  | "gemma"     // Google Gemma format: <start_of_turn>user\n<end_of_turn>
+  | "qwen"      // Qwen format: <|im_start|>system\n<|im_end|>
+  | "deepseek"  // DeepSeek format
+  | "command-r" // Cohere Command-R format
+  | "custom";   // User-defined custom template
+
+/**
+ * Custom chat template configuration
+ * Used when chatTemplate is "custom" to define message formatting
+ */
+export type CustomChatTemplateConfig = {
+  // Beginning of conversation (optional)
+  bosToken?: string;
+  // End of conversation (optional)
+  eosToken?: string;
+  // System message format
+  systemPrefix: string;
+  systemSuffix: string;
+  // User message format
+  userPrefix: string;
+  userSuffix: string;
+  // Assistant message format
+  assistantPrefix: string;
+  assistantSuffix: string;
+  // Separator between messages (optional)
+  messageSeparator?: string;
+}
 
 export type LLMImplMetadata = {
   type: typeof API_MODEL_TYPE;
@@ -116,6 +159,9 @@ export type LLMImplMetadata = {
   systemInstruction: string;
   apiKey?: string;        // Optional for local providers like Ollama
   baseURL?: string;       // For vLLM or custom endpoints
+  // Chat template configuration (for custom provider)
+  chatTemplate?: ChatTemplateType;           // Template type for message formatting
+  customTemplate?: CustomChatTemplateConfig; // Custom template config (when chatTemplate is "custom")
   subAgentConfigs?: Record<string, Partial<LLMImplMetadata>>; // Configurations for sub-agents managed by this agent
   _configVersion?: string; // Auto-computed hash for caching - avoids recreating LLM/tools when config unchanged
 };
