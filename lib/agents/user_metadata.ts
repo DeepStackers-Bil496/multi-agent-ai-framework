@@ -5,7 +5,6 @@ import { CodebaseAgentConfig } from "./codebaseAgent/config";
 import { FrontendAgentConfig } from "./frontendAgent/config";
 import { HuggingFaceAgentConfig } from "./huggingFaceAgent/config";
 import { GoogleWorkspaceAgentConfig } from "./googleWorkspaceAgent/config";
-import { TtsAgentConfig } from "./ttsAgent/config";
 import { SearchAgentConfig } from "./searchAgent/config";
 import { CodingAgentConfig } from "./codingAgent/config";
 import { DataAnalystAgentConfig } from "./dataAnalystAgent/config";
@@ -23,7 +22,6 @@ export const agentUserMetadataList: AgentUserMetadata[] = [
     FrontendAgentConfig.user_metadata,
     HuggingFaceAgentConfig.user_metadata,
     GoogleWorkspaceAgentConfig.user_metadata,
-    TtsAgentConfig.user_metadata,
     SearchAgentConfig.user_metadata,
     CodingAgentConfig.user_metadata,
     DataAnalystAgentConfig.user_metadata,

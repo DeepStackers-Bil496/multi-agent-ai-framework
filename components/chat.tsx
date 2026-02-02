@@ -37,7 +37,6 @@ import type { ExecutionStep } from "@/lib/types";
 import {
   useUIPreferences,
   parseUIActions,
-  stripUIActionTags,
 } from "@/hooks/use-ui-preferences";
 
 
@@ -419,113 +418,6 @@ export function Chat({
             );
           } catch (e) {
             console.error("Error parsing stream line:", e, line);
-          }
-        }
-      }
-
-      if (!hadStreamError && modelIdAtSend === "tts-agent") {
-        const cleanText = stripUIActionTags(accumulatedText).trim();
-        if (cleanText) {
-          try {
-            setMessages((prev) =>
-              prev.map((current) => {
-                if (current.id !== assistantMessageId) {
-                  return current;
-                }
-
-                const nextParts = current.parts.filter(
-                  (part) =>
-                    part.type !== "data-audio" &&
-                    part.type !== "data-audio-status"
-                );
-
-                return {
-                  ...current,
-                  parts: [
-                    ...nextParts,
-                    {
-                      type: "data-audio-status",
-                      data: {
-                        state: "loading",
-                        message: "Preparing audio...",
-                      },
-                    } as any,
-                  ],
-                };
-              })
-            );
-
-            const response = await fetch("/api/speech/tts", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: cleanText }),
-            });
-
-            if (!response.ok) {
-              throw new Error("Failed to generate speech output");
-            }
-
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-
-            setMessages((prev) =>
-              prev.map((current) => {
-                if (current.id !== assistantMessageId) {
-                  return current;
-                }
-
-                const nextParts = current.parts.filter(
-                  (part) =>
-                    part.type !== "data-audio" &&
-                    part.type !== "data-audio-status"
-                );
-
-                return {
-                  ...current,
-                  parts: [
-                    ...nextParts,
-                    {
-                      type: "data-audio",
-                      data: {
-                        url,
-                        mimeType: blob.type || "audio/wav",
-                        autoPlay: true,
-                      },
-                    } as any,
-                  ],
-                };
-              })
-            );
-          } catch (error) {
-            console.error("TTS error:", error);
-            toast({ type: "error", description: "Failed to generate speech" });
-            setMessages((prev) =>
-              prev.map((current) => {
-                if (current.id !== assistantMessageId) {
-                  return current;
-                }
-
-                const nextParts = current.parts.filter(
-                  (part) =>
-                    part.type !== "data-audio" &&
-                    part.type !== "data-audio-status"
-                );
-
-                return {
-                  ...current,
-                  parts: [
-                    ...nextParts,
-                    {
-                      type: "data-audio-status",
-                      data: {
-                        state: "error",
-                        message: "Unable to generate audio.",
-                      },
-                    } as any,
-                  ],
-                };
-              })
-            );
           }
         }
       }

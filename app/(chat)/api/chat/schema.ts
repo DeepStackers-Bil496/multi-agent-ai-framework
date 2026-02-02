@@ -28,7 +28,6 @@ export const postRequestBodySchema = z.object({
     "frontend-agent",
     "huggingface-agent",
     "google-workspace-agent",
-    "tts-agent",
     "search-agent",
     "coding-agent",
     "data-analyst-agent",

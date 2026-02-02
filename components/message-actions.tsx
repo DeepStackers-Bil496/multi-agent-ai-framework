@@ -1,4 +1,3 @@
-import type { UseChatHelpers } from "@ai-sdk/react";
 import equal from "fast-deep-equal";
 import { memo, useState } from "react";
 import { toast } from "sonner";
@@ -22,7 +21,6 @@ export function PureMessageActions({
   vote,
   isLoading,
   setMode,
-  setMessages,
   selectedModelId,
 }: {
   chatId: string;
@@ -30,7 +28,6 @@ export function PureMessageActions({
   vote: Vote | undefined;
   isLoading: boolean;
   setMode?: (mode: "view" | "edit") => void;
-  setMessages?: UseChatHelpers<ChatMessage>["setMessages"];
   selectedModelId?: string;
 }) {
   const { mutate } = useSWRConfig();
@@ -58,7 +55,7 @@ export function PureMessageActions({
   };
 
   const handleSpeak = async () => {
-    if (!setMessages || isSpeaking) {
+    if (isSpeaking) {
       return;
     }
 
@@ -68,110 +65,40 @@ export function PureMessageActions({
       return;
     }
 
-    setIsSpeaking(true);
+    if (
+      typeof window === "undefined" ||
+      !("speechSynthesis" in window) ||
+      typeof SpeechSynthesisUtterance === "undefined"
+    ) {
+      toast.error("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
     try {
-      setMessages((prev) =>
-        prev.map((current) => {
-          if (current.id !== message.id) {
-            return current;
-          }
+      setIsSpeaking(true);
+      window.speechSynthesis.cancel();
 
-          const nextParts = current.parts.filter(
-            (part) =>
-              part.type !== "data-audio" && part.type !== "data-audio-status"
-          );
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = "tr-TR";
 
-          return {
-            ...current,
-            parts: [
-              ...nextParts,
-              {
-                type: "data-audio-status",
-                data: {
-                  state: "loading",
-                  message: "Preparing audio...",
-                },
-              } as any,
-            ],
-          };
-        })
+      const voices = window.speechSynthesis.getVoices();
+      const turkishVoice = voices.find((voice) =>
+        voice.lang.toLowerCase().startsWith("tr")
       );
-
-      const response = await fetch("/api/speech/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleanText }),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => null);
-        const errorMessage =
-          errorBody?.message || "Failed to generate speech output";
-        throw new Error(errorMessage);
+      if (turkishVoice) {
+        utterance.voice = turkishVoice;
       }
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        toast.error("Unable to speak this message.");
+      };
 
-      setMessages((prev) =>
-        prev.map((current) => {
-          if (current.id !== message.id) {
-            return current;
-          }
-
-          const nextParts = current.parts.filter(
-            (part) =>
-              part.type !== "data-audio" && part.type !== "data-audio-status"
-          );
-
-          return {
-            ...current,
-            parts: [
-              ...nextParts,
-              {
-                type: "data-audio",
-                data: {
-                  url,
-                  mimeType: blob.type || "audio/wav",
-                  autoPlay: true,
-                },
-              } as any,
-            ],
-          };
-        })
-      );
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to generate speech";
-      toast.error(errorMessage);
-      setMessages((prev) =>
-        prev.map((current) => {
-          if (current.id !== message.id) {
-            return current;
-          }
-
-          const nextParts = current.parts.filter(
-            (part) =>
-              part.type !== "data-audio" && part.type !== "data-audio-status"
-          );
-
-          return {
-            ...current,
-            parts: [
-              ...nextParts,
-              {
-                type: "data-audio-status",
-                data: {
-                  state: "error",
-                  message: "Unable to generate audio.",
-                },
-              } as any,
-            ],
-          };
-        })
-      );
-    } finally {
+      window.speechSynthesis.speak(utterance);
+    } catch {
       setIsSpeaking(false);
+      toast.error("Unable to speak this message.");
     }
   };
 

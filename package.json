@@ -4,8 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
-    "dev:tts": "node scripts/run-tts.js",
-    "dev:all": "concurrently \"pnpm dev\" \"pnpm dev:tts\"",
     "build": "tsx lib/db/migrate && next build",
     "start": "next start",
     "lint": "npx ultracite@latest check",
@@ -134,7 +132,6 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/react-syntax-highlighter": "^15.5.13",
-    "concurrently": "^9.2.1",
     "drizzle-kit": "^0.25.0",
     "postcss": "^8",
     "tailwindcss": "^4.1.13",

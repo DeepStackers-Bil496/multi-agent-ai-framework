@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -47,7 +47,12 @@ export function VisibilitySelector({
   chatId: string;
   selectedVisibilityType: VisibilityType;
 } & React.ComponentProps<typeof Button>) {
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { visibilityType, setVisibilityType } = useChatVisibility({
     chatId,
@@ -58,6 +63,10 @@ export function VisibilitySelector({
     () => visibilities.find((visibility) => visibility.id === visibilityType),
     [visibilityType]
   );
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>

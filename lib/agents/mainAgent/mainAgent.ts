@@ -17,7 +17,6 @@ import "../codebaseAgent/codebaseAgent";
 import "../frontendAgent/frontendAgent";
 import "../huggingFaceAgent/huggingFaceAgent";
 import "../googleWorkspaceAgent/googleWorkspaceAgent";
-import "../ttsAgent/ttsAgent";
 import "../searchAgent/searchAgent";
 import "../codingAgent/codingAgent";
 import "../dataAnalystAgent/dataAnalystAgent";
