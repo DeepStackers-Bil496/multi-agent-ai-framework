@@ -215,11 +215,11 @@ export const agentConfiguration = pgTable(
       .notNull()
       .references(() => user.id),
     agentId: varchar("agentId", { length: 64 }).notNull(),
-    // Model deployment type: "cloud" for API providers, "self-hosted" for Ollama/vLLM
+    // Model deployment type: "cloud" for API providers, "self-hosted" for Ollama/vLLM, "custom" for custom endpoints
     deploymentType: varchar("deploymentType", { length: 16 })
       .notNull()
       .default("cloud"),
-    // LLM provider (google, openai, anthropic, groq, mistral, ollama)
+    // LLM provider (google, openai, anthropic, groq, mistral, ollama, custom)
     provider: varchar("provider", { length: 32 }),
     // Model identifier (e.g., "gemini-2.5-flash", "gpt-4o")
     modelId: varchar("modelId", { length: 128 }),
@@ -227,6 +227,10 @@ export const agentConfiguration = pgTable(
     apiKey: text("apiKey"),
     // Base URL for self-hosted deployments (e.g., Ollama ngrok URL)
     baseUrl: text("baseUrl"),
+    // Chat template type for custom deployments (auto, chatml, llama2, llama3, etc.)
+    chatTemplate: varchar("chatTemplate", { length: 32 }),
+    // Custom template configuration as JSON (when chatTemplate is "custom")
+    customTemplate: jsonb("customTemplate"),
     // Encrypted JSON object for agent-specific secrets
     // e.g., { "GITHUB_PAT": "encrypted...", "HF_TOKEN": "encrypted..." }
     agentSecrets: text("agentSecrets"),

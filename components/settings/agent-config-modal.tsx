@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/toast";
 import { fetcher } from "@/lib/utils";
-import type { AgentUserMetadata, LLMProvider } from "@/lib/types";
+import type { AgentUserMetadata, LLMProvider, ChatTemplateType, CustomChatTemplateConfig } from "@/lib/types";
+import { CHAT_TEMPLATE_LABELS, CHAT_TEMPLATE_DESCRIPTIONS } from "@/lib/agents/chatTemplates";
 import { Loader2, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
 interface AgentConfigModalProps {
@@ -39,6 +40,8 @@ interface AgentConfigResponse {
     modelId: string | null;
     hasApiKey: boolean;
     baseUrl: string | null;
+    chatTemplate: string | null;
+    customTemplate: CustomChatTemplateConfig | null;
     hasAgentSecrets: boolean;
     configuredSecrets: string[];
   } | null;
@@ -134,13 +137,31 @@ const SELF_HOSTED_PROVIDERS: { value: LLMProvider; label: string }[] = [
   { value: "textgenwebui", label: "Text Generation WebUI" },
 ];
 
+// Default custom template configuration
+const DEFAULT_CUSTOM_TEMPLATE: CustomChatTemplateConfig = {
+  bosToken: "",
+  eosToken: "",
+  systemPrefix: "",
+  systemSuffix: "\n",
+  userPrefix: "User: ",
+  userSuffix: "\n",
+  assistantPrefix: "Assistant: ",
+  assistantSuffix: "\n",
+  messageSeparator: "",
+};
+
+// Get available chat templates for dropdown
+const CHAT_TEMPLATES: { value: ChatTemplateType; label: string }[] = (
+  Object.entries(CHAT_TEMPLATE_LABELS) as [ChatTemplateType, string][]
+).map(([value, label]) => ({ value, label }));
+
 export function AgentConfigModal({
   agent,
   open,
   onOpenChange,
   hideOverlay,
 }: AgentConfigModalProps) {
-  const [deploymentType, setDeploymentType] = useState<"cloud" | "self-hosted">(
+  const [deploymentType, setDeploymentType] = useState<"cloud" | "self-hosted" | "custom">(
     "cloud"
   );
   const [provider, setProvider] = useState<LLMProvider>("google");
@@ -148,6 +169,8 @@ export function AgentConfigModal({
   const [modelId, setModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [chatTemplate, setChatTemplate] = useState<ChatTemplateType>("auto");
+  const [customTemplate, setCustomTemplate] = useState<CustomChatTemplateConfig>(DEFAULT_CUSTOM_TEMPLATE);
   const [agentSecrets, setAgentSecrets] = useState<Record<string, string>>({});
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
@@ -166,18 +189,21 @@ export function AgentConfigModal({
   // Populate form with existing config
   useEffect(() => {
     if (data?.config) {
-      const storedDeploymentType = (data.config.deploymentType as "cloud" | "self-hosted") || "cloud";
+      const storedDeploymentType = (data.config.deploymentType as "cloud" | "self-hosted" | "custom") || "cloud";
       setDeploymentType(storedDeploymentType);
 
       // Set provider based on deployment type
       if (storedDeploymentType === "self-hosted") {
         setSelfHostedProvider((data.config.provider as LLMProvider) || "ollama");
-      } else {
+      } else if (storedDeploymentType === "cloud") {
         setProvider((data.config.provider as LLMProvider) || "google");
       }
+      // For "custom" type, no provider selection needed
 
       setModelId(data.config.modelId || "");
       setBaseUrl(data.config.baseUrl || "");
+      setChatTemplate((data.config.chatTemplate as ChatTemplateType) || "auto");
+      setCustomTemplate(data.config.customTemplate || DEFAULT_CUSTOM_TEMPLATE);
       // Don't populate secrets - user must re-enter for security
       setApiKey("");
       setAgentSecrets({});
@@ -191,6 +217,8 @@ export function AgentConfigModal({
       setSelfHostedProvider(defaults?.selfHostedProvider ?? "ollama");
       setModelId(defaults?.modelId ?? "");
       setBaseUrl(defaults?.baseUrl ?? "");
+      setChatTemplate("auto");
+      setCustomTemplate(DEFAULT_CUSTOM_TEMPLATE);
       setApiKey("");
       setAgentSecrets({});
     }
@@ -233,6 +261,47 @@ export function AgentConfigModal({
           // Provide clearer error message for API key issues
           const providerName = LLM_PROVIDERS.find(p => p.value === provider)?.label || provider;
           throw new Error(`Invalid API key for ${providerName}. Please check your API key.`);
+        }
+
+        setModels(responseData.models || []);
+      } catch (error) {
+        setModelsError(
+          error instanceof Error ? error.message : "Failed to fetch models"
+        );
+      } finally {
+        setIsLoadingModels(false);
+      }
+    } else if (deploymentType === "custom") {
+      // Custom: require base URL (use entered or stored)
+      const hasNewBaseUrl = baseUrl.trim().length > 0;
+      const hasStoredBaseUrl = !!data?.config?.baseUrl;
+
+      if (!hasNewBaseUrl && !hasStoredBaseUrl) {
+        setModelsError("Please enter an endpoint URL first");
+        return;
+      }
+
+      setIsLoadingModels(true);
+      try {
+        // Use "custom" provider which will use OpenAI-compatible API
+        const params = new URLSearchParams({ provider: "custom" });
+
+        if (hasNewBaseUrl) {
+          params.set("baseUrl", baseUrl.trim());
+        } else {
+          params.set("agentId", agent.id);
+        }
+
+        // Include API key if provided
+        if (apiKey.trim()) {
+          params.set("apiKey", apiKey.trim());
+        }
+
+        const response = await fetch(`/api/models/list?${params}`);
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          throw new Error("Could not connect to server. Please check the URL.");
         }
 
         setModels(responseData.models || []);
@@ -329,9 +398,9 @@ export function AgentConfigModal({
     return () => clearTimeout(timer);
   }, [apiKey, fetchModels, deploymentType]);
 
-  // Debounced auto-fetch when base URL is entered (self-hosted mode)
+  // Debounced auto-fetch when base URL is entered (self-hosted or custom mode)
   useEffect(() => {
-    if (deploymentType !== "self-hosted") return;
+    if (deploymentType !== "self-hosted" && deploymentType !== "custom") return;
 
     // Auto-fetch if there's a stored baseUrl
     if (data?.config?.baseUrl && !baseUrl.trim()) {
@@ -385,6 +454,15 @@ export function AgentConfigModal({
       return;
     }
 
+    // Validation: Check if base URL is provided (for custom mode)
+    if (deploymentType === "custom" && !baseUrl.trim()) {
+      toast({
+        type: "error",
+        description: "Please enter an endpoint URL before saving",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -395,6 +473,15 @@ export function AgentConfigModal({
       if (deploymentType === "cloud") {
         payload.provider = provider;
         payload.modelId = modelId;
+        if (apiKey.trim()) payload.apiKey = apiKey.trim();
+      } else if (deploymentType === "custom") {
+        payload.provider = "custom";
+        payload.baseUrl = baseUrl;
+        payload.modelId = modelId;
+        payload.chatTemplate = chatTemplate;
+        if (chatTemplate === "custom") {
+          payload.customTemplate = customTemplate;
+        }
         if (apiKey.trim()) payload.apiKey = apiKey.trim();
       } else {
         payload.provider = selfHostedProvider;
@@ -453,6 +540,8 @@ export function AgentConfigModal({
       setModelId("");
       setApiKey("");
       setBaseUrl("");
+      setChatTemplate("auto");
+      setCustomTemplate(DEFAULT_CUSTOM_TEMPLATE);
       setAgentSecrets({});
       toast({ type: "success", description: "Configuration reset to defaults" });
     } catch {
@@ -544,7 +633,7 @@ export function AgentConfigModal({
               {/* Deployment Type */}
               <div className="space-y-2">
                 <Label>Deployment Type</Label>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -564,6 +653,16 @@ export function AgentConfigModal({
                       className="h-4 w-4"
                     />
                     <span className="text-sm">Self-Hosted</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deploymentType"
+                      checked={deploymentType === "custom"}
+                      onChange={() => setDeploymentType("custom")}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">Custom</span>
                   </label>
                 </div>
               </div>
@@ -659,6 +758,202 @@ export function AgentConfigModal({
                       <p className="text-xs text-destructive">{modelsError}</p>
                     )}
                   </div>
+                </>
+              ) : deploymentType === "custom" ? (
+                <>
+                  {/* Endpoint URL */}
+                  <div className="space-y-2">
+                    <Label htmlFor="baseUrl">Endpoint URL</Label>
+                    <Input
+                      id="baseUrl"
+                      placeholder="https://your-server.example.com/v1"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      OpenAI-compatible API endpoint (e.g., vLLM, TGI, llama.cpp)
+                    </p>
+                  </div>
+
+                  {/* API Key (optional) */}
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">API Key (optional)</Label>
+                    <div className="relative">
+                      <Input
+                        id="apiKey"
+                        type={showApiKey ? "text" : "password"}
+                        placeholder="Enter API key if required"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    {data?.config?.hasApiKey && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        Already configured. Enter a new value to update.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Model */}
+                  <div className="space-y-2">
+                    <Label htmlFor="modelId">Model</Label>
+                    <Select
+                      value={modelId}
+                      onValueChange={setModelId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[180px] overflow-y-auto">
+                        {modelId && !models.find(m => m.id === modelId) && (
+                          <SelectItem key={modelId} value={modelId}>
+                            {modelId}
+                          </SelectItem>
+                        )}
+                        {isLoadingModels && models.length === 0 && (
+                          <SelectItem value="_loading" disabled>
+                            Loading models...
+                          </SelectItem>
+                        )}
+                        {models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {modelsError && (
+                      <p className="text-xs text-destructive">{modelsError}</p>
+                    )}
+                  </div>
+
+                  {/* Chat Template */}
+                  <div className="space-y-2">
+                    <Label>Chat Template</Label>
+                    <Select
+                      value={chatTemplate}
+                      onValueChange={(v) => setChatTemplate(v as ChatTemplateType)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px] overflow-y-auto">
+                        {CHAT_TEMPLATES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {CHAT_TEMPLATE_DESCRIPTIONS[chatTemplate]}
+                    </p>
+                  </div>
+
+                  {/* Custom Template Configuration */}
+                  {chatTemplate === "custom" && (
+                    <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                      <h5 className="text-sm font-medium">Custom Template</h5>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">System Prefix</Label>
+                          <Input
+                            className="text-xs font-mono"
+                            placeholder="<|system|>"
+                            value={customTemplate.systemPrefix}
+                            onChange={(e) =>
+                              setCustomTemplate((prev) => ({
+                                ...prev,
+                                systemPrefix: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">System Suffix</Label>
+                          <Input
+                            className="text-xs font-mono"
+                            placeholder="</s>"
+                            value={customTemplate.systemSuffix}
+                            onChange={(e) =>
+                              setCustomTemplate((prev) => ({
+                                ...prev,
+                                systemSuffix: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">User Prefix</Label>
+                          <Input
+                            className="text-xs font-mono"
+                            placeholder="<|user|>"
+                            value={customTemplate.userPrefix}
+                            onChange={(e) =>
+                              setCustomTemplate((prev) => ({
+                                ...prev,
+                                userPrefix: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">User Suffix</Label>
+                          <Input
+                            className="text-xs font-mono"
+                            placeholder="</s>"
+                            value={customTemplate.userSuffix}
+                            onChange={(e) =>
+                              setCustomTemplate((prev) => ({
+                                ...prev,
+                                userSuffix: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Assistant Prefix</Label>
+                          <Input
+                            className="text-xs font-mono"
+                            placeholder="<|assistant|>"
+                            value={customTemplate.assistantPrefix}
+                            onChange={(e) =>
+                              setCustomTemplate((prev) => ({
+                                ...prev,
+                                assistantPrefix: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Assistant Suffix</Label>
+                          <Input
+                            className="text-xs font-mono"
+                            placeholder="</s>"
+                            value={customTemplate.assistantSuffix}
+                            onChange={(e) =>
+                              setCustomTemplate((prev) => ({
+                                ...prev,
+                                assistantSuffix: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>

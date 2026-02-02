@@ -718,6 +718,8 @@ export async function upsertAgentConfiguration({
   modelId,
   apiKey,
   baseUrl,
+  chatTemplate,
+  customTemplate,
   agentSecrets,
 }: {
   userId: string;
@@ -727,6 +729,8 @@ export async function upsertAgentConfiguration({
   modelId?: string | null;
   apiKey?: string | null;
   baseUrl?: string | null;
+  chatTemplate?: string | null;
+  customTemplate?: Record<string, unknown> | null;
   agentSecrets?: string | null;
 }): Promise<AgentConfiguration> {
   try {
@@ -743,6 +747,8 @@ export async function upsertAgentConfiguration({
       if (modelId !== undefined) updateData.modelId = modelId;
       if (apiKey !== undefined) updateData.apiKey = apiKey;
       if (baseUrl !== undefined) updateData.baseUrl = baseUrl;
+      if (chatTemplate !== undefined) updateData.chatTemplate = chatTemplate;
+      if (customTemplate !== undefined) updateData.customTemplate = customTemplate;
       if (agentSecrets !== undefined) updateData.agentSecrets = agentSecrets;
 
       const [updated] = await db
@@ -769,6 +775,8 @@ export async function upsertAgentConfiguration({
         modelId: modelId ?? null,
         apiKey: apiKey ?? null,
         baseUrl: baseUrl ?? null,
+        chatTemplate: chatTemplate ?? null,
+        customTemplate: customTemplate ?? null,
         agentSecrets: agentSecrets ?? null,
         createdAt: new Date(),
         updatedAt: new Date(),
