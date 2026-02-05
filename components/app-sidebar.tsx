@@ -7,11 +7,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
-import { LayoutDashboard } from "lucide-react";
-import { PlusIcon, TrashIcon } from "@/components/icons";
 import { SidebarHistory, getChatHistoryPaginationKey } from "@/components/sidebar-history";
 import { SidebarUserNav } from "@/components/sidebar-user-nav";
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -20,7 +17,6 @@ import {
   SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,59 +57,18 @@ export function AppSidebar({ user }: { user: User | undefined }) {
       <Sidebar className="group-data-[side=left]:border-r-0">
         <SidebarHeader>
           <SidebarMenu>
-            <div className="flex flex-row items-center justify-between">
+            <div className="flex flex-row items-center justify-between py-2">
               <Link
-                className="flex flex-row items-center gap-3"
+                className="flex flex-row items-center gap-3 w-full" 
                 href="/"
                 onClick={() => {
                   setOpenMobile(false);
                 }}
               >
-                <span className="cursor-pointer rounded-md px-2 font-semibold text-lg hover:bg-muted">
+                <span className="cursor-pointer rounded-md px-2 font-bold text-2xl tracking-tight hover:bg-muted w-full">
                   DeepStackers AI
                 </span>
-              </Link>
-              <div className="flex flex-row gap-1">
-                {user && (
-                  <>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          className="h-8 p-1 md:h-fit md:p-2"
-                          onClick={() => setShowDeleteAllDialog(true)}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <TrashIcon />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent align="end" className="hidden md:block">
-                        Delete All Chats
-                      </TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      className="h-8 p-1 md:h-fit md:p-2"
-                      onClick={() => {
-                        setOpenMobile(false);
-                        router.push("/");
-                        router.refresh();
-                      }}
-                      type="button"
-                      variant="ghost"
-                    >
-                      <PlusIcon />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent align="end" className="hidden md:block">
-                    New Chat
-                  </TooltipContent>
-                </Tooltip>
-              </div>
+              </Link>  
             </div>
           </SidebarMenu>
         </SidebarHeader>

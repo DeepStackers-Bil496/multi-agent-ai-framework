@@ -32,81 +32,10 @@ function PureChatHeader({
   const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(false);
 
   const { width: windowWidth } = useWindowSize();
-
   return (
     <>
       <header className="sticky top-0 flex items-center gap-2 bg-background px-2 py-1.5 md:px-2">
         <SidebarToggle />
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-8 px-2 md:h-fit md:px-2"
-              onClick={() => toggle()}
-            >
-              <Command className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent align="start" className="hidden md:block">
-            Search or commands
-          </TooltipContent>
-        </Tooltip>
-
-        {(!open || windowWidth < 768) && (
-          <Button
-            className="order-2 ml-auto h-8 px-2 md:order-1 md:ml-0 md:h-fit md:px-2"
-            onClick={() => {
-              router.push("/");
-              router.refresh();
-            }}
-            variant="outline"
-          >
-            <PlusIcon />
-            <span className="md:sr-only">New Chat</span>
-          </Button>
-        )}
-
-        {!isReadonly && (
-          <VisibilitySelector
-            chatId={chatId}
-            className="order-1 md:order-2"
-            selectedVisibilityType={selectedVisibilityType}
-          />
-        )}
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              className="order-3 h-8 px-2 md:h-fit md:px-2"
-              onClick={() => setIsAgentPanelOpen(true)}
-            >
-              <BotIcon className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent align="end" className="hidden md:block">
-            Agent Settings
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              className="order-4 h-8 px-2 md:h-fit md:px-2"
-              asChild
-            >
-              <Link href="/settings">
-                <Settings className="h-4 w-4" />
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent align="end" className="hidden md:block">
-            Settings
-          </TooltipContent>
-        </Tooltip>
-
       </header>
 
       <AgentPanelDrawer
