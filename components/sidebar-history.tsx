@@ -11,6 +11,7 @@ import useSWRInfinite, { unstable_serialize } from "swr/infinite";
 import { useSWRConfig } from "swr";
 import type { User } from "next-auth";
 
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import {
   AlertDialog,
@@ -30,13 +31,14 @@ import {
 } from "@/components/ui/sidebar";
 
 import { Command, Settings, BotIcon } from "lucide-react";
+import { PlusIcon, LoaderIcon, TrashIcon } from "./icons";
 import { VisibilitySelector, type VisibilityType } from "./visibility-selector";
 import { AgentPanelDrawer } from "./agent-panel";
+import { ChatItem } from "./sidebar-history-item";
 
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import type { Chat } from "@/lib/db/schema";
 import { fetcher } from "@/lib/utils";
-import { LoaderIcon } from "./icons";
 
 type GroupedChats = {
   today: Chat[];
@@ -104,6 +106,7 @@ interface SidebarHistoryProps {
   isReadonly?: boolean;
   selectedVisibilityType?: VisibilityType;
   selectedModelId?: string;
+}
 
 export function SidebarHistory({ 
   user, 
