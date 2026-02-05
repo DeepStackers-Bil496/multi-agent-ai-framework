@@ -70,21 +70,23 @@ export function VisibilitySelector({
 
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
-      <DropdownMenuTrigger
-        asChild
-        className={cn(
-          "w-fit data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-          className
-        )}
-      >
+      <DropdownMenuTrigger asChild>
         <Button
-          className="hidden h-8 md:flex md:h-fit md:px-2"
+          className={cn(
+            "flex h-9 items-center justify-start gap-2 px-2 w-full", 
+            "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+            className
+          )}
           data-testid="visibility-selector"
-          variant="outline"
+          variant="ghost" 
         >
           {selectedVisibility?.icon}
-          <span className="md:sr-only">{selectedVisibility?.label}</span>
-          <ChevronDownIcon />
+          <span className="ml-2 truncate group-data-[collapsible=icon]:hidden">
+            {selectedVisibility?.label}
+          </span>
+          <span className="ml-auto opacity-50 group-data-[collapsible=icon]:hidden">
+            <ChevronDownIcon />
+          </span>
         </Button>
       </DropdownMenuTrigger>
 
