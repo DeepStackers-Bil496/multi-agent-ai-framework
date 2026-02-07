@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { FiDownload, FiMaximize2, FiX } from "react-icons/fi";
@@ -9,10 +9,11 @@ export interface GeneratedImageData {
   imageUrl: string;
   prompt: string;
   model: string;
-  dimensions: {
+  dimensions?: {
     width: number;
     height: number;
   };
+  aspectRatio?: string;
 }
 
 interface GeneratedImageProps {
@@ -24,6 +25,14 @@ export function GeneratedImage({ data, className }: GeneratedImageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Check if image is already loaded from cache
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current?.naturalWidth > 0) {
+      setIsLoading(false);
+    }
+  }, [data.imageUrl]);
 
   const handleDownload = () => {
     const link = document.createElement("a");
@@ -60,6 +69,7 @@ export function GeneratedImage({ data, className }: GeneratedImageProps) {
             </div>
           ) : (
             <img
+              ref={imgRef}
               src={data.imageUrl}
               alt={data.prompt || "Generated image"}
               className={cn(
@@ -80,7 +90,7 @@ export function GeneratedImage({ data, className }: GeneratedImageProps) {
         <div className="flex items-center justify-between border-t border-border bg-background/50 px-3 py-2">
           <div className="flex flex-col gap-0.5">
             <span className="text-xs text-muted-foreground">
-              {modelName} | {data.dimensions.width}x{data.dimensions.height}
+              {modelName} | {data.dimensions ? `${data.dimensions.width}x${data.dimensions.height}` : data.aspectRatio || "1024px"}
             </span>
             <span className="max-w-[250px] truncate text-xs text-muted-foreground/70">
               {data.prompt}
@@ -133,7 +143,7 @@ export function GeneratedImage({ data, className }: GeneratedImageProps) {
             <div className="mt-3 rounded-lg bg-background/90 p-3 backdrop-blur">
               <p className="text-sm text-foreground">{data.prompt}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Generated with {modelName} | {data.dimensions.width}x{data.dimensions.height}
+                Generated with {modelName} | {data.dimensions ? `${data.dimensions.width}x${data.dimensions.height}` : data.aspectRatio || "1024px"}
               </p>
             </div>
           </motion.div>

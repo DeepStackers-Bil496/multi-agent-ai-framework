@@ -264,7 +264,7 @@ export const codebaseEmbedding = pgTable(
     content: text("content").notNull(),
     startLine: integer("startLine"),
     endLine: integer("endLine"),
-    // Google text-embedding-004 produces 768-dimensional vectors
+    // Google gemini-embedding-001 with reduced output dimensionality (768)
     embedding: vector("embedding", { dimensions: 768 }).notNull(),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),

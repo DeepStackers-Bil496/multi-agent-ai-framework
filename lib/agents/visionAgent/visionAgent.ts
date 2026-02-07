@@ -11,11 +11,12 @@ import { createAllVisionAgentTools } from "./tools";
  *
  * Capabilities:
  * - Image Analysis: OCR, object detection, chart interpretation, UI analysis, style analysis
- * - Image Generation: Text-to-image using state-of-the-art diffusion models
+ * - Image Generation: Text-to-image using Nano Banana (Gemini) or HuggingFace models
  *
  * Uses:
  * - Google Gemini Vision for multimodal analysis
- * - Hugging Face Inference API for image generation
+ * - Nano Banana (gemini-2.5-flash-image) for fast image generation (default)
+ * - HuggingFace Inference API as fallback for image generation
  */
 class VisionAgent extends BaseAgent<LLMImplMetadata> {
     constructor(

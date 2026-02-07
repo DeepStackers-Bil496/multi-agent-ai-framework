@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { InferenceClient } from "@huggingface/inference";
+import { GoogleGenAI } from "@google/genai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { put } from "@vercel/blob";
@@ -142,11 +143,76 @@ export function createAnalyzeImageTool(runtimeSecrets?: Record<string, string>):
 
 // =============================================================================
 // IMAGE GENERATION TOOL
-// Uses Hugging Face Inference API for image generation
+// Uses Nano Banana (Gemini) as default, HuggingFace Inference as fallback
 // =============================================================================
 
 /**
- * Generate an image using Hugging Face models and upload to Vercel Blob
+ * Generate an image using Nano Banana (Gemini native image generation)
+ */
+async function generateImageWithGemini(
+    prompt: string,
+    model: string,
+    aspectRatio: string,
+    apiKey: string
+): Promise<{ imageUrl: string; model: string }> {
+    const ai = new GoogleGenAI({ apiKey });
+
+    console.log(`[VisionAgent] Generating image with Nano Banana model: ${model}`);
+    console.log(`[VisionAgent] Prompt: ${prompt}`);
+    console.log(`[VisionAgent] Aspect Ratio: ${aspectRatio}`);
+
+    const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+            responseModalities: ["Image"],
+            imageConfig: {
+                aspectRatio,
+            },
+        },
+    });
+
+    // Extract image data from response
+    const parts = response.candidates?.[0]?.content?.parts;
+    if (!parts || parts.length === 0) {
+        throw new Error("No image generated in response");
+    }
+
+    // Find part with inline image data
+    let imageData: string | undefined;
+    let mimeType = "image/png";
+
+    for (const part of parts) {
+        if (part.inlineData?.data) {
+            imageData = part.inlineData.data;
+            mimeType = part.inlineData.mimeType || "image/png";
+            break;
+        }
+    }
+
+    if (!imageData) {
+        throw new Error("No image data found in response");
+    }
+
+    // Convert base64 to buffer and upload to Vercel Blob
+    const buffer = Buffer.from(imageData, "base64");
+
+    const filename = `generated-${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+    const blobResult = await put(filename, buffer, {
+        access: "public",
+        contentType: mimeType,
+    });
+
+    console.log(`[VisionAgent] Image uploaded to Blob: ${blobResult.url}`);
+
+    return {
+        imageUrl: blobResult.url,
+        model,
+    };
+}
+
+/**
+ * Generate an image using Hugging Face models (fallback)
  */
 async function generateImageWithHF(
     prompt: string,
@@ -158,7 +224,7 @@ async function generateImageWithHF(
 ): Promise<{ imageUrl: string; model: string }> {
     const client = new InferenceClient(hfToken);
 
-    console.log(`[VisionAgent] Generating image with model: ${model}`);
+    console.log(`[VisionAgent] Generating image with HuggingFace model: ${model}`);
     console.log(`[VisionAgent] Prompt: ${prompt}`);
 
     // Generate image as blob
@@ -192,17 +258,25 @@ async function generateImageWithHF(
     };
 }
 
+// Model categories
+const GEMINI_MODELS = ["gemini-2.5-flash-image", "gemini-3-pro-image-preview"] as const;
+const HF_MODELS = ["black-forest-labs/FLUX.1-schnell", "stabilityai/stable-diffusion-xl-base-1.0"] as const;
+
 /**
  * generate_image - Create images from text descriptions
  */
 export function createGenerateImageTool(runtimeSecrets?: Record<string, string>): DynamicStructuredTool {
     return new DynamicStructuredTool({
         name: "generate_image",
-        description: `Generate high-quality images from text descriptions using state-of-the-art diffusion models.
-Available models:
-- black-forest-labs/FLUX.1-schnell (default): Fast, high-quality generation
-- stabilityai/stable-diffusion-xl-base-1.0: Stable Diffusion XL for detailed images
-- runwayml/stable-diffusion-v1-5: Classic Stable Diffusion
+        description: `Generate high-quality images from text descriptions.
+
+Available models (Nano Banana - default, recommended):
+- gemini-2.5-flash-image: Fast, high-quality generation (default)
+- gemini-3-pro-image-preview: Professional quality, 4K support, complex prompts
+
+Fallback models (HuggingFace):
+- black-forest-labs/FLUX.1-schnell: Fast diffusion model
+- stabilityai/stable-diffusion-xl-base-1.0: Detailed images
 
 Tips for good prompts:
 - Be specific about subject, style, lighting, and composition
@@ -210,44 +284,57 @@ Tips for good prompts:
 - Mention quality terms like "highly detailed", "8k", "professional"`,
         schema: z.object({
             prompt: z.string().min(1).max(1000).describe("Detailed text description of the image to generate"),
-            model: z.enum([
-                "black-forest-labs/FLUX.1-schnell",
-                "stabilityai/stable-diffusion-xl-base-1.0",
-                "runwayml/stable-diffusion-v1-5",
-            ])
-                .default("black-forest-labs/FLUX.1-schnell")
+            model: z.enum([...GEMINI_MODELS, ...HF_MODELS])
+                .default("gemini-2.5-flash-image")
                 .describe("Model to use for generation"),
-            negativePrompt: z.string().optional().describe("Things to avoid in the image (e.g., 'blurry, low quality, text')"),
-            width: z.number().min(256).max(1024).default(512).describe("Image width in pixels (256-1024)"),
-            height: z.number().min(256).max(1024).default(512).describe("Image height in pixels (256-1024)"),
+            aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
+                .default("1:1")
+                .describe("Aspect ratio for the image (Gemini models only)"),
+            negativePrompt: z.string().optional().describe("Things to avoid in the image (HuggingFace models only)"),
+            width: z.number().min(256).max(1024).default(512).describe("Image width in pixels (HuggingFace models only)"),
+            height: z.number().min(256).max(1024).default(512).describe("Image height in pixels (HuggingFace models only)"),
         }),
-        func: async ({ prompt, model, negativePrompt, width, height }) => {
+        func: async ({ prompt, model, aspectRatio, negativePrompt, width, height }) => {
             try {
-                const hfToken = getHfToken(runtimeSecrets);
-                if (!hfToken) {
-                    return "Error: HF_TOKEN is not configured. Please add your Hugging Face token in Settings > Capabilities or environment variables.";
+                const isGeminiModel = GEMINI_MODELS.includes(model as typeof GEMINI_MODELS[number]);
+
+                if (isGeminiModel) {
+                    // Use Nano Banana (Gemini)
+                    const apiKey = getGeminiApiKey(runtimeSecrets);
+                    if (!apiKey) {
+                        return "Error: GEMINI_API_KEY is not configured. Please add it in Settings > Capabilities or environment variables.";
+                    }
+
+                    const result = await generateImageWithGemini(prompt, model, aspectRatio, apiKey);
+
+                    return JSON.stringify({
+                        __generatedImage: {
+                            imageUrl: result.imageUrl,
+                            prompt,
+                            model: result.model,
+                            aspectRatio,
+                        },
+                        message: `Generated image with Nano Banana: "${prompt.substring(0, 80)}${prompt.length > 80 ? "..." : ""}"`,
+                    });
+                } else {
+                    // Use HuggingFace (fallback)
+                    const hfToken = getHfToken(runtimeSecrets);
+                    if (!hfToken) {
+                        return "Error: HF_TOKEN is not configured. Please add your Hugging Face token in Settings > Capabilities or environment variables.";
+                    }
+
+                    const result = await generateImageWithHF(prompt, model, negativePrompt, width, height, hfToken);
+
+                    return JSON.stringify({
+                        __generatedImage: {
+                            imageUrl: result.imageUrl,
+                            prompt,
+                            model: result.model,
+                            dimensions: { width, height },
+                        },
+                        message: `Generated image with HuggingFace: "${prompt.substring(0, 80)}${prompt.length > 80 ? "..." : ""}"`,
+                    });
                 }
-
-                const result = await generateImageWithHF(
-                    prompt,
-                    model,
-                    negativePrompt,
-                    width,
-                    height,
-                    hfToken
-                );
-
-                // Return JSON that will be parsed by the chat route
-                // The __generatedImage key identifies this as image data
-                return JSON.stringify({
-                    __generatedImage: {
-                        imageUrl: result.imageUrl,
-                        prompt,
-                        model: result.model,
-                        dimensions: { width, height },
-                    },
-                    message: `Generated image: "${prompt.substring(0, 80)}${prompt.length > 80 ? "..." : ""}"`,
-                });
             } catch (error) {
                 return `Error generating image: ${error instanceof Error ? error.message : "Unknown error"}`;
             }
