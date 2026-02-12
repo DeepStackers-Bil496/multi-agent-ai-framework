@@ -9,7 +9,8 @@ import {
     ClockIcon,
     AlertCircleIcon,
     WrenchIcon,
-    BotIcon
+    BotIcon,
+    BrainIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExecutionStep } from "@/lib/types";
@@ -19,25 +20,26 @@ import {
     CollapsibleContent,
     CollapsibleTrigger
 } from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { toast } from "./toast";
-import { BrainIcon } from "lucide-react";
 
-interface ExecutionFlowProps {
-    steps: ExecutionStep[];
+export interface Usage {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
 }
 
-export function ThinkingFlow({ steps }: ExecutionFlowProps) {
+interface ThinkingFlowProps {
+    steps: ExecutionStep[];
+    usage?: Usage;
+}
+
+export function ThinkingFlow({ steps, usage }: ThinkingFlowProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [duration, setDuration] = useState(0);
     const [startTime] = useState(Date.now());
+    
     const isStreaming = useMemo(() => {
         const checkActive = (s: ExecutionStep): boolean => {
             if (s.status !== "running") return false;
-            // A step is actively "thinking" if:
-            // 1. It's a tool (tools are always considered active thinking)
-            // 2. It's an agent that hasn't started any tools yet (initial reasoning phase)
-            // 3. It's an agent that has a child currently active
             return s.type === "tool" || s.children.length === 0 || s.children.some(checkActive);
         };
         return steps.some(checkActive);
@@ -71,9 +73,10 @@ export function ThinkingFlow({ steps }: ExecutionFlowProps) {
     }, [steps, isStreaming, duration]);
 
     if (!steps || steps.length === 0) return null;
+    const totalCost = usage?.totalTokens || 0;
 
     return (
-        <Collapsible
+        <Collapsible       
             open={isOpen}
             onOpenChange={setIsOpen}
             className="not-prose my-2 border rounded-lg overflow-hidden bg-accent/5"
@@ -89,23 +92,35 @@ export function ThinkingFlow({ steps }: ExecutionFlowProps) {
                 >
                     <BrainIcon className={cn("size-4", isStreaming && "text-blue-400")} />
                 </motion.div>
-                {isStreaming || totalDuration === 0 ? (
-                    <motion.p
-                        initial={{ opacity: 0.5 }}
-                        animate={{ opacity: [0.5, 1, 0.5] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                    >
-                        Thinking...
-                    </motion.p>
-                ) : (
-                    <p>Thought for {totalDuration}s</p>
-                )}
+                
+                <div className="flex items-center gap-2">
+                    {isStreaming || totalDuration === 0 ? (
+                        <motion.p
+                            initial={{ opacity: 0.5 }}
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                        >
+                            Thinking...
+                        </motion.p>
+                    ) : (
+                        <div className="flex items-center gap-1.5 text-xs">
+                            <span className="font-medium">Thought for {totalDuration}s</span>
+                            {/* Displaying totalCost */}
+                            {totalCost > 0 ? (
+                                <span className="text-muted-foreground ml-1">
+                                    used {totalCost} tokens
+                                </span>
+                            ) : null}
+                        </div>
+                    )}
+                </div>
+
                 <ChevronDownIcon
                     className={cn(
                         "size-3 text-muted-foreground transition-transform ml-auto group-hover:text-foreground",
                         isOpen ? "rotate-180" : "rotate-0"
                     )}
-                />
+                />         
                 {isStreaming && (
                     <motion.div
                         className="absolute bottom-0 left-0 h-[1px] bg-blue-500/50"
@@ -136,7 +151,7 @@ export function ThinkingFlow({ steps }: ExecutionFlowProps) {
     );
 }
 
-export function ExecutionFlow({ steps }: ExecutionFlowProps) {
+export function ExecutionFlow({ steps }: { steps: ExecutionStep[] }) {
     if (!steps || steps.length === 0) return null;
 
     return (
@@ -192,7 +207,6 @@ function ExecutionStepItem({ step, depth }: { step: ExecutionStep; depth: number
                 return <CircleIcon className="size-3.5 text-muted-foreground" />;
         }
     }, [step.status]);
-
 
     const hasChildren = step.children && step.children.length > 0;
     const isTool = step.type === "tool";
