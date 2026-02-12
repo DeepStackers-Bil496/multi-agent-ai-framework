@@ -32,7 +32,7 @@ import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
-import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR, TOOL_STARTED, TOOL_ENDED } from "@/lib/constants";
+import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR, TOOL_STARTED, TOOL_ENDED, USAGE_UPDATE } from "@/lib/constants";
 import type { ExecutionStep } from "@/lib/types";
 import {
   useUIPreferences,
@@ -252,6 +252,8 @@ export function Chat({
         model: string;
         dimensions: { width: number; height: number };
       }> = [];
+      // Track token usage from stream
+      let streamUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -395,6 +397,11 @@ export function Chat({
               }
 
               toast({ type: "error", description: errorContent });
+            } else if (data.type === USAGE_UPDATE) {
+              try {
+                const usageData = JSON.parse(data.payload.content as string);
+                streamUsage = usageData;
+              } catch { /* ignore parse errors */ }
             }
 
             // Update messages with execution flow, generated images, and text
@@ -405,6 +412,7 @@ export function Chat({
                     ...msg,
                     parts: [
                       { type: "data-agent-execution" as const, data: [...rootSteps] },
+                      { type: "data-usage" as const, data: streamUsage },
                       // Add generated images
                       ...generatedImages.map((img) => ({
                         type: "data-generated-image" as const,

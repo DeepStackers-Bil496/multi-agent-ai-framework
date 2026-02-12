@@ -30,6 +30,9 @@ export const API_MODEL_TYPE = "api";
 export const AGENT_START_EVENT = "on_chain_start";
 export const AGENT_END_EVENT = "on_chain_end";
 export const ON_CHAT_MODEL_STREAM_EVENT = "on_chat_model_stream";
+export const ON_CHAT_MODEL_END_EVENT = "on_chat_model_end";
+
+export const USAGE_UPDATE = "usage_update";
 
 /**
  * Add custom predefined signals to be able to send signal to frontend.

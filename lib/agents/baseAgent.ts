@@ -5,7 +5,7 @@ import { END, MessagesAnnotation, START, StateGraph } from "@langchain/langgraph
 import { Runnable } from "@langchain/core/runnables";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { createLLM } from "./llmFactory";
-import { AGENT_ENDED, AGENT_ERROR, AGENT_STARTED, AGENT_STREAM, AgentUserRole, API_MODEL_TYPE, ON_CHAT_MODEL_STREAM_EVENT, TOOL_ENDED, TOOL_ENDED_EVENT, TOOL_STARTED, TOOL_STARTED_EVENT } from "../constants";
+import { AGENT_ENDED, AGENT_ERROR, AGENT_STARTED, AGENT_STREAM, AgentUserRole, API_MODEL_TYPE, ON_CHAT_MODEL_STREAM_EVENT, ON_CHAT_MODEL_END_EVENT, USAGE_UPDATE, TOOL_ENDED, TOOL_ENDED_EVENT, TOOL_STARTED, TOOL_STARTED_EVENT } from "../constants";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
@@ -327,6 +327,10 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
                     controller.enqueue(chunk);
                 };
 
+                // Track accumulated token usage across all LLM calls
+                let totalPromptTokens = 0;
+                let totalCompletionTokens = 0;
+
                 try {
                     enqueueJson({
                         type: AGENT_STARTED,
@@ -396,6 +400,14 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
                                 }
                             });
                         }
+                        // LLM call ended - capture token usage
+                        else if (event.event === ON_CHAT_MODEL_END_EVENT) {
+                            const usageMeta = event.data?.output?.usage_metadata;
+                            if (usageMeta) {
+                                totalPromptTokens += usageMeta.input_tokens || 0;
+                                totalCompletionTokens += usageMeta.output_tokens || 0;
+                            }
+                        }
                     }
                 }
                 catch (error) {
@@ -411,6 +423,20 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
                     });
                 }
                 finally {
+                    // Emit usage update before closing
+                    enqueueJson({
+                        type: USAGE_UPDATE,
+                        payload: {
+                            name: agentName,
+                            content: JSON.stringify({
+                                promptTokens: totalPromptTokens,
+                                completionTokens: totalCompletionTokens,
+                                totalTokens: totalPromptTokens + totalCompletionTokens,
+                            }),
+                            id: agentId,
+                        },
+                    });
+
                     enqueueJson({
                         type: AGENT_ENDED,
                         payload: {

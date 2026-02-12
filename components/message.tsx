@@ -273,10 +273,14 @@ const PurePreviewMessage = ({
 
             if (type === "data-agent-execution") {
               const { data } = part;
+              // Find usage data from message parts
+              const usagePart = message.parts?.find((p) => p.type === "data-usage");
+              const usageData = usagePart ? (usagePart as any).data : undefined;
               return (
                 <ThinkingFlow
                   key={key}
                   steps={data as ExecutionStep[]}
+                  usage={usageData}
                 />
               );
             }
