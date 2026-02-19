@@ -98,6 +98,7 @@ export const Reasoning = memo(
         value={{ isStreaming, isOpen, setIsOpen, duration }}
       >
         <Collapsible
+          id="thinking-flow-area"
           className={cn("not-prose", className)}
           onOpenChange={handleOpenChange}
           open={isOpen}
@@ -118,6 +119,7 @@ export const ReasoningTrigger = memo(
 
     return (
       <CollapsibleTrigger
+        id = "reasoning-trigger"
         className={cn(
           "flex items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground",
           className

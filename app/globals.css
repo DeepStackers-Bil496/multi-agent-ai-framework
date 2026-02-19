@@ -265,6 +265,73 @@
   @apply rounded-l-sm!;
 }
 
+/* --- Driver.js Theme Customization (Using Global Variables) --- */
+
+/* Popover Kutusu */
+.driver-popover {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important; /* Tailwind shadow-md */
+}
+
+/* Başlık */
+.driver-popover-title {
+  color: var(--foreground) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Açıklama Metni */
+.driver-popover-description {
+  color: var(--muted-foreground) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+/* Footer Butonları (Next/Prev/Finish) */
+.driver-popover-footer button {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  border: 1px solid transparent !important;
+  border-radius: calc(var(--radius) - 2px) !important; /* radius-md */
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  text-shadow: none !important;
+  transition: opacity 0.2s !important;
+}
+
+.driver-popover-footer button:hover {
+  opacity: 0.9 !important;
+}
+
+/* "Back" butonu için özel stil (İkincil buton görünümü) */
+.driver-popover-prev-btn {
+  background-color: var(--secondary) !important;
+  color: var(--secondary-foreground) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Sağ Üstteki Kapatma Butonu (X) */
+.driver-popover-close-btn {
+  color: var(--muted-foreground) !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.driver-popover-close-btn:hover {
+  color: var(--foreground) !important;
+}
+
+/* Vurgulanan Elementin Çerçevesi */
+.driver-isActive {
+    /* İsteğe bağlı: Vurgulanan elementin etrafına 'primary' renkli bir çerçeve ekler */
+    outline: 2px solid var(--primary) !important;
+    outline-offset: 4px;
+}
+
 .suggestion-highlight {
   @apply bg-blue-200 hover:bg-blue-300 dark:hover:bg-blue-400/50 dark:text-blue-50 dark:bg-blue-500/40;
 }

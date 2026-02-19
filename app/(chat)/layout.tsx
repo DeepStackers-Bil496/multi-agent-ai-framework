@@ -5,6 +5,7 @@ import { DataStreamProvider } from "@/components/data-stream-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { auth } from "../(auth)/auth";
 import { CommandPalette } from "@/components/command-palette";
+import { TutorialGuide } from "@/components/tutorial-guide";
 
 export const experimental_ppr = true;
 
@@ -14,7 +15,13 @@ export default async function Layout({
   children: React.ReactNode;
 }) {
   const [session, cookieStore] = await Promise.all([auth(), cookies()]);
-  const isCollapsed = cookieStore.get("sidebar_state")?.value !== "true";
+  
+  // --- DEĞİŞİKLİK BURADA ---
+  // Çerezden durumu oku. 
+  // Eğer çerez varsa (daha önce siteye girmişse) kullanıcının tercihini kullan.
+  // Eğer çerez YOKSA (ilk giriş), varsayılan olarak 'false' (KAPALI) olsun.
+  const sidebarCookie = cookieStore.get("sidebar_state");
+  const defaultOpen = sidebarCookie ? sidebarCookie.value === "true" : false;
 
   return (
     <>
@@ -23,11 +30,13 @@ export default async function Layout({
         strategy="beforeInteractive"
       />
       <DataStreamProvider>
-        <SidebarProvider defaultOpen={!isCollapsed}>
+        {/* defaultOpen değerini yukarıda hesapladığımız değişkene bağladık */}
+        <SidebarProvider defaultOpen={defaultOpen}>
           <AppSidebar user={session?.user} />
           <SidebarInset>
             {children}
             <CommandPalette />
+            <TutorialGuide />
           </SidebarInset>
         </SidebarProvider>
       </DataStreamProvider>
