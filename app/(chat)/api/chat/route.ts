@@ -327,10 +327,20 @@ export async function POST(request: Request) {
         })
         .join("\n") || "";
 
+      // DEBUG: Log file attachments
+      if (fileAttachments) {
+        console.log('[CHAT] File attachments detected:', fileAttachments);
+      }
+
       // Combine text and file info
       const fullContent = fileAttachments 
         ? `${textContent}\n\n${fileAttachments}`
         : textContent;
+      
+      // DEBUG: Log final content
+      if (msg.role === 'user' && fileAttachments) {
+        console.log('[CHAT] User message with files:', fullContent.slice(0, 300));
+      }
 
       return {
         role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,

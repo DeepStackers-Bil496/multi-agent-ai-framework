@@ -7,22 +7,36 @@ import { dataAnalystAgentSystemPrompt } from "./prompt";
 const dataAnalystAgentUserMetadata: AgentUserMetadata = {
   id: "data-analyst-agent",
   name: "Data Analyst Agent",
-  short_description: "Expert in data cleaning, analysis, and professional visualizations.",
+  short_description: "Advanced data analysis with Python execution, ML, and real-time visualizations.",
   long_description:
-    "Specialized agent for data science tasks. It can clean messy datasets, perform statistical analysis, and generate beautiful charts using Python.",
+    "Expert data scientist agent with dual-phase capabilities:\n" +
+    "• PHASE 1: CSV/JSON parsing, descriptive statistics, correlation analysis, outlier detection, insight generation, visualization code\n" +
+    "• PHASE 2 (E2B): Python code execution, real chart generation (PNG), pandas transformations, machine learning models (regression, classification), feature importance analysis\n" +
+    "Transforms raw data into actionable insights with production-ready analysis.",
   icon: FiPieChart,
   suggestedActions: [
-    "Clean this CSV data and handle missing values.",
-    "Show me the correlation between sales and marketing spend.",
-    "Create a bar chart showing the monthly revenue trend.",
-    "What are the key insights from this dataset?",
+    // Phase 1 actions (always available)
+    "Analyze this dataset and show key statistics",
+    "Find correlations in my data",
+    "Identify outliers and missing values",
+    
+    // Phase 2 actions (E2B required)
+    "Show me a scatter plot of sales vs marketing",
+    "Predict future sales using machine learning",
+    "Group data by region and visualize totals",
+    "Run a regression analysis and show feature importance",
+    "Generate a heatmap showing correlations",
+    
+    // Advanced analysis
+    "Which variables influence revenue the most?",
+    "Transform this data and calculate weighted averages",
   ],
 };
 
 const dataAnalystAgentImplementationMetadata: LLMImplMetadata = {
   type: API_MODEL_TYPE,
   provider: "google",
-  modelID: "gemini-1.5-flash",
+  modelID: "gemini-2.5-flash", // Using Gemini 2.5 Flash (same as MainAgent)
   systemInstruction: dataAnalystAgentSystemPrompt,
   apiKey: process.env.GEMINI_API_KEY,
 };
