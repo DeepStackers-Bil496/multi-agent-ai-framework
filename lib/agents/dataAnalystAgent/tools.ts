@@ -290,14 +290,14 @@ const analyzeCsvDataTool = new DynamicStructuredTool({
         } else {
           // Categorical column
           const uniqueValues = new Set(nonNullValues);
-          const topValues = Array.from(
-            nonNullValues.reduce((acc, val) => {
-              acc.set(val, (acc.get(val) || 0) + 1);
-              return acc;
-            }, new Map<string, number>())
-          )
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5);
+          const valueCounts = nonNullValues.reduce((acc, val) => {
+            acc.set(val, (acc.get(val) || 0) + 1);
+            return acc;
+          }, new Map<string, number>());
+          
+          const topValues = (Array.from(valueCounts.entries()) as Array<[string, number]>)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
           
           columnStats[column] = {
             type: 'categorical',
@@ -735,7 +735,8 @@ print("Chart created!")
     description: z.string().optional().describe("Brief description of what this code does"),
   }),
 
-  func: async ({ code, description }, { secrets }) => {
+  func: async ({ code, description }, runManager) => {
+    const secrets = (runManager as any)?.secrets;
     try {
       const apiKey = getE2BApiKey(secrets);
       
@@ -846,7 +847,8 @@ Use this when users want to SEE the actual chart, not just the code.`,
     title: z.string().optional().describe("Chart title"),
   }),
 
-  func: async ({ csvUrl, chartType, columns, title }, { secrets }) => {
+  func: async ({ csvUrl, chartType, columns, title }, runManager) => {
+    const secrets = (runManager as any)?.secrets;
     console.log('[DataAnalyst] generate_and_execute_chart called:', {
       csvUrl: csvUrl?.slice(0, 100) || 'EMPTY',
       chartType,
@@ -900,7 +902,7 @@ plt.show()
       // Execute code
       const execution = await sandbox.runCode(chartCode);
       
-      await sandbox.close();
+      await sandbox.kill();
 
       // Check for charts
       if (execution.results && execution.results.length > 0) {
@@ -1054,7 +1056,8 @@ Returns: Transformed data summary and statistics.`,
     parameters: z.record(z.string()).describe("Operation-specific parameters (JSON object)"),
   }),
 
-  func: async ({ csvUrl, operation, parameters }, { secrets }) => {
+  func: async ({ csvUrl, operation, parameters }, runManager) => {
+    const secrets = (runManager as any)?.secrets;
     try {
       const apiKey = getE2BApiKey(secrets);
       
@@ -1164,7 +1167,7 @@ print(df[['${parameters.column_name}']].head(20))
 
       // Execute
       const execution = await sandbox.runCode(transformCode);
-      await sandbox.close();
+      await sandbox.kill();
 
       const stdout = execution.logs.stdout.join('\n');
       const stderr = execution.logs.stderr.join('\n');
@@ -1225,7 +1228,8 @@ Returns: Model performance metrics, feature importance, and predictions.`,
     testSize: z.number().optional().default(0.2).describe("Proportion of data for testing (0.0-1.0)"),
   }),
 
-  func: async ({ csvUrl, modelType, targetColumn, featureColumns, testSize }, { secrets }) => {
+  func: async ({ csvUrl, modelType, targetColumn, featureColumns, testSize }, runManager) => {
+    const secrets = (runManager as any)?.secrets;
     try {
       const apiKey = getE2BApiKey(secrets);
       
@@ -1301,7 +1305,7 @@ print(results)
 `;
 
       const execution = await sandbox.runCode(mlCode);
-      await sandbox.close();
+      await sandbox.kill();
 
       const stdout = execution.logs.stdout.join('\n');
       const stderr = execution.logs.stderr.join('\n');
