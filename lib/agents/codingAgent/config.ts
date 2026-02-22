@@ -1,27 +1,31 @@
-import { AgentConfig } from "../agentConfig";
 import { FiCode } from "react-icons/fi";
 import { API_MODEL_TYPE } from "../../constants";
-import type { LLMImplMetadata, AgentUserMetadata } from "../../types";
+import type { AgentUserMetadata, LLMImplMetadata } from "../../types";
+import type { AgentConfig } from "../agentConfig";
 import { codingAgentSystemPrompt } from "./prompt";
 
 const codingAgentUserMetadata: AgentUserMetadata = {
   id: "coding-agent",
   name: "Coding Agent",
-  short_description: "Python-first coding assistant for high-quality implementations.",
+  short_description:
+    "Full-featured coding assistant for repos, files, commands, and git.",
   long_description:
-    "Specialized agent for software engineering tasks with Python-first outputs and strong code quality.",
+    "A powerful coding assistant that connects to your GitHub repositories. Browse files, run commands, create branches, write code, run tests, and open pull requests — all from the chat.",
   icon: FiCode,
   suggestedActions: [
-    "Write a clean Python function to parse a CSV and return stats.",
-    "Refactor this algorithm to be more efficient.",
-    "Generate unit tests for this function.",
+    "Write a CLAUDE.md for this project",
+    "Explain this codebase architecture",
+    "Review recent changes and suggest improvements",
+    "Run the test suite and fix failures",
+    "Find and fix bugs in the codebase",
   ],
 };
 
 const codingAgentImplementationMetadata: LLMImplMetadata = {
   type: API_MODEL_TYPE,
-  provider: "ollama",
-  modelID: "glm-4.7-flash",
+  provider: "google",
+  modelID: "gemini-2.5-flash",
+  apiKey: process.env.GEMINI_API_KEY,
   systemInstruction: codingAgentSystemPrompt,
 };
 

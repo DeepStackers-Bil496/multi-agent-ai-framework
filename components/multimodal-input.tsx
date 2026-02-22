@@ -44,6 +44,10 @@ import {
   StopIcon,
 } from "./icons";
 import { PreviewAttachment } from "./preview-attachment";
+import {
+  RepositorySelector,
+  type SelectedRepository,
+} from "./repository-selector";
 import { SuggestedActions } from "./suggested-actions";
 import { Button } from "./ui/button";
 import type { VisibilityType } from "./visibility-selector";
@@ -64,6 +68,8 @@ function PureMultimodalInput({
   selectedModelId,
   onModelChange,
   usage,
+  selectedRepository,
+  onRepoChange,
 }: {
   chatId: string;
   input: string;
@@ -80,7 +86,17 @@ function PureMultimodalInput({
   selectedModelId: string;
   onModelChange?: (modelId: string) => void;
   usage?: AppUsage;
+  selectedRepository?: SelectedRepository | null;
+  onRepoChange?: (repo: SelectedRepository | null) => void;
 }) {
+  console.log(
+    "[MultimodalInput] render — selectedModelId:",
+    selectedModelId,
+    "onRepoChange:",
+    !!onRepoChange,
+    "selectedRepository:",
+    JSON.stringify(selectedRepository)
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
 
@@ -206,7 +222,9 @@ function PureMultimodalInput({
 
         const payload = await response.json();
         const transcript =
-          typeof payload?.transcript === "string" ? payload.transcript.trim() : "";
+          typeof payload?.transcript === "string"
+            ? payload.transcript.trim()
+            : "";
 
         if (!transcript) {
           toast.error("No speech detected. Please try again.");
@@ -372,7 +390,6 @@ function PureMultimodalInput({
     }
   }, []);
 
-
   const contextProps = useMemo(
     () => ({
       usage,
@@ -412,7 +429,7 @@ function PureMultimodalInput({
       if (!items) return;
 
       const imageItems = Array.from(items).filter((item) =>
-        item.type.startsWith('image/'),
+        item.type.startsWith("image/")
       );
 
       if (imageItems.length === 0) return;
@@ -420,7 +437,7 @@ function PureMultimodalInput({
       // Prevent default paste behavior for images
       event.preventDefault();
 
-      setUploadQueue((prev) => [...prev, 'Pasted image']);
+      setUploadQueue((prev) => [...prev, "Pasted image"]);
 
       try {
         const uploadPromises = imageItems.map(async (item) => {
@@ -434,7 +451,7 @@ function PureMultimodalInput({
           (attachment) =>
             attachment !== undefined &&
             attachment.url !== undefined &&
-            attachment.contentType !== undefined,
+            attachment.contentType !== undefined
         );
 
         setAttachments((curr) => [
@@ -442,13 +459,13 @@ function PureMultimodalInput({
           ...(successfullyUploadedAttachments as Attachment[]),
         ]);
       } catch (error) {
-        console.error('Error uploading pasted images:', error);
-        toast.error('Failed to upload pasted image(s)');
+        console.error("Error uploading pasted images:", error);
+        toast.error("Failed to upload pasted image(s)");
       } finally {
         setUploadQueue([]);
       }
     },
-    [setAttachments],
+    [setAttachments]
   );
 
   // Add paste event listener to textarea
@@ -456,8 +473,8 @@ function PureMultimodalInput({
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    textarea.addEventListener('paste', handlePaste);
-    return () => textarea.removeEventListener('paste', handlePaste);
+    textarea.addEventListener("paste", handlePaste);
+    return () => textarea.removeEventListener("paste", handlePaste);
   }, [handlePaste]);
 
   useEffect(() => {
@@ -472,25 +489,35 @@ function PureMultimodalInput({
 
   return (
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
+      {selectedModelId === "coding-agent" && onRepoChange && (
+        <div className="w-full">
+          <RepositorySelector
+            compact={messages.length > 0}
+            onRepoSelect={onRepoChange}
+            selectedRepository={selectedRepository ?? null}
+          />
+        </div>
+      )}
+
       {messages.length === 0 &&
         attachments.length === 0 &&
         uploadQueue.length === 0 && (
           <SuggestedActions
+            agentId={selectedModelId}
             chatId={chatId}
             selectedVisibilityType={selectedVisibilityType}
             sendMessage={sendMessage}
-            agentId={selectedModelId}
           />
         )}
 
       <input
+        accept="image/jpeg,image/png,text/csv,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="-top-4 -left-4 pointer-events-none fixed size-0.5 opacity-0"
         multiple
         onChange={handleFileChange}
         ref={fileInputRef}
         tabIndex={-1}
         type="file"
-        accept="image/jpeg,image/png,text/csv,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       />
 
       <PromptInput
@@ -578,9 +605,9 @@ function PureMultimodalInput({
           ) : (
             <PromptInputSubmit
               className="size-8 rounded-full bg-primary text-primary-foreground transition-colors duration-200 hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
+              data-testid="send-button"
               disabled={!input.trim() || uploadQueue.length > 0}
               status={status}
-              data-testid="send-button"
             >
               <ArrowUpIcon size={14} />
             </PromptInputSubmit>
@@ -607,6 +634,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.selectedModelId !== nextProps.selectedModelId) {
+      return false;
+    }
+    if (!equal(prevProps.selectedRepository, nextProps.selectedRepository)) {
       return false;
     }
 
@@ -772,7 +802,7 @@ function PureModelSelectorCompact({
 
   if (!mounted) {
     return (
-      <Button variant="ghost" className="h-8 px-2" disabled>
+      <Button className="h-8 px-2" disabled variant="ghost">
         <CpuIcon size={16} />
         <span className="hidden font-medium text-xs sm:block">Loading...</span>
         <ChevronDownIcon size={16} />
@@ -783,7 +813,9 @@ function PureModelSelectorCompact({
   return (
     <PromptInputModelSelect
       onValueChange={(modelName) => {
-        const agentUserMetadata = availableAgents.find((m) => m.name === modelName);
+        const agentUserMetadata = availableAgents.find(
+          (m) => m.name === modelName
+        );
         if (agentUserMetadata) {
           setOptimisticModelId(agentUserMetadata.id);
           onModelChange?.(agentUserMetadata.id);
@@ -795,7 +827,7 @@ function PureModelSelectorCompact({
       value={selectedModel?.name}
     >
       <Trigger asChild>
-        <Button variant="ghost" className="h-8 px-2">
+        <Button className="h-8 px-2" variant="ghost">
           {selectedModel?.icon ? (
             <selectedModel.icon size={16} />
           ) : (
@@ -810,10 +842,20 @@ function PureModelSelectorCompact({
       <PromptInputModelSelectContent className="min-w-[260px] p-0">
         <div className="flex flex-col gap-px">
           {availableAgents.map((agentUserMetadata) => (
-            <SelectItem key={agentUserMetadata.id} value={agentUserMetadata.name}>
+            <SelectItem
+              key={agentUserMetadata.id}
+              value={agentUserMetadata.name}
+            >
               <div className="flex items-center gap-2">
-                {agentUserMetadata.icon && <agentUserMetadata.icon size={14} className="text-muted-foreground" />}
-                <div className="truncate font-medium text-xs">{agentUserMetadata.name}</div>
+                {agentUserMetadata.icon && (
+                  <agentUserMetadata.icon
+                    className="text-muted-foreground"
+                    size={14}
+                  />
+                )}
+                <div className="truncate font-medium text-xs">
+                  {agentUserMetadata.name}
+                </div>
               </div>
               <div className="mt-px truncate text-[10px] text-muted-foreground leading-tight">
                 {agentUserMetadata.short_description}

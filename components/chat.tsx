@@ -20,25 +20,33 @@ import {
 import { useArtifactSelector } from "@/hooks/use-artifact";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
+import { parseUIActions, useUIPreferences } from "@/hooks/use-ui-preferences";
+import {
+  AGENT_ENDED,
+  AGENT_ERROR,
+  AGENT_STARTED,
+  AGENT_STREAM,
+  TOOL_ENDED,
+  TOOL_STARTED,
+} from "@/lib/constants";
 import type { Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import type { Attachment, ChatMessage, AgentStreamEvent } from "@/lib/types";
+import type {
+  AgentStreamEvent,
+  Attachment,
+  ChatMessage,
+  ExecutionStep,
+} from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
 import { useDataStream } from "./data-stream-provider";
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
+import type { SelectedRepository } from "./repository-selector";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
-import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR, TOOL_STARTED, TOOL_ENDED } from "@/lib/constants";
-import type { ExecutionStep } from "@/lib/types";
-import {
-  useUIPreferences,
-  parseUIActions,
-} from "@/hooks/use-ui-preferences";
-
 
 export function Chat({
   id,
@@ -71,10 +79,26 @@ export function Chat({
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const currentModelIdRef = useRef(currentModelId);
+  const [selectedRepository, setSelectedRepository] =
+    useState<SelectedRepository | null>(null);
+  const selectedRepositoryRef = useRef(selectedRepository);
+
+  // Clear repo selection when switching away from coding-agent
+  const handleModelChange = useCallback((modelId: string) => {
+    setCurrentModelId(modelId);
+    if (modelId !== "coding-agent") {
+      setSelectedRepository(null);
+      selectedRepositoryRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
+
+  useEffect(() => {
+    selectedRepositoryRef.current = selectedRepository;
+  }, [selectedRepository]);
 
   // ============================================================
   // ORIGINAL VERCEL AI SDK USECHAT HOOK - COMMENTED OUT
@@ -141,12 +165,16 @@ export function Chat({
   // MAIN AGENT CUSTOM STREAM HANDLING - NEW CODE
   // ============================================================
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [status, setStatus] = useState<"ready" | "streaming" | "error">("ready");
+  const [status, setStatus] = useState<"ready" | "streaming" | "error">(
+    "ready"
+  );
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Extract text content from a stream event payload
   // Handles various LangChain AIMessageChunk formats
-  const extractTextContent = (content: AgentStreamEvent["payload"]["content"]): string => {
+  const extractTextContent = (
+    content: AgentStreamEvent["payload"]["content"]
+  ): string => {
     // Direct string
     if (typeof content === "string") {
       return content;
@@ -172,268 +200,298 @@ export function Chat({
       }
 
       // Direct content property
-      if ('content' in anyContent && typeof anyContent.content === "string") {
+      if ("content" in anyContent && typeof anyContent.content === "string") {
         return anyContent.content;
       }
     }
 
     // Debug: log unhandled format
-    console.log("[extractTextContent] Unhandled content format:", JSON.stringify(content));
+    console.log(
+      "[extractTextContent] Unhandled content format:",
+      JSON.stringify(content)
+    );
     return "";
   };
 
-
   // Custom sendMessage function for MainAgent
-  const sendMessage = useCallback(async (userMessage?: Partial<ChatMessage>) => {
-    if (!userMessage || !userMessage.parts) {
-      console.warn("sendMessage called without message or parts");
-      return;
-    }
+  const sendMessage = useCallback(
+    async (userMessage?: Partial<ChatMessage>) => {
+      if (!userMessage || !userMessage.parts) {
+        console.warn("sendMessage called without message or parts");
+        return;
+      }
 
-    const modelIdAtSend = currentModelIdRef.current;
-    // Create user message
-    const newUserMessage: ChatMessage = {
-      id: generateUUID(),
-      role: "user" as const,
-      parts: userMessage.parts || [],
-      metadata: { createdAt: new Date().toISOString() },
-    };
+      const modelIdAtSend = currentModelIdRef.current;
+      // Create user message
+      const newUserMessage: ChatMessage = {
+        id: generateUUID(),
+        role: "user" as const,
+        parts: userMessage.parts || [],
+        metadata: { createdAt: new Date().toISOString() },
+      };
 
-    // Add user message to state
-    const updatedMessages = [...messages, newUserMessage];
-    setMessages(updatedMessages);
-    setStatus("streaming");
+      // Add user message to state
+      const updatedMessages = [...messages, newUserMessage];
+      setMessages(updatedMessages);
+      setStatus("streaming");
 
-    // Create placeholder assistant message
-    const assistantMessageId = generateUUID();
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: "assistant" as const,
-      parts: [{ type: "text", text: "" }],
-      metadata: { createdAt: new Date().toISOString() },
-    };
-    setMessages([...updatedMessages, assistantMessage]);
+      // Create placeholder assistant message
+      const assistantMessageId = generateUUID();
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: "assistant" as const,
+        parts: [{ type: "text", text: "" }],
+        metadata: { createdAt: new Date().toISOString() },
+      };
+      setMessages([...updatedMessages, assistantMessage]);
 
-    try {
-      abortControllerRef.current = new AbortController();
+      try {
+        abortControllerRef.current = new AbortController();
 
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        const repoAtSend = selectedRepositoryRef.current;
+        const requestPayload = {
           id,
           message: newUserMessage,
           selectedChatModel: currentModelIdRef.current,
           selectedVisibilityType: visibilityType,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
+          ...(repoAtSend && { selectedRepository: repoAtSend }),
+        };
+        console.log(
+          "[Chat] Sending request with selectedRepository:",
+          JSON.stringify(repoAtSend)
+        );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestPayload),
+          signal: abortControllerRef.current.signal,
+        });
 
-      if (!response.body) {
-        throw new Error("No response body");
-      }
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedText = "";
-      const activeAgentStack: string[] = [];
-      const nodeMap = new Map<string, ExecutionStep>();
-      const rootSteps: ExecutionStep[] = [];
-      const appliedActions = new Set<string>();
-      let hadStreamError = false;
-      // Track generated images for real-time display
-      const generatedImages: Array<{
-        imageUrl: string;
-        prompt: string;
-        model: string;
-        dimensions: { width: number; height: number };
-      }> = [];
+        if (!response.body) {
+          throw new Error("No response body");
+        }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+        const activeAgentStack: string[] = [];
+        const nodeMap = new Map<string, ExecutionStep>();
+        const rootSteps: ExecutionStep[] = [];
+        const appliedActions = new Set<string>();
+        let hadStreamError = false;
+        // Track generated images for real-time display
+        const generatedImages: Array<{
+          imageUrl: string;
+          prompt: string;
+          model: string;
+          dimensions: { width: number; height: number };
+        }> = [];
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const line of lines) {
-          try {
-            const data: AgentStreamEvent = JSON.parse(line);
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n").filter((line) => line.trim() !== "");
 
-            if (data.type === AGENT_STARTED) {
-              const step: ExecutionStep = {
-                id: data.payload.id,
-                type: "agent",
-                name: data.payload.name,
-                status: "running",
-                startTime: Date.now(),
-                children: [],
-                input: data.payload.content ? JSON.parse(data.payload.content as string) : undefined
-              };
+          for (const line of lines) {
+            try {
+              const data: AgentStreamEvent = JSON.parse(line);
 
-              nodeMap.set(step.id, step);
+              if (data.type === AGENT_STARTED) {
+                const step: ExecutionStep = {
+                  id: data.payload.id,
+                  type: "agent",
+                  name: data.payload.name,
+                  status: "running",
+                  startTime: Date.now(),
+                  children: [],
+                  input: data.payload.content
+                    ? JSON.parse(data.payload.content as string)
+                    : undefined,
+                };
 
-              if (activeAgentStack.length === 0) {
-                rootSteps.push(step);
-              } else {
-                const parentId = activeAgentStack[activeAgentStack.length - 1];
-                const parent = nodeMap.get(parentId);
-                if (parent) {
-                  parent.children.push(step);
-                }
-              }
+                nodeMap.set(step.id, step);
 
-              activeAgentStack.push(step.id);
-            }
-            else if (data.type === AGENT_ENDED) {
-              const step = nodeMap.get(data.payload.id);
-              if (step) {
-                step.status = "completed";
-                step.endTime = Date.now();
-                try {
-                  step.output = data.payload.content ? JSON.parse(data.payload.content as string) : undefined;
-                } catch {
-                  step.output = data.payload.content;
-                }
-              }
-              activeAgentStack.pop();
-            }
-            else if (data.type === TOOL_STARTED) {
-              const step: ExecutionStep = {
-                id: data.payload.id,
-                type: "tool",
-                name: data.payload.name,
-                status: "running",
-                startTime: Date.now(),
-                children: [],
-                input: data.payload.content ? JSON.parse(data.payload.content as string) : undefined
-              };
-
-              nodeMap.set(step.id, step);
-
-              if (activeAgentStack.length > 0) {
-                const parentId = activeAgentStack[activeAgentStack.length - 1];
-                const parent = nodeMap.get(parentId);
-                if (parent) {
-                  parent.children.push(step);
-                }
-              } else {
-                rootSteps.push(step);
-              }
-            }
-            else if (data.type === TOOL_ENDED) {
-              const step = nodeMap.get(data.payload.id);
-              if (step) {
-                step.status = "completed";
-                step.endTime = Date.now();
-                try {
-                  step.output = data.payload.content ? JSON.parse(data.payload.content as string) : undefined;
-                } catch {
-                  step.output = data.payload.content;
-                }
-              }
-
-              // Parse UI actions from tool output (where they actually exist)
-              const toolOutput = typeof data.payload.content === "string"
-                ? data.payload.content
-                : JSON.stringify(data.payload.content);
-              console.log("[Chat] TOOL_ENDED output:", toolOutput);
-              const uiActions = parseUIActions(toolOutput);
-              for (const action of uiActions) {
-                const actionKey = JSON.stringify(action);
-                if (!appliedActions.has(actionKey)) {
-                  appliedActions.add(actionKey);
-                  applyUIAction(action);
-                  console.log("[Chat] Applied UI action from tool:", action);
-                }
-              }
-
-              // Check for generated images in tool output
-              // Note: Backend double-stringifies, so we may need to parse twice
-              try {
-                let parsedOutput = typeof data.payload.content === "string"
-                  ? JSON.parse(data.payload.content)
-                  : data.payload.content;
-
-                // If still a string after first parse, parse again (double-stringified)
-                if (typeof parsedOutput === "string") {
-                  try {
-                    parsedOutput = JSON.parse(parsedOutput);
-                  } catch {
-                    // Not valid JSON, keep as string
+                if (activeAgentStack.length === 0) {
+                  rootSteps.push(step);
+                } else {
+                  const parentId =
+                    activeAgentStack[activeAgentStack.length - 1];
+                  const parent = nodeMap.get(parentId);
+                  if (parent) {
+                    parent.children.push(step);
                   }
                 }
 
-                if (parsedOutput?.__generatedImage) {
-                  generatedImages.push(parsedOutput.__generatedImage);
-                }
-              } catch {
-                // Not JSON or no image data, ignore
-              }
-            }
-            else if (data.type === AGENT_STREAM) {
-              const textChunk = extractTextContent(data.payload.content);
-              accumulatedText += textChunk;
-            } else if (data.type === AGENT_ERROR) {
-              hadStreamError = true;
-              const errorContent = typeof data.payload.content === "string"
-                ? data.payload.content
-                : "An error occurred";
-
-              // Mark current active node as error
-              if (activeAgentStack.length > 0) {
-                const step = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                activeAgentStack.push(step.id);
+              } else if (data.type === AGENT_ENDED) {
+                const step = nodeMap.get(data.payload.id);
                 if (step) {
-                  step.status = "error";
+                  step.status = "completed";
                   step.endTime = Date.now();
-                  step.output = errorContent;
+                  try {
+                    step.output = data.payload.content
+                      ? JSON.parse(data.payload.content as string)
+                      : undefined;
+                  } catch {
+                    step.output = data.payload.content;
+                  }
                 }
+                activeAgentStack.pop();
+              } else if (data.type === TOOL_STARTED) {
+                const step: ExecutionStep = {
+                  id: data.payload.id,
+                  type: "tool",
+                  name: data.payload.name,
+                  status: "running",
+                  startTime: Date.now(),
+                  children: [],
+                  input: data.payload.content
+                    ? JSON.parse(data.payload.content as string)
+                    : undefined,
+                };
+
+                nodeMap.set(step.id, step);
+
+                if (activeAgentStack.length > 0) {
+                  const parentId =
+                    activeAgentStack[activeAgentStack.length - 1];
+                  const parent = nodeMap.get(parentId);
+                  if (parent) {
+                    parent.children.push(step);
+                  }
+                } else {
+                  rootSteps.push(step);
+                }
+              } else if (data.type === TOOL_ENDED) {
+                const step = nodeMap.get(data.payload.id);
+                if (step) {
+                  step.status = "completed";
+                  step.endTime = Date.now();
+                  try {
+                    step.output = data.payload.content
+                      ? JSON.parse(data.payload.content as string)
+                      : undefined;
+                  } catch {
+                    step.output = data.payload.content;
+                  }
+                }
+
+                // Parse UI actions from tool output (where they actually exist)
+                const toolOutput =
+                  typeof data.payload.content === "string"
+                    ? data.payload.content
+                    : JSON.stringify(data.payload.content);
+                console.log("[Chat] TOOL_ENDED output:", toolOutput);
+                const uiActions = parseUIActions(toolOutput);
+                for (const action of uiActions) {
+                  const actionKey = JSON.stringify(action);
+                  if (!appliedActions.has(actionKey)) {
+                    appliedActions.add(actionKey);
+                    applyUIAction(action);
+                    console.log("[Chat] Applied UI action from tool:", action);
+                  }
+                }
+
+                // Check for generated images in tool output
+                // Note: Backend double-stringifies, so we may need to parse twice
+                try {
+                  let parsedOutput =
+                    typeof data.payload.content === "string"
+                      ? JSON.parse(data.payload.content)
+                      : data.payload.content;
+
+                  // If still a string after first parse, parse again (double-stringified)
+                  if (typeof parsedOutput === "string") {
+                    try {
+                      parsedOutput = JSON.parse(parsedOutput);
+                    } catch {
+                      // Not valid JSON, keep as string
+                    }
+                  }
+
+                  if (parsedOutput?.__generatedImage) {
+                    generatedImages.push(parsedOutput.__generatedImage);
+                  }
+                } catch {
+                  // Not JSON or no image data, ignore
+                }
+              } else if (data.type === AGENT_STREAM) {
+                const textChunk = extractTextContent(data.payload.content);
+                accumulatedText += textChunk;
+              } else if (data.type === AGENT_ERROR) {
+                hadStreamError = true;
+                const errorContent =
+                  typeof data.payload.content === "string"
+                    ? data.payload.content
+                    : "An error occurred";
+
+                // Mark current active node as error
+                if (activeAgentStack.length > 0) {
+                  const step = nodeMap.get(
+                    activeAgentStack[activeAgentStack.length - 1]
+                  );
+                  if (step) {
+                    step.status = "error";
+                    step.endTime = Date.now();
+                    step.output = errorContent;
+                  }
+                }
+
+                toast({ type: "error", description: errorContent });
               }
 
-              toast({ type: "error", description: errorContent });
+              // Update messages with execution flow, generated images, and text
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        parts: [
+                          {
+                            type: "data-agent-execution" as const,
+                            data: [...rootSteps],
+                          },
+                          // Add generated images
+                          ...generatedImages.map((img) => ({
+                            type: "data-generated-image" as const,
+                            data: img,
+                          })),
+                          { type: "text" as const, text: accumulatedText },
+                        ] as any,
+                      }
+                    : msg
+                )
+              );
+            } catch (e) {
+              console.error("Error parsing stream line:", e, line);
             }
-
-            // Update messages with execution flow, generated images, and text
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantMessageId
-                  ? {
-                    ...msg,
-                    parts: [
-                      { type: "data-agent-execution" as const, data: [...rootSteps] },
-                      // Add generated images
-                      ...generatedImages.map((img) => ({
-                        type: "data-generated-image" as const,
-                        data: img,
-                      })),
-                      { type: "text" as const, text: accumulatedText }
-                    ] as any
-                  }
-                  : msg
-              )
-            );
-          } catch (e) {
-            console.error("Error parsing stream line:", e, line);
           }
         }
-      }
 
-      setStatus("ready");
-      mutate(unstable_serialize(getChatHistoryPaginationKey));
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
         setStatus("ready");
-        return;
+        mutate(unstable_serialize(getChatHistoryPaginationKey));
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          setStatus("ready");
+          return;
+        }
+        console.error("Stream error:", error);
+        setStatus("error");
+        toast({
+          type: "error",
+          description: "Failed to get response from agent",
+        });
       }
-      console.error("Stream error:", error);
-      setStatus("error");
-      toast({ type: "error", description: "Failed to get response from agent" });
-    }
-  }, [messages, id, visibilityType, mutate, applyUIAction]);
+    },
+    [messages, id, visibilityType, mutate, applyUIAction]
+  );
 
   // Stop function
   const stop = useCallback(async () => {
@@ -447,7 +505,9 @@ export function Chat({
   // Placeholder regenerate function (simplified)
   const regenerate = useCallback(async () => {
     // Remove last assistant message and resend
-    const lastUserMessageIndex = messages.findLastIndex((m) => m.role === "user");
+    const lastUserMessageIndex = messages.findLastIndex(
+      (m) => m.role === "user"
+    );
     if (lastUserMessageIndex >= 0) {
       const lastUserMessage = messages[lastUserMessageIndex];
       setMessages(messages.slice(0, lastUserMessageIndex));
@@ -495,7 +555,6 @@ export function Chat({
     setMessages,
   });
 
-
   return (
     <>
       <div className="overscroll-behavior-contain flex h-dvh min-w-0 touch-pan-y flex-col bg-background">
@@ -526,7 +585,9 @@ export function Chat({
               input={input}
               messages={messages}
               onModelChange={setCurrentModelId}
+              onRepoChange={setSelectedRepository}
               selectedModelId={currentModelId}
+              selectedRepository={selectedRepository}
               selectedVisibilityType={visibilityType}
               sendMessage={sendMessage}
               setAttachments={setAttachments}
@@ -546,9 +607,9 @@ export function Chat({
         input={input}
         isReadonly={isReadonly}
         messages={messages}
+        onModelChange={setCurrentModelId}
         regenerate={regenerate}
         selectedModelId={currentModelId}
-        onModelChange={setCurrentModelId}
         selectedVisibilityType={visibilityType}
         sendMessage={sendMessage}
         setAttachments={setAttachments}

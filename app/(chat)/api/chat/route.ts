@@ -18,6 +18,12 @@ import { fetchModels } from "tokenlens/fetch";
 import { getUsage } from "tokenlens/helpers";
 import { auth, type UserType } from "@/app/(auth)/auth";
 import type { VisibilityType } from "@/components/visibility-selector";
+import { getAgentById } from "@/lib/agents";
+import {
+  recomputeConfigVersion,
+  resolveAgentConfig,
+  resolveAllAgentConfigs,
+} from "@/lib/agents/configResolver";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
@@ -26,7 +32,17 @@ import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { updateDocument } from "@/lib/ai/tools/update-document";
-import { isProductionEnvironment } from "@/lib/constants";
+import {
+  AGENT_ENDED,
+  AGENT_ERROR,
+  AGENT_STARTED,
+  AGENT_STREAM,
+  AgentAssistantRole,
+  AgentUserRole,
+  isProductionEnvironment,
+  TOOL_ENDED,
+  TOOL_STARTED,
+} from "@/lib/constants";
 import {
   createStreamId,
   deleteChatById,
@@ -39,17 +55,16 @@ import {
 } from "@/lib/db/queries";
 import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import type { ChatMessage, AgentChatMessage } from "@/lib/types";
+import type {
+  AgentChatMessage,
+  ChatMessage,
+  ExecutionStep,
+  LLMImplMetadata,
+} from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
-import { getAgentById } from "@/lib/agents";
-import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, TOOL_STARTED, TOOL_ENDED, AGENT_ERROR } from "@/lib/constants";
-import type { ExecutionStep } from "@/lib/types";
-import { resolveAgentConfig, resolveAllAgentConfigs, recomputeConfigVersion } from "@/lib/agents/configResolver";
-import { LLMImplMetadata } from "@/lib/types";
-
 
 export const maxDuration = 60;
 
@@ -107,11 +122,13 @@ export async function POST(request: Request) {
       message,
       selectedChatModel,
       selectedVisibilityType,
+      selectedRepository,
     }: {
       id: string;
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
+      selectedRepository?: { owner: string; repo: string; branch?: string };
     } = requestBody;
 
     const session = await auth();
@@ -306,40 +323,79 @@ export async function POST(request: Request) {
     // ============================================================
     // AGENT INTEGRATION - NEW CODE
     // ============================================================
+    // Prepend repository context for CodingAgent
+    console.log(
+      "[CHAT] selectedChatModel:",
+      selectedChatModel,
+      "selectedRepository:",
+      JSON.stringify(selectedRepository)
+    );
+    if (selectedChatModel === "coding-agent" && selectedRepository) {
+      const lastMsg = uiMessages[uiMessages.length - 1];
+      if (lastMsg && lastMsg.role === "user" && lastMsg.parts) {
+        const textPart = lastMsg.parts.find(
+          (p): p is { type: "text"; text: string } => p.type === "text"
+        );
+        if (textPart) {
+          const branchInfo = selectedRepository.branch
+            ? ` (branch: ${selectedRepository.branch})`
+            : "";
+          textPart.text = `[Repository: ${selectedRepository.owner}/${selectedRepository.repo}${branchInfo}] ${textPart.text}`;
+        }
+      }
+    }
+
     // Convert UI messages to Agent format (including image URLs for multimodal support)
     const agentMessages: AgentChatMessage[] = uiMessages.map((msg) => {
       // Extract text content from message parts
-      const textContent = msg.parts
-        ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
-        .map((part) => part.text)
-        .join("") || "";
+      const textContent =
+        msg.parts
+          ?.filter(
+            (part): part is { type: "text"; text: string } =>
+              part.type === "text"
+          )
+          .map((part) => part.text)
+          .join("") || "";
 
       // Extract ALL file attachments (images, CSV, Excel, etc.)
-      const fileAttachments = msg.parts
-        ?.filter((part): part is { type: "file"; url: string; name: string; mediaType: string } => part.type === "file")
-        .map((part) => {
-          // For images: Vision Agent format
-          if (part.mediaType?.startsWith("image/")) {
-            return `[Image: ${part.url}]`;
-          }
-          // For data files: Data Analyst format
-          return `[File: ${part.name} (${part.mediaType}) - URL: ${part.url}]`;
-        })
-        .join("\n") || "";
+      const fileAttachments =
+        msg.parts
+          ?.filter(
+            (
+              part
+            ): part is {
+              type: "file";
+              url: string;
+              name: string;
+              mediaType: string;
+            } => part.type === "file"
+          )
+          .map((part) => {
+            // For images: Vision Agent format
+            if (part.mediaType?.startsWith("image/")) {
+              return `[Image: ${part.url}]`;
+            }
+            // For data files: Data Analyst format
+            return `[File: ${part.name} (${part.mediaType}) - URL: ${part.url}]`;
+          })
+          .join("\n") || "";
 
       // DEBUG: Log file attachments
       if (fileAttachments) {
-        console.log('[CHAT] File attachments detected:', fileAttachments);
+        console.log("[CHAT] File attachments detected:", fileAttachments);
       }
 
       // Combine text and file info
-      const fullContent = fileAttachments 
+      const fullContent = fileAttachments
         ? `${textContent}\n\n${fileAttachments}`
         : textContent;
-      
+
       // DEBUG: Log final content
-      if (msg.role === 'user' && fileAttachments) {
-        console.log('[CHAT] User message with files:', fullContent.slice(0, 300));
+      if (msg.role === "user" && fileAttachments) {
+        console.log(
+          "[CHAT] User message with files:",
+          fullContent.slice(0, 300)
+        );
       }
 
       return {
@@ -381,14 +437,22 @@ export async function POST(request: Request) {
         subAgentConfigs,
       };
       // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
-      runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
+      runtimeConfig._configVersion = recomputeConfigVersion(
+        runtimeConfig,
+        runtimeSecrets
+      );
     } else {
-      runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
-        ? resolvedConfig.llmConfig
-        : undefined;
+      runtimeConfig =
+        Object.keys(resolvedConfig.llmConfig).length > 0
+          ? resolvedConfig.llmConfig
+          : undefined;
     }
 
-    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
+    const agentResponse = await agent.instance.run(
+      agentMessages,
+      runtimeConfig,
+      runtimeSecrets
+    );
 
     if (!agentResponse.body) {
       throw new Error("No response body from Agent");
@@ -425,7 +489,9 @@ export async function POST(request: Request) {
 
             // Also capture content and execution flow for persistence
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n").filter(line => line.trim() !== "");
+            const lines = chunk
+              .split("\n")
+              .filter((line) => line.trim() !== "");
 
             for (const line of lines) {
               try {
@@ -440,26 +506,38 @@ export async function POST(request: Request) {
                     status: "running",
                     startTime: Date.now(),
                     children: [],
-                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                    input: data.payload.content
+                      ? typeof data.payload.content === "string"
+                        ? JSON.parse(data.payload.content)
+                        : data.payload.content
+                      : undefined,
                   };
                   nodeMap.set(step.id, step);
                   if (activeAgentStack.length === 0) rootSteps.push(step);
                   else {
-                    const parent = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                    const parent = nodeMap.get(
+                      activeAgentStack[activeAgentStack.length - 1]
+                    );
                     if (parent) parent.children.push(step);
                   }
                   activeAgentStack.push(step.id);
-                }
-                else if (data.type === AGENT_ENDED) {
+                } else if (data.type === AGENT_ENDED) {
                   const step = nodeMap.get(data.payload.id);
                   if (step) {
                     step.status = "completed";
                     step.endTime = Date.now();
-                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                    try {
+                      step.output = data.payload.content
+                        ? typeof data.payload.content === "string"
+                          ? JSON.parse(data.payload.content)
+                          : data.payload.content
+                        : undefined;
+                    } catch {
+                      step.output = data.payload.content;
+                    }
                   }
                   activeAgentStack.pop();
-                }
-                else if (data.type === TOOL_STARTED) {
+                } else if (data.type === TOOL_STARTED) {
                   const step: ExecutionStep = {
                     id: data.payload.id,
                     type: "tool",
@@ -467,30 +545,44 @@ export async function POST(request: Request) {
                     status: "running",
                     startTime: Date.now(),
                     children: [],
-                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                    input: data.payload.content
+                      ? typeof data.payload.content === "string"
+                        ? JSON.parse(data.payload.content)
+                        : data.payload.content
+                      : undefined,
                   };
                   nodeMap.set(step.id, step);
                   if (activeAgentStack.length > 0) {
-                    const parent = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                    const parent = nodeMap.get(
+                      activeAgentStack[activeAgentStack.length - 1]
+                    );
                     if (parent) parent.children.push(step);
                   } else {
                     rootSteps.push(step);
                   }
-                }
-                else if (data.type === TOOL_ENDED) {
+                } else if (data.type === TOOL_ENDED) {
                   const step = nodeMap.get(data.payload.id);
                   if (step) {
                     step.status = "completed";
                     step.endTime = Date.now();
-                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                    try {
+                      step.output = data.payload.content
+                        ? typeof data.payload.content === "string"
+                          ? JSON.parse(data.payload.content)
+                          : data.payload.content
+                        : undefined;
+                    } catch {
+                      step.output = data.payload.content;
+                    }
                   }
 
                   // Check if this tool output contains a generated image
                   // Note: Backend double-stringifies, so we may need to parse twice
                   try {
-                    let toolOutput = typeof data.payload.content === "string"
-                      ? JSON.parse(data.payload.content)
-                      : data.payload.content;
+                    let toolOutput =
+                      typeof data.payload.content === "string"
+                        ? JSON.parse(data.payload.content)
+                        : data.payload.content;
 
                     // If still a string after first parse, parse again (double-stringified)
                     if (typeof toolOutput === "string") {
@@ -507,18 +599,21 @@ export async function POST(request: Request) {
                   } catch {
                     // Not JSON or no image data, ignore
                   }
-                }
-                else if (data.type === AGENT_ERROR) {
+                } else if (data.type === AGENT_ERROR) {
                   if (activeAgentStack.length > 0) {
-                    const step = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                    const step = nodeMap.get(
+                      activeAgentStack[activeAgentStack.length - 1]
+                    );
                     if (step) {
                       step.status = "error";
                       step.endTime = Date.now();
                       step.output = data.payload.content;
                     }
                   }
-                }
-                else if (data.type === AGENT_STREAM && data.payload?.content) {
+                } else if (
+                  data.type === AGENT_STREAM &&
+                  data.payload?.content
+                ) {
                   const content = data.payload.content;
                   if (typeof content === "string") {
                     accumulatedContent += content;
@@ -561,14 +656,16 @@ export async function POST(request: Request) {
 
           if (parts.length > 0) {
             await saveMessages({
-              messages: [{
-                id: assistantMessageId,
-                role: "assistant",
-                parts: parts as any,
-                createdAt: new Date(),
-                attachments: [],
-                chatId: id,
-              }],
+              messages: [
+                {
+                  id: assistantMessageId,
+                  role: "assistant",
+                  parts: parts as any,
+                  createdAt: new Date(),
+                  attachments: [],
+                  chatId: id,
+                },
+              ],
             });
           }
         } catch (error) {
@@ -580,14 +677,12 @@ export async function POST(request: Request) {
     return new Response(passthroughStream, {
       headers: {
         "Content-Type": "application/json",
-        "charset": "utf-8",
+        charset: "utf-8",
       },
     });
     // ============================================================
     // END OF AGENT INTEGRATION
     // ============================================================
-
-
   } catch (error) {
     const vercelId = request.headers.get("x-vercel-id");
 

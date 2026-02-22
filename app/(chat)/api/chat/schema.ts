@@ -7,7 +7,13 @@ const textPartSchema = z.object({
 
 const filePartSchema = z.object({
   type: z.enum(["file"]),
-  mediaType: z.enum(["image/jpeg", "image/png", "text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]),
+  mediaType: z.enum([
+    "image/jpeg",
+    "image/png",
+    "text/csv",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ]),
   name: z.string().min(1).max(100),
   url: z.string().url(),
 });
@@ -34,6 +40,13 @@ export const postRequestBodySchema = z.object({
     "vision-agent",
   ]),
   selectedVisibilityType: z.enum(["public", "private"]),
+  selectedRepository: z
+    .object({
+      owner: z.string(),
+      repo: z.string(),
+      branch: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

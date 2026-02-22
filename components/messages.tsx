@@ -4,13 +4,13 @@ import { AnimatePresence } from "framer-motion";
 import { ArrowDownIcon } from "lucide-react";
 import { memo, useEffect } from "react";
 import { useMessages } from "@/hooks/use-messages";
+import { agentUserMetadataList } from "@/lib/agents/user_metadata";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { useDataStream } from "./data-stream-provider";
 import { Conversation, ConversationContent } from "./elements/conversation";
 import { Greeting } from "./greeting";
 import { PreviewMessage, ThinkingMessage } from "./message";
-import { agentUserMetadataList } from "@/lib/agents/user_metadata";
 
 type MessagesProps = {
   chatId: string;
@@ -70,13 +70,14 @@ function PureMessages({
         <ConversationContent className="flex flex-col gap-4 px-2 py-4 md:gap-6 md:px-4">
           {messages.length === 0 && (
             <Greeting
-              agentName={
-                agentUserMetadataList.find((m) => m.id === selectedModelId)
-                  ?.name || "Main Agent"
-              }
               agentDescription={
                 agentUserMetadataList.find((m) => m.id === selectedModelId)
                   ?.short_description || "How can I help you today?"
+              }
+              agentId={selectedModelId}
+              agentName={
+                agentUserMetadataList.find((m) => m.id === selectedModelId)
+                  ?.name || "Main Agent"
               }
             />
           )}
