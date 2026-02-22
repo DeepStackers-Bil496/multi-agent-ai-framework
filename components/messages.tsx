@@ -74,7 +74,6 @@ function PureMessages({
                 agentUserMetadataList.find((m) => m.id === selectedModelId)
                   ?.short_description || "How can I help you today?"
               }
-              agentId={selectedModelId}
               agentName={
                 agentUserMetadataList.find((m) => m.id === selectedModelId)
                   ?.name || "Main Agent"
