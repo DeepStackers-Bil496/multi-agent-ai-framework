@@ -32,7 +32,7 @@ test.describe("Chat activity", () => {
 
     const assistantMessage = await chatPage.getRecentAssistantMessage();
     expect(assistantMessage.content).toContain(
-      "With Next.js, you can ship fast!"
+      "Model Context Protocol is a standard for connecting AI models to external tools and systems."
     );
   });
 
@@ -152,13 +152,19 @@ test.describe("Chat activity", () => {
   });
 
   test("auto-scrolls to bottom after submitting new messages", async () => {
-    test.fixme();
+    test.fixme(
+      true,
+      "Scroll container behavior is still flaky under Playwright and needs a dedicated stabilization pass."
+    );
     await chatPage.sendMultipleMessages(5, (i) => `filling message #${i}`);
     await chatPage.waitForScrollToBottom();
   });
 
   test("scroll button appears when user scrolls up, hides on click", async () => {
-    test.fixme();
+    test.fixme(
+      true,
+      "Scroll container behavior is still flaky under Playwright and needs a dedicated stabilization pass."
+    );
     await chatPage.sendMultipleMessages(5, (i) => `filling message #${i}`);
     await expect(chatPage.scrollToBottomButton).not.toBeVisible();
 

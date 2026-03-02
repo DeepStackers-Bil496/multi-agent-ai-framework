@@ -19,6 +19,10 @@ export const TEST_PROMPTS: Record<string, ModelMessage> = {
       { type: "text", text: "What are the advantages of using Next.js?" },
     ],
   },
+  USER_MODEL_CONTEXT_PROTOCOL: {
+    role: "user",
+    content: [{ type: "text", text: "What is Model Context Protocol" }],
+  },
   USER_IMAGE_ATTACHMENT: {
     role: "user",
     content: [

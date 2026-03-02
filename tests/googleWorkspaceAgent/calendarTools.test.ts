@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createEventTool, createListEventsTool, createFindFreeSlotsTool } from "../../lib/agents/calendarAgent/tools";
+import {
+    createCalendarCreateEventTool,
+    createCalendarFindFreeSlotsTool,
+    createCalendarListEventsTool,
+} from "../../lib/agents/googleWorkspaceAgent/services/calendar/calendarTools";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3";
@@ -17,13 +21,13 @@ function buildResponse({ status, body }: MockResponse) {
     return new Response(body ? JSON.stringify(body) : undefined, { status });
 }
 
-describe("CalendarAgent tools", () => {
+describe("GoogleWorkspaceAgent calendar tools", () => {
     beforeEach(() => {
-        process.env.GOOGLE_CALENDAR_CLIENT_ID = "client-id";
-        process.env.GOOGLE_CALENDAR_CLIENT_SECRET = "client-secret";
-        process.env.GOOGLE_CALENDAR_REFRESH_TOKEN = "refresh-token";
-        process.env.GOOGLE_CALENDAR_CALENDAR_ID = "primary";
-        process.env.GOOGLE_CALENDAR_REDIRECT_URI = "https://developers.google.com/oauthplayground";
+        process.env.GOOGLE_CLIENT_ID = "client-id";
+        process.env.GOOGLE_CLIENT_SECRET = "client-secret";
+        process.env.GOOGLE_REFRESH_TOKEN = "refresh-token";
+        process.env.GOOGLE_CALENDAR_ID = "primary";
+        process.env.GOOGLE_REDIRECT_URI = "https://developers.google.com/oauthplayground";
     });
 
     afterEach(() => {
@@ -46,7 +50,7 @@ describe("CalendarAgent tools", () => {
             throw new Error(`Unexpected URL: ${url}`);
         };
 
-        const tool = createEventTool();
+        const tool = createCalendarCreateEventTool();
         const result = await tool.func({
             summary: "Standup",
             start: "2025-01-01T10:00:00Z",
@@ -79,14 +83,14 @@ describe("CalendarAgent tools", () => {
             throw new Error(`Unexpected URL: ${url}`);
         };
 
-        const tool = createListEventsTool();
+        const tool = createCalendarListEventsTool();
         const result = await tool.func({
             timeMin: "2025-02-01T00:00:00Z",
             timeMax: "2025-02-02T00:00:00Z",
             maxResults: 5,
         });
 
-        assert.match(result, /Upcoming events/);
+        assert.match(result, /Found 1 upcoming event/);
         assert.match(result, /Demo/);
     });
 
@@ -116,7 +120,7 @@ describe("CalendarAgent tools", () => {
             throw new Error(`Unexpected URL: ${url}`);
         };
 
-        const tool = createFindFreeSlotsTool();
+        const tool = createCalendarFindFreeSlotsTool();
         const result = await tool.func({
             timeMin: "2025-03-01T09:00:00Z",
             timeMax: "2025-03-01T13:00:00Z",

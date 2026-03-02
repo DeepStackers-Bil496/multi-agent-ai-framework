@@ -14,7 +14,10 @@ test.describe("Artifacts activity", () => {
   });
 
   test("Create a text artifact", async () => {
-    test.fixme();
+    test.fixme(
+      true,
+      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
+    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -33,7 +36,10 @@ test.describe("Artifacts activity", () => {
   });
 
   test("Toggle artifact visibility", async () => {
-    test.fixme();
+    test.fixme(
+      true,
+      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
+    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -53,7 +59,10 @@ test.describe("Artifacts activity", () => {
   });
 
   test("Send follow up message after generation", async () => {
-    test.fixme();
+    test.fixme(
+      true,
+      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
+    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(

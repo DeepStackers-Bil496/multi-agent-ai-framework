@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeHeaderValue, validateEmailList, ensureHasRecipients } from "../../lib/agents/emailAgent/validators/emailValidation";
+import {
+    ensureHasRecipients,
+    sanitizeHeaderValue,
+    validateEmailList,
+} from "../../lib/agents/googleWorkspaceAgent/validators/emailValidation";
 
 test("validateEmailList rejects invalid addresses", () => {
     assert.throws(

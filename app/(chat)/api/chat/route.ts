@@ -26,7 +26,7 @@ import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { updateDocument } from "@/lib/ai/tools/update-document";
-import { isProductionEnvironment } from "@/lib/constants";
+import { isProductionEnvironment, isTestEnvironment } from "@/lib/constants";
 import {
   createStreamId,
   deleteChatById,
@@ -49,6 +49,7 @@ import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_E
 import type { ExecutionStep } from "@/lib/types";
 import { resolveAgentConfig, resolveAllAgentConfigs, recomputeConfigVersion } from "@/lib/agents/configResolver";
 import { LLMImplMetadata } from "@/lib/types";
+import { createMockAgentResponse } from "@/lib/testing/mock-agent-response";
 
 
 export const maxDuration = 60;
@@ -388,7 +389,13 @@ export async function POST(request: Request) {
         : undefined;
     }
 
-    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
+    const agentResponse = isTestEnvironment
+      ? createMockAgentResponse({
+          agentId: agent.id,
+          agentName: agent.name,
+          inputMessages: agentMessages,
+        })
+      : await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
 
     if (!agentResponse.body) {
       throw new Error("No response body from Agent");

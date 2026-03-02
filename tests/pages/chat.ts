@@ -69,7 +69,7 @@ export class ChatPage {
 
   async sendUserMessageFromSuggestion() {
     await this.page
-      .getByRole("button", { name: "What are the advantages of" })
+      .getByRole("button", { name: "What is Model Context Protocol" })
       .click();
   }
 

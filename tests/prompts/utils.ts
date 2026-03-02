@@ -147,6 +147,21 @@ export const getResponseChunksByPrompt = (
     ];
   }
 
+  if (
+    compareMessages(recentMessage, TEST_PROMPTS.USER_MODEL_CONTEXT_PROTOCOL)
+  ) {
+    return [
+      ...textToDeltas(
+        "Model Context Protocol is a standard for connecting AI models to external tools and systems."
+      ),
+      {
+        type: "finish",
+        finishReason: "stop",
+        usage: { inputTokens: 3, outputTokens: 10, totalTokens: 13 },
+      },
+    ];
+  }
+
   if (compareMessages(recentMessage, TEST_PROMPTS.USER_NEXTJS)) {
     return [
       ...textToDeltas("With Next.js, you can ship fast!"),

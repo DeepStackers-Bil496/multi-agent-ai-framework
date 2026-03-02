@@ -193,7 +193,10 @@ test.describe("Entitlements", () => {
   });
 
   test("Guest user cannot send more than 20 messages/day", async () => {
-    test.fixme();
+    test.fixme(
+      true,
+      "Guest entitlement limits need a deterministic quota fixture instead of depending on mutable daily counters."
+    );
     await chatPage.createNewChat();
 
     for (let i = 0; i <= 20; i++) {

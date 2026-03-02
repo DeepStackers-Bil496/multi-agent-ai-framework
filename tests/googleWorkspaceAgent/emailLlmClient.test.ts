@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { draftEmailWithGemini } from "../../lib/agents/emailAgent/llm/emailLlmClient";
+import { draftEmailWithGemini } from "../../lib/agents/googleWorkspaceAgent/llm/emailLlmClient";
 
 const originalFetch = global.fetch;
 const originalApiKey = process.env.GEMINI_API_KEY;

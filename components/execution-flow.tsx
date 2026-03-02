@@ -77,8 +77,12 @@ export function ThinkingFlow({ steps }: ExecutionFlowProps) {
             open={isOpen}
             onOpenChange={setIsOpen}
             className="not-prose my-2 border rounded-lg overflow-hidden bg-accent/5"
+            data-testid="thinking-flow"
         >
-            <CollapsibleTrigger className="flex items-center gap-1.5 px-3 py-2 text-muted-foreground text-xs transition-colors hover:text-foreground w-full bg-accent/10 relative overflow-hidden group">
+            <CollapsibleTrigger
+                className="flex items-center gap-1.5 px-3 py-2 text-muted-foreground text-xs transition-colors hover:text-foreground w-full bg-accent/10 relative overflow-hidden group"
+                data-testid="thinking-flow-trigger"
+            >
                 <motion.div
                     animate={isStreaming ? {
                         scale: [1, 1.2, 1],
@@ -202,6 +206,7 @@ function ExecutionStepItem({ step, depth }: { step: ExecutionStep; depth: number
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             className={cn("flex flex-col rounded-md border bg-card/10 shadow-sm relative", depth > 0 && "ml-4 mt-1")}
+            data-testid="execution-step"
         >
             {depth > 0 && (
                 <motion.div
@@ -230,8 +235,13 @@ function ExecutionStepItem({ step, depth }: { step: ExecutionStep; depth: number
                                         {isTool ? "Tool call" : "Agent called"}
                                     </span>
                                 </div>
-                                <span className="text-xs font-medium truncate text-foreground">{step.name}</span>
-                            </div>
+                                    <span
+                                        className="text-xs font-medium truncate text-foreground"
+                                        data-testid="execution-step-name"
+                                    >
+                                        {step.name}
+                                    </span>
+                                </div>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
