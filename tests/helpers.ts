@@ -38,6 +38,7 @@ export async function createAuthenticatedContext({
   const email = `test-${name}@playwright.com`;
   const password = generateId();
 
+  // ── Register the user ────────────────────────────────────────────────────
   await page.goto("http://localhost:3000/register");
   await page.getByPlaceholder("user@acme.com").click();
   await page.getByPlaceholder("user@acme.com").fill(email);
@@ -49,15 +50,21 @@ export async function createAuthenticatedContext({
     "Account created successfully!"
   );
 
-  const chatPage = new ChatPage(page);
-  await chatPage.createNewChat();
-  await chatPage.chooseModelFromSelector("main-agent");
-  await expect(chatPage.getSelectedModel()).resolves.toEqual("Main Agent");
+  // ── Wait for the chat UI to be ready ─────────────────────────────────────
+  // After registration the app redirects to "/" and hydrates the React shell.
+  // We only need the session cookie to be set — we do NOT interact with the
+  // model selector here because:
+  //   • Route tests use adaContext.request (HTTP only) and never touch the page.
+  //   • E2E tests call chooseModelFromSelector() themselves inside each test.
+  // Trying to click the selector here races against hydration and causes
+  // intermittent 30 s timeouts, so we skip it and just persist the session.
+  await page.waitForURL("http://localhost:3000/");
+  await page.waitForLoadState("domcontentloaded");
 
-  await page.waitForTimeout(1000);
   await context.storageState({ path: storageFile });
   await page.close();
 
+  // ── Return a fresh context backed by the saved session ───────────────────
   const newContext = await browser.newContext({ storageState: storageFile });
   const newPage = await newContext.newPage();
 
