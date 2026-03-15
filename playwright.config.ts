@@ -65,6 +65,11 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
       },
     },
+    {
+      name: "performance",
+      testDir: "./tests/performance",
+      testMatch: "**/*.perf.test.ts",
+    },
 
     // {
     //   name: 'firefox',
