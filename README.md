@@ -16,4 +16,16 @@ pnpm dev
 
 Your app template should now be running on [localhost:3000](http://localhost:3000).
 
+## Test Runs
 
+### Vitest — unit + integration (no browser, no server needed)
+
+pnpm test:unit # run once
+pnpm test:unit:watch # watch mode
+pnpm test:unit:coverage # with coverage
+
+### Playwright — route + e2e (requires pnpm dev or pnpm test which starts it)
+
+pnpm test # everything
+pnpm exec playwright test --project=routes # API route tests only
+pnpm exec playwright test --project=e2e # browser tests only

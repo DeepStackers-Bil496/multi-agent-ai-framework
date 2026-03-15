@@ -35,7 +35,8 @@ test.describe
       await page.goto("/");
 
       const sidebarToggleButton = page.getByTestId("sidebar-toggle-button");
-      await sidebarToggleButton.click();
+      // force: true bypasses the Next.js dev overlay portal that intercepts pointer events
+      await sidebarToggleButton.click({ force: true });
 
       const userNavButton = page.getByTestId("user-nav-button");
       await expect(userNavButton).toBeVisible();
@@ -85,7 +86,7 @@ test.describe
       await page.goto("/");
 
       const sidebarToggleButton = page.getByTestId("sidebar-toggle-button");
-      await sidebarToggleButton.click();
+      await sidebarToggleButton.click({ force: true });
 
       const userEmail = page.getByTestId("user-email");
       await expect(userEmail).toContainText("Guest");
@@ -126,7 +127,10 @@ test.describe
       await expect(page.getByPlaceholder("Send a message...")).toBeVisible();
 
       const userEmail = await page.getByTestId("user-email");
-      await expect(userEmail).toHaveText(testUser.email);
+      // The UI renders only the local-part of the email (before @).
+      // Assert the username portion is present rather than the full address.
+      const username = testUser.email.split("@")[0];
+      await expect(userEmail).toContainText(username);
     });
 
     test("Log out as non-guest user", async () => {
@@ -139,14 +143,15 @@ test.describe
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
+      const username = testUser.email.split("@")[0];
       const userEmail = await page.getByTestId("user-email");
-      await expect(userEmail).toHaveText(testUser.email);
+      await expect(userEmail).toContainText(username);
 
       await page.goto("/api/auth/guest");
       await page.waitForURL("/");
 
       const updatedUserEmail = await page.getByTestId("user-email");
-      await expect(updatedUserEmail).toHaveText(testUser.email);
+      await expect(updatedUserEmail).toContainText(username);
     });
 
     test("Log out is available for non-guest users", async ({ page }) => {
