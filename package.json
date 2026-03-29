@@ -19,9 +19,11 @@
     "test:google-workspace": "node --test --import tsx tests/googleWorkspaceAgent/*.test.ts",
     "test:email": "pnpm run test:google-workspace",
     "test:coding": "node --test --import tsx tests/codingAgent/*.test.ts",
-    "test:vision": "node --test --import tsx tests/visionAgent/*.test.ts",
+    "test:search": "vitest run --config unit-tests/vitest.config.ts unit-tests/searchAgent.test.ts",
+    "test:vision": "vitest run --config unit-tests/vitest.config.ts unit-tests/visionAgent.test.ts",
     "index:codebase": "npx tsx lib/agents/codebaseAgent/indexer.ts",
-    "test:codebase": "node --test --import tsx tests/codebaseAgent/*.test.ts",
+    "test:codebase": "vitest run --config unit-tests/vitest.config.ts unit-tests/codebaseAgent.test.ts",
+    "test:main-agent:smoke": "npx tsx scripts/test-main-agent.ts",
     "test:unit": "vitest run --config unit-tests/vitest.config.ts",
     "test:unit:watch": "vitest --config unit-tests/vitest.config.ts",
     "test:unit:coverage": "vitest run --config unit-tests/vitest.config.ts --coverage"

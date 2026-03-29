@@ -1,4 +1,5 @@
 import { getMessageByErrorCode } from "@/lib/errors";
+import type { Request } from "@playwright/test";
 import { expect, test } from "../fixtures";
 import { generateRandomTestUser } from "../helpers";
 import { AuthPage } from "../pages/auth";
@@ -15,7 +16,7 @@ test.describe
         throw new Error("Failed to load page");
       }
 
-      let request = response.request();
+      let request: Request | null = response.request();
 
       const chain: string[] = [];
 
@@ -58,7 +59,7 @@ test.describe
         throw new Error("Failed to load page");
       }
 
-      let request = response.request();
+      let request: Request | null = response.request();
 
       const chain: string[] = [];
 

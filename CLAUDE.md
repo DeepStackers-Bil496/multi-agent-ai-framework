@@ -31,7 +31,9 @@ pnpm db:check               # Check schema inconsistencies
 
 # Testing
 pnpm test                   # Run Playwright E2E tests (sets PLAYWRIGHT=True)
-pnpm test:email             # Test email agent with Node test runner
+pnpm test:google-workspace  # Test Google Workspace agent with Node test runner
+pnpm test:search            # Test search agent unit coverage
+pnpm test:vision            # Test vision agent unit coverage
 pnpm test:codebase          # Test codebase agent
 
 # Specialized
@@ -289,7 +291,7 @@ See [Quick Links](links.md) for ngrok dashboard and other resources.
   - Tests for chat, artifacts, reasoning, session, routes
   - Run with `pnpm test` (sets `PLAYWRIGHT=True` env var)
 - **Node Test Runner**: Email and codebase agent unit tests
-  - `pnpm test:email`, `pnpm test:codebase`
+  - `pnpm test:google-workspace`, `pnpm test:codebase`
 
 ## Critical Implementation Notes
 
