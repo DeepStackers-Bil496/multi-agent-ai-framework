@@ -1,4 +1,4 @@
-import type { InferUITool, UIMessage } from "ai";
+import type { DataUIPart, InferUITool, UIMessage } from "ai";
 import { z } from "zod";
 import type { ArtifactKind } from "@/components/artifact";
 import type { createDocument } from "./ai/tools/create-document";
@@ -78,6 +78,7 @@ import {
   AGENT_ENDED,
   AGENT_STREAM,
   AGENT_ERROR,
+  UI_STREAM_PART,
   TOOL_STARTED,
   TOOL_ENDED,
 } from "./constants";
@@ -190,6 +191,13 @@ export type AgentStreamEvent = {
     id: string;
   };
 };
+
+export type AgentUiStreamPartEvent = {
+  type: typeof UI_STREAM_PART;
+  payload: DataUIPart<CustomUIDataTypes>;
+};
+
+export type MainAgentStreamEvent = AgentStreamEvent | AgentUiStreamPartEvent;
 
 /**
  * Execution flow step

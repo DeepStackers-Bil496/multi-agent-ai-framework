@@ -34,6 +34,7 @@ import {
   getMessageCountByUserId,
   getMessagesByChatId,
   saveChat,
+  saveDocument,
   saveMessages,
   updateChatLastContextById,
 } from "@/lib/db/queries";
@@ -41,7 +42,7 @@ import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import type { ChatMessage, AgentChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
-import { convertToUIMessages, generateUUID } from "@/lib/utils";
+import { convertToUIMessages, generateUUID, getTextFromMessage } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { getAgentById } from "@/lib/agents";
@@ -49,7 +50,10 @@ import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_E
 import type { ExecutionStep } from "@/lib/types";
 import { resolveAgentConfig, resolveAllAgentConfigs, recomputeConfigVersion } from "@/lib/agents/configResolver";
 import { LLMImplMetadata } from "@/lib/types";
-import { createMockAgentResponse } from "@/lib/testing/mock-agent-response";
+import {
+  createMockAgentResponse,
+  getMockArtifactDraft,
+} from "@/lib/testing/mock-agent-response";
 
 
 export const maxDuration = 60;
@@ -123,10 +127,18 @@ export async function POST(request: Request) {
 
     const userType: UserType = session.user.type;
 
-    const messageCount = await getMessageCountByUserId({
-      id: session.user.id,
-      differenceInHours: 24,
-    });
+    const testMessageCountHeader = request.headers.get("x-test-message-count");
+    const testMessageCount =
+      isTestEnvironment && testMessageCountHeader !== null
+        ? Number.parseInt(testMessageCountHeader, 10)
+        : Number.NaN;
+
+    const messageCount = Number.isFinite(testMessageCount)
+      ? testMessageCount
+      : await getMessageCountByUserId({
+          id: session.user.id,
+          differenceInHours: 24,
+        });
 
     if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
       return new ChatSDKError("rate_limit:chat").toResponse();
@@ -389,11 +401,33 @@ export async function POST(request: Request) {
         : undefined;
     }
 
+    const mockArtifactDraft = isTestEnvironment
+      ? getMockArtifactDraft(getTextFromMessage(message))
+      : null;
+
+    const persistedArtifactDraft = mockArtifactDraft
+      ? {
+          ...mockArtifactDraft,
+          id: generateUUID(),
+        }
+      : undefined;
+
+    if (persistedArtifactDraft) {
+      await saveDocument({
+        id: persistedArtifactDraft.id,
+        title: persistedArtifactDraft.title,
+        content: persistedArtifactDraft.content,
+        kind: persistedArtifactDraft.kind,
+        userId: session.user.id,
+      });
+    }
+
     const agentResponse = isTestEnvironment
       ? createMockAgentResponse({
           agentId: agent.id,
           agentName: agent.name,
           inputMessages: agentMessages,
+          artifactDraft: persistedArtifactDraft,
         })
       : await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
 

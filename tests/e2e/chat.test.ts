@@ -153,20 +153,13 @@ test.describe("Chat activity", () => {
   });
 
   test("auto-scrolls to bottom after submitting new messages", async () => {
-    test.fixme(
-      true,
-      "Scroll container behavior is still flaky under Playwright and needs a dedicated stabilization pass."
-    );
-    await chatPage.sendMultipleMessages(5, (i) => `filling message #${i}`);
+    await chatPage.sendMultipleMessages(12, (i) => `filling message #${i}`);
     await chatPage.waitForScrollToBottom();
   });
 
   test("scroll button appears when user scrolls up, hides on click", async () => {
-    test.fixme(
-      true,
-      "Scroll container behavior is still flaky under Playwright and needs a dedicated stabilization pass."
-    );
-    await chatPage.sendMultipleMessages(5, (i) => `filling message #${i}`);
+    await chatPage.sendMultipleMessages(12, (i) => `filling message #${i}`);
+    await chatPage.waitForScrollToBottom();
     await expect(chatPage.scrollToBottomButton).not.toBeVisible();
 
     await chatPage.scrollToTop();

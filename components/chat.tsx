@@ -22,7 +22,11 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
 import type { Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import type { Attachment, ChatMessage, AgentStreamEvent } from "@/lib/types";
+import type {
+  Attachment,
+  ChatMessage,
+  MainAgentStreamEvent,
+} from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
@@ -32,7 +36,15 @@ import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
-import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR, TOOL_STARTED, TOOL_ENDED } from "@/lib/constants";
+import {
+  AGENT_STREAM,
+  AGENT_STARTED,
+  AGENT_ENDED,
+  AGENT_ERROR,
+  TOOL_STARTED,
+  TOOL_ENDED,
+  UI_STREAM_PART,
+} from "@/lib/constants";
 import type { ExecutionStep } from "@/lib/types";
 import {
   useUIPreferences,
@@ -146,7 +158,9 @@ export function Chat({
 
   // Extract text content from a stream event payload
   // Handles various LangChain AIMessageChunk formats
-  const extractTextContent = (content: AgentStreamEvent["payload"]["content"]): string => {
+  const extractTextContent = (
+    content: string | Record<string, unknown>
+  ): string => {
     // Direct string
     if (typeof content === "string") {
       return content;
@@ -217,7 +231,7 @@ export function Chat({
     try {
       abortControllerRef.current = new AbortController();
 
-      const response = await fetch("/api/chat", {
+      const response = await fetchWithErrorHandlers("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -228,10 +242,6 @@ export function Chat({
         }),
         signal: abortControllerRef.current.signal,
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       if (!response.body) {
         throw new Error("No response body");
@@ -262,7 +272,20 @@ export function Chat({
 
         for (const line of lines) {
           try {
-            const data: AgentStreamEvent = JSON.parse(line);
+            const data: MainAgentStreamEvent = JSON.parse(line);
+
+            if (data.type === UI_STREAM_PART) {
+              setDataStream((currentDataStream) => [
+                ...currentDataStream,
+                data.payload,
+              ]);
+
+              if (data.payload.type === "data-usage") {
+                setUsage(data.payload.data);
+              }
+
+              continue;
+            }
 
             if (data.type === AGENT_STARTED) {
               const step: ExecutionStep = {
@@ -426,6 +449,22 @@ export function Chat({
       mutate(unstable_serialize(getChatHistoryPaginationKey));
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
+        setStatus("ready");
+        return;
+      }
+      if (error instanceof ChatSDKError) {
+        if (
+          error.message?.includes(
+            "AI Gateway requires a valid credit card on file to service requests"
+          )
+        ) {
+          setShowCreditCardAlert(true);
+        } else {
+          toast({
+            type: "error",
+            description: error.message,
+          });
+        }
         setStatus("ready");
         return;
       }

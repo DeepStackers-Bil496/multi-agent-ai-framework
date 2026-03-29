@@ -2,21 +2,26 @@ import {
   AGENT_ENDED,
   AGENT_STARTED,
   AGENT_STREAM,
+  UI_STREAM_PART,
 } from "@/lib/constants";
-import type { AgentChatMessage } from "@/lib/types";
+import type {
+  AgentChatMessage,
+  CustomUIDataTypes,
+} from "@/lib/types";
 
 const STREAM_CHUNK_SIZE = 12;
+const ARTIFACT_STREAM_CHUNK_SIZE = 32;
 const STREAM_DELAY_MS = 20;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function chunkText(text: string): string[] {
+function chunkText(text: string, chunkSize = STREAM_CHUNK_SIZE): string[] {
   const chunks: string[] = [];
 
-  for (let index = 0; index < text.length; index += STREAM_CHUNK_SIZE) {
-    chunks.push(text.slice(index, index + STREAM_CHUNK_SIZE));
+  for (let index = 0; index < text.length; index += chunkSize) {
+    chunks.push(text.slice(index, index + chunkSize));
   }
 
   return chunks.length > 0 ? chunks : [text];
@@ -65,16 +70,62 @@ function getMockResponseText(userMessage: string): string {
   return `Mock response for: ${userMessage.trim() || "empty prompt"}`;
 }
 
+export type MockArtifactDraft = {
+  id: string;
+  title: string;
+  kind: CustomUIDataTypes["kind"];
+  content: string;
+};
+
+function buildEssayDraft(): string {
+  return [
+    "# Silicon Valley",
+    "",
+    "Silicon Valley is a major technology ecosystem in California, known for startups, venture capital, engineering talent, and influential companies.",
+    "",
+    "The region grew through a combination of research institutions, semiconductor innovation, defense funding, and a culture that rewards experimentation.",
+    "",
+    "Today it represents more than a location: it is a model for how capital, product design, software engineering, and entrepreneurship can reinforce each other.",
+    "",
+    "Its strengths include rapid iteration, access to investors, strong hiring networks, and proximity to companies that define modern digital infrastructure.",
+    "",
+    "Its weaknesses include high costs, aggressive competition, and pressure that can make long-term sustainability harder for smaller teams.",
+    "",
+    "Even with those tradeoffs, Silicon Valley remains one of the most important global centers for product development and startup creation.",
+  ].join("\n");
+}
+
+export function getMockArtifactDraft(userMessage: string): Omit<
+  MockArtifactDraft,
+  "id"
+> | null {
+  const normalized = userMessage.toLowerCase();
+
+  if (normalized.includes("help me write an essay about silicon valley")) {
+    return {
+      title: "Essay about Silicon Valley",
+      kind: "text",
+      content: buildEssayDraft(),
+    };
+  }
+
+  return null;
+}
+
 export function createMockAgentResponse({
   agentId,
   agentName,
   inputMessages,
+  artifactDraft,
 }: {
   agentId: string;
   agentName: string;
   inputMessages: AgentChatMessage[];
+  artifactDraft?: MockArtifactDraft;
 }): Response {
-  const responseText = getMockResponseText(getLastUserMessage(inputMessages));
+  const responseText = artifactDraft
+    ? "A document was created and is now visible to the user."
+    : getMockResponseText(getLastUserMessage(inputMessages));
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -91,6 +142,62 @@ export function createMockAgentResponse({
           id: agentId,
         },
       });
+
+      if (artifactDraft) {
+        const artifactParts = [
+          {
+            type: "data-kind",
+            data: artifactDraft.kind,
+            transient: true,
+          },
+          {
+            type: "data-id",
+            data: artifactDraft.id,
+            transient: true,
+          },
+          {
+            type: "data-title",
+            data: artifactDraft.title,
+            transient: true,
+          },
+          {
+            type: "data-clear",
+            data: null,
+            transient: true,
+          },
+        ] as const;
+
+        for (const part of artifactParts) {
+          enqueue({
+            type: UI_STREAM_PART,
+            payload: part,
+          });
+        }
+
+        for (const chunk of chunkText(
+          artifactDraft.content,
+          ARTIFACT_STREAM_CHUNK_SIZE
+        )) {
+          await sleep(STREAM_DELAY_MS);
+          enqueue({
+            type: UI_STREAM_PART,
+            payload: {
+              type: "data-textDelta",
+              data: chunk,
+              transient: true,
+            },
+          });
+        }
+
+        enqueue({
+          type: UI_STREAM_PART,
+          payload: {
+            type: "data-finish",
+            data: null,
+            transient: true,
+          },
+        });
+      }
 
       for (const chunk of chunkText(responseText)) {
         await sleep(STREAM_DELAY_MS);

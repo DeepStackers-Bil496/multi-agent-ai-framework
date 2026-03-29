@@ -14,10 +14,6 @@ test.describe("Artifacts activity", () => {
   });
 
   test("Create a text artifact", async () => {
-    test.fixme(
-      true,
-      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
-    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -36,10 +32,6 @@ test.describe("Artifacts activity", () => {
   });
 
   test("Toggle artifact visibility", async () => {
-    test.fixme(
-      true,
-      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
-    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -59,10 +51,6 @@ test.describe("Artifacts activity", () => {
   });
 
   test("Send follow up message after generation", async () => {
-    test.fixme(
-      true,
-      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
-    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -72,7 +60,7 @@ test.describe("Artifacts activity", () => {
 
     expect(artifactPage.artifact).toBeVisible();
 
-    const assistantMessage = await artifactPage.getRecentAssistantMessage();
+    const assistantMessage = await chatPage.getRecentAssistantMessage();
     expect(assistantMessage.content).toBe(
       "A document was created and is now visible to the user."
     );

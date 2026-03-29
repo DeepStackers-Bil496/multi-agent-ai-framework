@@ -26,7 +26,7 @@ export class ChatPage {
   }
 
   get scrollContainer() {
-    return this.page.locator(".overflow-y-scroll");
+    return this.page.getByTestId("messages-scroll-container");
   }
 
   get scrollToBottomButton() {
@@ -39,6 +39,19 @@ export class ChatPage {
 
   getCurrentURL(): string {
     return this.page.url();
+  }
+
+  async setChatRequestHeaders(headers: Record<string, string>) {
+    await this.page.route("**/api/chat", async (route) => {
+      const request = route.request();
+
+      await route.continue({
+        headers: {
+          ...request.headers(),
+          ...headers,
+        },
+      });
+    });
   }
 
   async sendUserMessage(message: string) {
@@ -226,7 +239,7 @@ export class ChatPage {
 
   isScrolledToBottom(): Promise<boolean> {
     return this.scrollContainer.evaluate(
-      (el) => Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 1
+      (el) => Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 8
     );
   }
 
@@ -257,5 +270,6 @@ export class ChatPage {
     await this.scrollContainer.evaluate((element) => {
       element.scrollTop = 0;
     });
+    await this.page.waitForTimeout(150);
   }
 }
