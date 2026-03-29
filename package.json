@@ -26,7 +26,9 @@
     "test:main-agent:smoke": "npx tsx scripts/test-main-agent.ts",
     "test:unit": "vitest run --config unit-tests/vitest.config.ts",
     "test:unit:watch": "vitest --config unit-tests/vitest.config.ts",
-    "test:unit:coverage": "vitest run --config unit-tests/vitest.config.ts --coverage"
+    "test:unit:coverage": "vitest run --config unit-tests/vitest.config.ts --coverage",
+    "test:integration": "vitest run --config tests/integration/vitest.config.ts",
+    "test:integration:watch": "vitest --config tests/integration/vitest.config.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^1.0.15",

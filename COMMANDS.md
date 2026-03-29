@@ -34,6 +34,7 @@ This file contains a list of frequently used commands for development, database 
 | :--- | :--- |
 | `pnpm test` | Run Playwright end-to-end tests. |
 | `pnpm test:unit` | Run the Vitest unit test suite. |
+| `pnpm test:integration` | Run the Vitest integration test suite. |
 | `pnpm test:google-workspace` | Run Google Workspace agent Node tests. |
 | `pnpm test:search` | Run the SearchAgent unit tests. |
 | `pnpm test:vision` | Run the VisionAgent unit tests. |
