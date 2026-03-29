@@ -4,12 +4,12 @@ import { expect, test } from "../fixtures";
 /**
  * Route tests for POST /api/chat — agent integration path.
  *
- * SCOPE — what is NOT duplicated from the existing tests/routes/chat.test.ts:
+ * SCOPE — what is intentionally left to adjacent route suites:
  *  - Empty body → 400                    (already covered)
  *  - Babbage cannot append to Ada's chat  (already covered)
  *  - Babbage cannot delete Ada's chat     (already covered)
  *  - Ada can delete her own chat          (already covered)
- *  - Stream resume via /api/chat/:id/stream (already covered)
+ *  - Stream resume via /api/chat/:id/stream (covered in chat-stream.test.ts)
  *
  * What these tests ADD (agent-specific path via selectedChatModel="main-agent"):
  *  1. main-agent produces a valid 200 streaming response
