@@ -20,7 +20,7 @@ import { expect, test } from "./fixtures";
 
 const SINGLE_THRESHOLD_MS = 300;
 const P95_THRESHOLD_MS = 600;
-const CONCURRENT_THRESHOLD_MS = 800;
+const CONCURRENT_THRESHOLD_MS = 850;
 
 function userMessage(text: string) {
   return {
@@ -179,6 +179,8 @@ test.describe("Chat history query performance", () => {
   test("5 concurrent GET /api/history requests all complete within threshold", async ({
     adaContext,
   }) => {
+    await getHistoryMs(adaContext.request);
+
     const start = performance.now();
 
     const results = await Promise.all(

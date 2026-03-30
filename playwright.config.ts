@@ -123,6 +123,10 @@ export default defineConfig({
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "True",
     env: {
       ...process.env,
+      BROWSERSLIST_IGNORE_OLD_DATA:
+        process.env.BROWSERSLIST_IGNORE_OLD_DATA ?? "true",
+      BASELINE_BROWSER_MAPPING_IGNORE_OLD_DATA:
+        process.env.BASELINE_BROWSER_MAPPING_IGNORE_OLD_DATA ?? "true",
       PLAYWRIGHT: process.env.PLAYWRIGHT ?? "True",
     },
   },

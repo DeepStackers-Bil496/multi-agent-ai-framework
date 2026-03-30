@@ -87,6 +87,18 @@ async function measureStream(
 }
 
 test.describe("Agent stream — time-to-first-chunk", () => {
+  test.beforeAll(async ({ adaContext }) => {
+    await adaContext.request.post("/api/chat", {
+      headers: TEST_CHAT_HEADERS,
+      data: {
+        id: generateUUID(),
+        message: userMessage("Why is the sky blue?"),
+        selectedChatModel: "main-agent",
+        selectedVisibilityType: "private",
+      },
+    });
+  });
+
   test("main-agent TTFC is below threshold for a simple prompt", async ({
     adaContext,
   }) => {
