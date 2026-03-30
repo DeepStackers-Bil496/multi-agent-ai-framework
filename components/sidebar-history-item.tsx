@@ -43,7 +43,7 @@ const PureChatItem = ({
   });
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem data-testid={`chat-item-${chat.id}`}>
       <SidebarMenuButton asChild isActive={isActive}>
         <Link href={`/chat/${chat.id}`} onClick={() => setOpenMobile(false)}>
           <span>{chat.title}</span>

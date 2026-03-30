@@ -83,6 +83,7 @@ function PureMultimodalInput({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
+  const isGenerating = status === "submitted" || status === "streaming";
 
   const adjustHeight = useCallback(() => {
     if (textareaRef.current) {
@@ -573,7 +574,7 @@ function PureMultimodalInput({
             />
           </PromptInputTools>
 
-          {status === "submitted" ? (
+          {isGenerating ? (
             <StopButton setMessages={setMessages} stop={stop} />
           ) : (
             <PromptInputSubmit
@@ -795,7 +796,11 @@ function PureModelSelectorCompact({
       value={selectedModel?.name}
     >
       <Trigger asChild>
-        <Button variant="ghost" className="h-8 px-2">
+        <Button
+          variant="ghost"
+          className="h-8 px-2"
+          data-testid="model-selector"
+        >
           {selectedModel?.icon ? (
             <selectedModel.icon size={16} />
           ) : (
@@ -810,7 +815,11 @@ function PureModelSelectorCompact({
       <PromptInputModelSelectContent className="min-w-[260px] p-0">
         <div className="flex flex-col gap-px">
           {availableAgents.map((agentUserMetadata) => (
-            <SelectItem key={agentUserMetadata.id} value={agentUserMetadata.name}>
+            <SelectItem
+              key={agentUserMetadata.id}
+              value={agentUserMetadata.name}
+              data-testid={`model-selector-item-${agentUserMetadata.id}`}
+            >
               <div className="flex items-center gap-2">
                 {agentUserMetadata.icon && <agentUserMetadata.icon size={14} className="text-muted-foreground" />}
                 <div className="truncate font-medium text-xs">{agentUserMetadata.name}</div>

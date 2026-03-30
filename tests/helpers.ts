@@ -9,7 +9,6 @@ import {
 } from "@playwright/test";
 import { generateId } from "ai";
 import { getUnixTime } from "date-fns";
-import { ChatPage } from "./pages/chat";
 
 export type UserContext = {
   context: BrowserContext;
@@ -23,20 +22,73 @@ type AuthenticatedContextOptions = {
   navigateToRoot?: boolean;
 };
 
-async function waitForAuthenticatedSession(context: BrowserContext) {
+async function waitForAuthenticatedSession(
+  context: BrowserContext,
+  {
+    expectedEmail,
+    expectedType = "regular",
+  }: {
+    expectedEmail?: string;
+    expectedType?: "guest" | "regular";
+  } = {}
+) {
   await expect
     .poll(
       async () => {
-        const cookies = await context.cookies();
+        const response = await context.request.get(
+          "http://localhost:3000/api/auth/session"
+        );
 
-        return cookies.some((cookie) => cookie.name.includes("session-token"));
+        if (!response.ok()) {
+          return null;
+        }
+
+        const session = await response.json().catch(() => null);
+        const sessionEmail =
+          typeof session?.user?.email === "string" ? session.user.email : null;
+        const sessionType =
+          typeof session?.user?.type === "string" ? session.user.type : null;
+
+        if (expectedEmail && sessionEmail !== expectedEmail) {
+          return null;
+        }
+
+        if (sessionType !== expectedType) {
+          return null;
+        }
+
+        return expectedEmail
+          ? `${sessionEmail}:${sessionType}`
+          : sessionType;
       },
       {
-        message: "Expected an auth session cookie after registration",
+        message: "Expected the browser context to have a hydrated auth session",
         timeout: 15_000,
       }
     )
-    .toBe(true);
+    .toBe(expectedEmail ? `${expectedEmail}:${expectedType}` : expectedType);
+}
+
+async function waitForRegularUserShell(page: Page, expectedUsername?: string) {
+  const userEmail = page.getByTestId("user-email");
+
+  await expect(userEmail).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        const text = (await userEmail.textContent())?.trim() ?? "";
+        return text;
+      },
+      {
+        message: "Expected authenticated shell to reflect a non-guest user",
+        timeout: 15_000,
+      }
+    )
+    .not.toBe("Guest");
+
+  if (expectedUsername) {
+    await expect(userEmail).toContainText(expectedUsername);
+  }
 }
 
 async function signInWithCredentials({
@@ -101,7 +153,10 @@ export async function createAuthenticatedContext({
     await signInWithCredentials({ page, email, password });
   }
 
-  await waitForAuthenticatedSession(context);
+  await waitForAuthenticatedSession(context, {
+    expectedEmail: email,
+    expectedType: "regular",
+  });
 
   await context.storageState({ path: storageFile });
   await page.close();
@@ -113,6 +168,7 @@ export async function createAuthenticatedContext({
   if (navigateToRoot) {
     await newPage.goto("http://localhost:3000/");
     await newPage.waitForLoadState("domcontentloaded");
+    await waitForRegularUserShell(newPage, email.split("@")[0]);
   }
 
   return {
@@ -137,7 +193,7 @@ export async function createAuthenticatedRequestContext({
 }
 
 export function generateRandomTestUser() {
-  const email = `test-${getUnixTime(new Date())}@playwright.com`;
+  const email = buildTestEmail(`session-${getUnixTime(new Date())}`);
   const password = generateId();
 
   return {

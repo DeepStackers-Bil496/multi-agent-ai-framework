@@ -109,11 +109,13 @@ export async function POST(request: Request) {
   try {
     const {
       id,
+      assistantMessageId,
       message,
       selectedChatModel,
       selectedVisibilityType,
     }: {
       id: string;
+      assistantMessageId?: string;
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
@@ -436,7 +438,7 @@ export async function POST(request: Request) {
     }
 
     // Create a passthrough stream that captures content and execution flow for persistence
-    const assistantMessageId = generateUUID();
+    const persistedAssistantMessageId = assistantMessageId ?? generateUUID();
     let accumulatedContent = "";
     const activeAgentStack: string[] = [];
     const nodeMap = new Map<string, ExecutionStep>();
@@ -577,8 +579,6 @@ export async function POST(request: Request) {
             }
           }
 
-          controller.close();
-
           // Save assistant message to database after stream ends
           const parts = [];
 
@@ -603,7 +603,7 @@ export async function POST(request: Request) {
           if (parts.length > 0) {
             await saveMessages({
               messages: [{
-                id: assistantMessageId,
+                id: persistedAssistantMessageId,
                 role: "assistant",
                 parts: parts as any,
                 createdAt: new Date(),
@@ -612,6 +612,8 @@ export async function POST(request: Request) {
               }],
             });
           }
+
+          controller.close();
         } catch (error) {
           controller.error(error);
         }

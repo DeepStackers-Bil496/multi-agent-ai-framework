@@ -3,7 +3,13 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
 import { ChatHeader } from "@/components/chat-header";
@@ -155,6 +161,26 @@ export function Chat({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState<"ready" | "streaming" | "error">("ready");
   const abortControllerRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const updateMessages = useCallback(
+    (value: SetStateAction<ChatMessage[]>) => {
+      setMessages((currentMessages) => {
+        const nextMessages =
+          typeof value === "function"
+            ? (value as (messages: ChatMessage[]) => ChatMessage[])(currentMessages)
+            : value;
+
+        messagesRef.current = nextMessages;
+        return nextMessages;
+      });
+    },
+    []
+  );
 
   // Extract text content from a stream event payload
   // Handles various LangChain AIMessageChunk formats
@@ -213,9 +239,7 @@ export function Chat({
       metadata: { createdAt: new Date().toISOString() },
     };
 
-    // Add user message to state
-    const updatedMessages = [...messages, newUserMessage];
-    setMessages(updatedMessages);
+    const updatedMessages = [...messagesRef.current, newUserMessage];
     setStatus("streaming");
 
     // Create placeholder assistant message
@@ -226,7 +250,7 @@ export function Chat({
       parts: [{ type: "text", text: "" }],
       metadata: { createdAt: new Date().toISOString() },
     };
-    setMessages([...updatedMessages, assistantMessage]);
+    updateMessages([...updatedMessages, assistantMessage]);
 
     try {
       abortControllerRef.current = new AbortController();
@@ -237,6 +261,7 @@ export function Chat({
         body: JSON.stringify({
           id,
           message: newUserMessage,
+          assistantMessageId,
           selectedChatModel: currentModelIdRef.current,
           selectedVisibilityType: visibilityType,
         }),
@@ -421,7 +446,7 @@ export function Chat({
             }
 
             // Update messages with execution flow, generated images, and text
-            setMessages((prev) =>
+            updateMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMessageId
                   ? {
@@ -472,7 +497,7 @@ export function Chat({
       setStatus("error");
       toast({ type: "error", description: "Failed to get response from agent" });
     }
-  }, [messages, id, visibilityType, mutate, applyUIAction]);
+  }, [id, visibilityType, mutate, applyUIAction, updateMessages]);
 
   // Stop function
   const stop = useCallback(async () => {
@@ -486,13 +511,16 @@ export function Chat({
   // Placeholder regenerate function (simplified)
   const regenerate = useCallback(async () => {
     // Remove last assistant message and resend
-    const lastUserMessageIndex = messages.findLastIndex((m) => m.role === "user");
+    const currentMessages = messagesRef.current;
+    const lastUserMessageIndex = currentMessages.findLastIndex(
+      (m) => m.role === "user"
+    );
     if (lastUserMessageIndex >= 0) {
-      const lastUserMessage = messages[lastUserMessageIndex];
-      setMessages(messages.slice(0, lastUserMessageIndex));
+      const lastUserMessage = currentMessages[lastUserMessageIndex];
+      updateMessages(currentMessages.slice(0, lastUserMessageIndex));
       await sendMessage(lastUserMessage);
     }
-  }, [messages, sendMessage]);
+  }, [sendMessage, updateMessages]);
 
   // Placeholder resumeStream (not supported with MainAgent yet)
   const resumeStream = useCallback(async () => {
@@ -531,7 +559,7 @@ export function Chat({
     autoResume,
     initialMessages,
     resumeStream,
-    setMessages,
+    setMessages: updateMessages,
   });
 
 
@@ -552,7 +580,7 @@ export function Chat({
           messages={messages}
           regenerate={regenerate}
           selectedModelId={currentModelId}
-          setMessages={setMessages}
+          setMessages={updateMessages}
           status={status}
           votes={votes}
         />
@@ -570,7 +598,7 @@ export function Chat({
               sendMessage={sendMessage}
               setAttachments={setAttachments}
               setInput={setInput}
-              setMessages={setMessages}
+              setMessages={updateMessages}
               status={status}
               stop={stop}
               usage={usage}
@@ -592,7 +620,7 @@ export function Chat({
         sendMessage={sendMessage}
         setAttachments={setAttachments}
         setInput={setInput}
-        setMessages={setMessages}
+        setMessages={updateMessages}
         status={status}
         stop={stop}
         votes={votes}

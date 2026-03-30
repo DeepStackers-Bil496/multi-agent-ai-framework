@@ -360,7 +360,7 @@ export function SidebarHistory({
             </div>
           ) : (
             <>
-              <SidebarMenu>
+              <SidebarMenu data-testid="chat-history">
                 {paginatedChatHistories &&
                   (() => {
                     const chatsFromHistory = paginatedChatHistories.flatMap(

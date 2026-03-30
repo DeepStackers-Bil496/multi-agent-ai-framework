@@ -42,9 +42,7 @@ test.describe("Chat activity", () => {
 
     await chatPage.sendUserMessage("Why is grass green?");
 
-    // The UI disables send-button during generation but keeps it in the DOM;
-    // assert disabled rather than hidden.
-    await expect(chatPage.sendButton).toBeDisabled();
+    await expect(chatPage.sendButton).not.toBeVisible();
     await expect(chatPage.stopButton).toBeVisible();
 
     await chatPage.isGenerationComplete();
@@ -70,7 +68,9 @@ test.describe("Chat activity", () => {
     const userMessage = await chatPage.getRecentUserMessage();
     await userMessage.edit("Why is the sky blue?");
 
-    await chatPage.isGenerationComplete();
+    await chatPage.isGenerationComplete({
+      previousAssistantContent: assistantMessage.content,
+    });
 
     const updatedAssistantMessage = await chatPage.getRecentAssistantMessage();
     expect(updatedAssistantMessage.content.toLowerCase()).toContain("blue");
@@ -143,6 +143,9 @@ test.describe("Chat activity", () => {
   test("Create message from url query", async ({ page }) => {
     await page.goto("/?query=Why is the sky blue?");
 
+    await expect(page.getByTestId("message-user").last()).toContainText(
+      "Why is the sky blue?"
+    );
     await chatPage.isGenerationComplete();
 
     const userMessage = await chatPage.getRecentUserMessage();
@@ -153,12 +156,12 @@ test.describe("Chat activity", () => {
   });
 
   test("auto-scrolls to bottom after submitting new messages", async () => {
-    await chatPage.sendMultipleMessages(12, (i) => `filling message #${i}`);
+    await chatPage.sendMultipleMessages(20, (i) => `filling message #${i}`);
     await chatPage.waitForScrollToBottom();
   });
 
   test("scroll button appears when user scrolls up, hides on click", async () => {
-    await chatPage.sendMultipleMessages(12, (i) => `filling message #${i}`);
+    await chatPage.sendMultipleMessages(20, (i) => `filling message #${i}`);
     await chatPage.waitForScrollToBottom();
     await expect(chatPage.scrollToBottomButton).not.toBeVisible();
 

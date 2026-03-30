@@ -34,6 +34,7 @@ function PureMessages({
   isReadonly,
   selectedModelId,
 }: MessagesProps) {
+  const isGenerating = status === "submitted" || status === "streaming";
   const {
     containerRef: messagesContainerRef,
     endRef: messagesEndRef,
@@ -47,7 +48,7 @@ function PureMessages({
   useDataStream();
 
   useEffect(() => {
-    if (status === "submitted") {
+    if (isGenerating) {
       requestAnimationFrame(() => {
         const container = messagesContainerRef.current;
         if (container) {
@@ -58,7 +59,7 @@ function PureMessages({
         }
       });
     }
-  }, [status, messagesContainerRef]);
+  }, [isGenerating, messagesContainerRef]);
 
   return (
     <div
@@ -86,7 +87,7 @@ function PureMessages({
             <PreviewMessage
               chatId={chatId}
               isLoading={
-                status === "streaming" && messages.length - 1 === index
+                isGenerating && messages.length - 1 === index
               }
               isReadonly={isReadonly}
               key={message.id}
@@ -106,7 +107,7 @@ function PureMessages({
           ))}
 
           <AnimatePresence mode="wait">
-            {status === "submitted" && <ThinkingMessage key="thinking" />}
+            {isGenerating && <ThinkingMessage key="thinking" />}
           </AnimatePresence>
 
           <div

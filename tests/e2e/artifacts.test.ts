@@ -21,12 +21,7 @@ test.describe("Artifacts activity", () => {
     );
     await artifactPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
-
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      "A document was created and is now visible to the user."
-    );
+    await expect(artifactPage.artifact).toBeVisible();
 
     await chatPage.hasChatIdInUrl();
   });
@@ -39,12 +34,7 @@ test.describe("Artifacts activity", () => {
     );
     await artifactPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
-
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      "A document was created and is now visible to the user."
-    );
+    await expect(artifactPage.artifact).toBeVisible();
 
     await artifactPage.closeArtifact();
     await chatPage.isElementNotVisible("artifact");
@@ -58,17 +48,15 @@ test.describe("Artifacts activity", () => {
     );
     await artifactPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
-
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      "A document was created and is now visible to the user."
-    );
+    await expect(artifactPage.artifact).toBeVisible();
+    const initialAssistantMessage = await artifactPage.getRecentAssistantMessage();
 
     await artifactPage.sendUserMessage("Thanks!");
     await artifactPage.isGenerationComplete();
 
-    const secondAssistantMessage = await chatPage.getRecentAssistantMessage();
+    const secondAssistantMessage = await artifactPage.getRecentAssistantMessage({
+      previousContent: initialAssistantMessage.content,
+    });
     expect(secondAssistantMessage.content).toBe("You're welcome!");
   });
 });

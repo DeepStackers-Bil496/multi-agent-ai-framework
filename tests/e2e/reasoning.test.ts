@@ -51,7 +51,9 @@ test.describe("chat activity with execution flow", () => {
     await userMessage.edit("Why is grass green?");
 
     // Wait for the second /api/chat response after the edit
-    await chatPage.isGenerationComplete();
+    await chatPage.isGenerationComplete({
+      previousAssistantContent: firstAssistant.content,
+    });
 
     const updatedAssistantMessage = await chatPage.getRecentAssistantMessage();
     // Mock: "It's just green duh!" — real Gemini: mentions "green"

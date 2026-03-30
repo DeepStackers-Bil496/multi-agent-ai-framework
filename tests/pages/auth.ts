@@ -27,19 +27,65 @@ export class AuthPage {
     await this.page.getByRole("button", { name: "Sign Up" }).click();
   }
 
-  private async waitForAuthenticatedSession() {
+  private async waitForRegularSession(email: string) {
     await expect
       .poll(
         async () => {
-          const cookies = await this.page.context().cookies();
+          const response = await this.page.context().request.get(
+            "http://localhost:3000/api/auth/session"
+          );
 
-          return cookies.some((cookie) => cookie.name.includes("session-token"));
+          if (!response.ok()) {
+            return null;
+          }
+
+          const session = await response.json().catch(() => null);
+          const sessionEmail =
+            typeof session?.user?.email === "string" ? session.user.email : null;
+          const sessionType =
+            typeof session?.user?.type === "string" ? session.user.type : null;
+
+          if (sessionEmail !== email || sessionType !== "regular") {
+            return null;
+          }
+
+          return `${sessionEmail}:${sessionType}`;
         },
         {
-          message: "Expected an auth session cookie after login",
+          message: "Expected login flow to replace the guest session",
+          timeout: 15_000,
         }
       )
-      .toBe(true);
+      .toBe(`${email}:regular`);
+  }
+
+  private async waitForRegularUserShell(expectedUsername: string) {
+    const userEmail = this.page.getByTestId("user-email");
+
+    const assertUserShell = async () => {
+      await expect(userEmail).toBeVisible();
+      await expect
+        .poll(
+          async () => {
+            const text = (await userEmail.textContent())?.trim() ?? "";
+            return text;
+          },
+          {
+            message: "Expected login flow to hydrate a non-guest user session",
+            timeout: 10_000,
+          }
+        )
+        .not.toBe("Guest");
+      await expect(userEmail).toContainText(expectedUsername);
+    };
+
+    try {
+      await assertUserShell();
+    } catch {
+      await this.page.reload();
+      await this.page.waitForLoadState("domcontentloaded");
+      await assertUserShell();
+    }
   }
 
   async login(email: string, password: string) {
@@ -49,9 +95,10 @@ export class AuthPage {
     await this.page.getByLabel("Password").click();
     await this.page.getByLabel("Password").fill(password);
     await this.page.getByRole("button", { name: "Sign In" }).click();
-    await this.waitForAuthenticatedSession();
+    await this.waitForRegularSession(email);
     await this.page.goto("/");
     await this.page.waitForLoadState("domcontentloaded");
+    await this.waitForRegularUserShell(email.split("@")[0]);
   }
 
   async logout(email: string, password: string) {
@@ -81,6 +128,6 @@ export class AuthPage {
 
   async openSidebar() {
     const sidebarToggleButton = this.page.getByTestId("sidebar-toggle-button");
-    await sidebarToggleButton.click();
+    await sidebarToggleButton.click({ force: true });
   }
 }
