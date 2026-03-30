@@ -17,16 +17,16 @@ export const PreviewAttachment = ({
 
   return (
     <div
-      className="group relative size-16 overflow-hidden rounded-lg border bg-muted"
+      className="group relative size-32 overflow-hidden rounded-lg border bg-muted"
       data-testid="input-attachment-preview"
     >
       {contentType?.startsWith("image") ? (
         <Image
           alt={name ?? "An image attachment"}
-          className="size-full object-cover"
-          height={64}
+          className="size-full object-cover" 
+          height={128} 
           src={url}
-          width={64}
+          width={128}
         />
       ) : (
         <div className="flex size-full items-center justify-center text-muted-foreground text-xs">
@@ -36,9 +36,9 @@ export const PreviewAttachment = ({
 
       {isUploading && (
         <div
-	  className="absolute inset-0 flex items-center justify-center bg-black/50"
-	  data-testid="input-attachment-loader"
-	>
+          className="absolute inset-0 flex items-center justify-center bg-black/50"
+          data-testid="input-attachment-loader"
+        >
           <Loader size={16} />
         </div>
       )}
