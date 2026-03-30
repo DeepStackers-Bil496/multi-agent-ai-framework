@@ -1,70 +1,79 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Tests for lib/agents/visionAgent/tools.ts
- *
- * Real exports:
- *   createAnalyzeImageTool(runtimeSecrets?)    — analyzes an image via Google GenAI
- *   createGenerateImageTool(runtimeSecrets?)   — generates an image
- *   createAllVisionAgentTools(runtimeSecrets?) — returns all tools as array
- */
+const {
+  mockInvoke,
+  mockGenerateContent,
+  mockGenerateImages,
+  mockPut,
+  mockTextToImage,
+} = vi.hoisted(() => ({
+  mockInvoke: vi
+    .fn()
+    .mockResolvedValue("This image shows a test diagram with boxes and arrows."),
+  mockGenerateContent: vi
+    .fn()
+    .mockResolvedValue({ text: "A generated image description." }),
+  mockGenerateImages: vi.fn().mockResolvedValue({
+    generatedImages: [{ image: { imageBytes: "base64data" } }],
+  }),
+  mockPut: vi.fn().mockResolvedValue({ url: "https://example.com/generated.png" }),
+  mockTextToImage: vi.fn().mockResolvedValue({
+    arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+  }),
+}));
 
-vi.mock("@google/generative-ai", () => ({
-  GoogleGenerativeAI: vi.fn().mockImplementation(function () {
+vi.mock("@langchain/google-genai", () => ({
+  ChatGoogleGenerativeAI: vi.fn().mockImplementation(function MockChatGoogle() {
     return {
-      getGenerativeModel: vi.fn().mockReturnValue({
-        generateContent: vi.fn().mockResolvedValue({
-          response: {
-            text: vi.fn().mockReturnValue("This image shows a test diagram with boxes and arrows."),
-          },
-        }),
-      }),
+      invoke: mockInvoke,
     };
   }),
 }));
 
 vi.mock("@google/genai", () => ({
-  GoogleGenAI: vi.fn().mockImplementation(function () {
+  GoogleGenAI: vi.fn().mockImplementation(function MockGoogleGenAI() {
     return {
       models: {
-        generateContent: vi.fn().mockResolvedValue({ text: "A generated image description." }),
-        generateImages: vi.fn().mockResolvedValue({
-          generatedImages: [{ image: { imageBytes: "base64data" } }],
-        }),
+        generateContent: mockGenerateContent,
+        generateImages: mockGenerateImages,
       },
     };
   }),
 }));
 
-describe("VisionAgent Tools", () => {
-  let mod: typeof import("@/lib/agents/visionAgent/tools");
+vi.mock("@vercel/blob", () => ({
+  put: mockPut,
+}));
 
-  beforeEach(async () => {
-    vi.resetModules();
-    vi.mock("@google/generative-ai", () => ({
-      GoogleGenerativeAI: vi.fn().mockImplementation(function () {
-        return {
-          getGenerativeModel: vi.fn().mockReturnValue({
-            generateContent: vi.fn().mockResolvedValue({
-              response: { text: vi.fn().mockReturnValue("Test analysis result.") },
-            }),
-          }),
-        };
-      }),
-    }));
-    vi.mock("@google/genai", () => ({
-      GoogleGenAI: vi.fn().mockImplementation(function () {
-        return {
-          models: {
-            generateContent: vi.fn().mockResolvedValue({ text: "Test." }),
-            generateImages: vi.fn().mockResolvedValue({
-              generatedImages: [{ image: { imageBytes: "base64data" } }],
-            }),
-          },
-        };
-      }),
-    }));
-    mod = await import("@/lib/agents/visionAgent/tools");
+vi.mock("@huggingface/inference", () => ({
+  InferenceClient: vi.fn().mockImplementation(function MockInferenceClient() {
+    return {
+      textToImage: mockTextToImage,
+    };
+  }),
+}));
+
+import * as mod from "@/lib/agents/visionAgent/tools";
+
+describe("VisionAgent Tools", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.HF_TOKEN;
+
+    mockInvoke.mockResolvedValue(
+      "This image shows a test diagram with boxes and arrows."
+    );
+    mockGenerateContent.mockResolvedValue({
+      text: "A generated image description.",
+    });
+    mockGenerateImages.mockResolvedValue({
+      generatedImages: [{ image: { imageBytes: "base64data" } }],
+    });
+    mockPut.mockResolvedValue({ url: "https://example.com/generated.png" });
+    mockTextToImage.mockResolvedValue({
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+    });
   });
 
   it("createAllVisionAgentTools() returns a non-empty array", () => {

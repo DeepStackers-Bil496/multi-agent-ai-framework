@@ -1,19 +1,16 @@
 import type { APIRequestContext, Browser } from "@playwright/test";
 import { expect } from "../fixtures";
 import { createAuthenticatedContext, type UserContext } from "../helpers";
-import {
-  getMessagesByChatId,
-  saveChat,
-  saveMessages,
-  saveSuggestions,
-  updateChatLastContextById,
-} from "@/lib/db/queries";
 import type { Document } from "@/lib/db/schema";
 import type { AppUsage } from "@/lib/usage";
 import type { ExecutionStep } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
 
 type OwnedDocument = Omit<Document, "createdAt"> & { createdAt: Date };
+
+async function getDbQueries() {
+  return import("@/lib/db/queries");
+}
 
 export async function createIsolatedUserContext(
   browser: Browser,
@@ -70,6 +67,8 @@ export async function seedChatForUser({
   lastContext?: { totalTokens?: number; inputTokens?: number; outputTokens?: number };
 }) {
   const chatId = generateUUID();
+  const { saveChat, saveMessages, updateChatLastContextById } =
+    await getDbQueries();
 
   await saveChat({
     id: chatId,
@@ -160,6 +159,7 @@ export async function createAgentChat(
 }
 
 export async function getAssistantMessageId(chatId: string) {
+  const { getMessagesByChatId } = await getDbQueries();
   const messages = await getMessagesByChatId({ id: chatId });
   const assistantMessage = messages.find((message) => message.role === "assistant");
 
@@ -177,6 +177,7 @@ export async function seedDocumentSuggestion({
   document: OwnedDocument;
   userId: string;
 }) {
+  const { saveSuggestions } = await getDbQueries();
   const suggestion = {
     id: generateUUID(),
     documentId: document.id,

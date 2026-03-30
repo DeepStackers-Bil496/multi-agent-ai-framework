@@ -10,18 +10,23 @@ type GoogleGenAIMock = {
 };
 
 async function loadEmbeddingsModule({
-  apiKey = "test-gemini-key",
   embedImplementation,
+  ...options
 }: {
   apiKey?: string | undefined;
   embedImplementation?: ReturnType<typeof vi.fn>;
 } = {}) {
   vi.resetModules();
+  vi.doUnmock("@google/genai");
 
-  if (apiKey) {
-    process.env.GEMINI_API_KEY = apiKey;
+  if ("apiKey" in options) {
+    if (options.apiKey) {
+      process.env.GEMINI_API_KEY = options.apiKey;
+    } else {
+      delete process.env.GEMINI_API_KEY;
+    }
   } else {
-    delete process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gemini-key";
   }
 
   const embedContent =
@@ -30,9 +35,13 @@ async function loadEmbeddingsModule({
       embeddings: [{ values: [0.1, 0.2, 0.3] }],
     });
 
-  const GoogleGenAI = vi
-    .fn()
-    .mockImplementation(() => ({ models: { embedContent } }));
+  const GoogleGenAI = vi.fn(function MockGoogleGenAI() {
+    return {
+      models: {
+        embedContent,
+      },
+    };
+  });
 
   vi.doMock("@google/genai", () => ({
     GoogleGenAI,
@@ -56,7 +65,10 @@ describe("Codebase embeddings core", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    process.env.GEMINI_API_KEY = "test-gemini-key";
+    vi.restoreAllMocks();
+    vi.resetModules();
+    vi.doUnmock("@google/genai");
+    delete process.env.GEMINI_API_KEY;
   });
 
   it("throws when GEMINI_API_KEY is missing", async () => {
@@ -99,7 +111,9 @@ describe("Codebase embeddings core", () => {
         embeddings: [{ values: [0.9, 0.8, 0.7] }],
       });
 
-    const { mod, mock } = await loadEmbeddingsModule({ embedImplementation: embedContent });
+    const { mod, mock } = await loadEmbeddingsModule({
+      embedImplementation: embedContent,
+    });
 
     const promise = mod.getEmbedding("retry me");
     await vi.runAllTimersAsync();
@@ -113,7 +127,9 @@ describe("Codebase embeddings core", () => {
     const embedContent = vi
       .fn<(...args: unknown[]) => Promise<EmbedResult>>()
       .mockRejectedValue(new Error("service unavailable"));
-    const { mod, mock } = await loadEmbeddingsModule({ embedImplementation: embedContent });
+    const { mod, mock } = await loadEmbeddingsModule({
+      embedImplementation: embedContent,
+    });
 
     await expect(mod.getEmbedding("fail fast")).rejects.toThrow(
       "service unavailable"
@@ -127,7 +143,9 @@ describe("Codebase embeddings core", () => {
       .mockResolvedValueOnce({ embeddings: [{ values: [1] }] })
       .mockResolvedValueOnce({ embeddings: [{ values: [2] }] })
       .mockResolvedValueOnce({ embeddings: [{ values: [3] }] });
-    const { mod } = await loadEmbeddingsModule({ embedImplementation: embedContent });
+    const { mod } = await loadEmbeddingsModule({
+      embedImplementation: embedContent,
+    });
 
     const result = await mod.getEmbeddings(["a", "b", "c"]);
 
@@ -143,7 +161,9 @@ describe("Codebase embeddings core", () => {
       .mockResolvedValueOnce({ embeddings: [{ values: [20] }] })
       .mockResolvedValueOnce({ embeddings: [{ values: [30] }] })
       .mockResolvedValueOnce({ embeddings: [{ values: [40] }] });
-    const { mod, mock } = await loadEmbeddingsModule({ embedImplementation: embedContent });
+    const { mod, mock } = await loadEmbeddingsModule({
+      embedImplementation: embedContent,
+    });
 
     const promise = mod.getEmbeddingsBatched(["one", "two", "three", "four"], 2);
     await vi.runAllTimersAsync();

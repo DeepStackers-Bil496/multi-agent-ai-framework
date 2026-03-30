@@ -1,4 +1,6 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   chunkFile,
@@ -102,13 +104,22 @@ ${repeatedBody}
       return `Line ${index + 1}: this markdown content exists to exercise the general chunking fallback path.`;
     }).join("\n");
 
-    vi.spyOn(fs, "readFileSync").mockReturnValue(markdown);
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chunking-test-"));
+    const docsDir = path.join(tempRoot, "docs");
+    const markdownPath = path.join(docsDir, "guide.md");
 
-    const chunks = chunkFile("/workspace/docs/guide.md", "/workspace");
+    fs.mkdirSync(docsDir, { recursive: true });
+    fs.writeFileSync(markdownPath, markdown, "utf8");
 
-    expect(chunks.length).toBeGreaterThan(0);
-    expect(chunks[0]?.chunkType).toBe("general");
-    expect(chunks[0]?.chunkName).toBe("guide.md");
-    expect(chunks[0]?.filePath).toBe("docs/guide.md");
+    try {
+      const chunks = chunkFile(markdownPath, tempRoot);
+
+      expect(chunks.length).toBeGreaterThan(0);
+      expect(chunks[0]?.chunkType).toBe("general");
+      expect(chunks[0]?.chunkName).toBe("guide.md");
+      expect(chunks[0]?.filePath.replaceAll("\\", "/")).toBe("docs/guide.md");
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 });

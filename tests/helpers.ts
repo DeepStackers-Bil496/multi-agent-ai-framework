@@ -17,6 +17,39 @@ export type UserContext = {
   request: APIRequestContext;
 };
 
+async function waitForAuthenticatedSession(context: BrowserContext) {
+  await expect
+    .poll(
+      async () => {
+        const cookies = await context.cookies();
+
+        return cookies.some((cookie) => cookie.name.includes("session-token"));
+      },
+      {
+        message: "Expected an auth session cookie after registration",
+        timeout: 15_000,
+      }
+    )
+    .toBe(true);
+}
+
+async function signInWithCredentials({
+  page,
+  email,
+  password,
+}: {
+  page: Page;
+  email: string;
+  password: string;
+}) {
+  await page.goto("http://localhost:3000/login");
+  await page.getByPlaceholder("user@acme.com").click();
+  await page.getByPlaceholder("user@acme.com").fill(email);
+  await page.getByLabel("Password").click();
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign In" }).click();
+}
+
 export async function createAuthenticatedContext({
   browser,
   name,
@@ -46,20 +79,15 @@ export async function createAuthenticatedContext({
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign Up" }).click();
 
-  await expect(page.getByTestId("toast")).toContainText(
-    "Account created successfully!"
-  );
+  const toast = page.getByTestId("toast");
+  await expect(toast).toBeVisible();
+  const toastText = (await toast.textContent()) ?? "";
 
-  // ── Wait for the chat UI to be ready ─────────────────────────────────────
-  // After registration the app redirects to "/" and hydrates the React shell.
-  // We only need the session cookie to be set — we do NOT interact with the
-  // model selector here because:
-  //   • Route tests use adaContext.request (HTTP only) and never touch the page.
-  //   • E2E tests call chooseModelFromSelector() themselves inside each test.
-  // Trying to click the selector here races against hydration and causes
-  // intermittent 30 s timeouts, so we skip it and just persist the session.
-  await page.waitForURL("http://localhost:3000/");
-  await page.waitForLoadState("domcontentloaded");
+  if (!toastText.includes("Account created successfully!")) {
+    await signInWithCredentials({ page, email, password });
+  }
+
+  await waitForAuthenticatedSession(context);
 
   await context.storageState({ path: storageFile });
   await page.close();
@@ -67,6 +95,8 @@ export async function createAuthenticatedContext({
   // ── Return a fresh context backed by the saved session ───────────────────
   const newContext = await browser.newContext({ storageState: storageFile });
   const newPage = await newContext.newPage();
+  await newPage.goto("http://localhost:3000/");
+  await newPage.waitForLoadState("domcontentloaded");
 
   return {
     context: newContext,

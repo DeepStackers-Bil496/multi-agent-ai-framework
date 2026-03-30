@@ -4,8 +4,11 @@ import {
   createOwnedDocument,
   expectGuestRedirect,
 } from "./utils";
-import { createStreamId, saveChat, saveMessages } from "@/lib/db/queries";
 import { generateUUID } from "@/lib/utils";
+
+async function getDbQueries() {
+  return import("@/lib/db/queries");
+}
 
 test.describe("/api/chat/[id]/stream", () => {
   test("anonymous GET is redirected to guest auth", async ({ request }) => {
@@ -34,6 +37,7 @@ test.describe("/api/chat/[id]/stream", () => {
     try {
       const document = await createOwnedDocument(isolated.request);
       const chatId = generateUUID();
+      const { saveChat } = await getDbQueries();
 
       await saveChat({
         id: chatId,
@@ -61,6 +65,7 @@ test.describe("/api/chat/[id]/stream", () => {
     try {
       const document = await createOwnedDocument(ada.request);
       const chatId = generateUUID();
+      const { createStreamId, saveChat } = await getDbQueries();
 
       await saveChat({
         id: chatId,
@@ -93,6 +98,7 @@ test.describe("/api/chat/[id]/stream", () => {
     try {
       const document = await createOwnedDocument(isolated.request);
       const chatId = generateUUID();
+      const { createStreamId, saveChat, saveMessages } = await getDbQueries();
 
       await saveChat({
         id: chatId,

@@ -1,23 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Tests for lib/agents/searchAgent/tools.ts
- *
- * Real exports:
- *   createWebSearchTool()         — DuckDuckGo web search
- *   createNewsSearchTool()        — news search
- *   createAcademicSearchTool()    — arXiv academic search
- *   createFetchUrlTool()          — fetch a URL's content
- *   createScrapeTextTool()        — scrape text from a page
- *   createExtractLinksTool()      — extract links from a page
- *   createExtractMetadataTool()   — extract page metadata
- *   createAllSearchAgentTools()   — returns all tools above as array
- *
- * We mock duck-duck-scrape and global fetch so no real HTTP calls are made.
- */
-
-vi.mock("duck-duck-scrape", () => ({
-  search: vi.fn().mockResolvedValue({
+const {
+  mockSearch,
+  mockSearchNews,
+  mockExaSearchAndContents,
+  mockFetch,
+} = vi.hoisted(() => ({
+  mockSearch: vi.fn().mockResolvedValue({
     results: [
       {
         title: "Test Result",
@@ -27,38 +16,76 @@ vi.mock("duck-duck-scrape", () => ({
     ],
     noResults: false,
   }),
+  mockSearchNews: vi.fn().mockResolvedValue({ results: [] }),
+  mockExaSearchAndContents: vi.fn().mockResolvedValue({
+    results: [
+      {
+        title: "Exa Result",
+        url: "https://example.com/exa",
+        highlights: ["A semantic search result"],
+      },
+    ],
+  }),
+  mockFetch: vi.fn(),
+}));
+
+vi.mock("duck-duck-scrape", () => ({
+  search: mockSearch,
+  searchNews: mockSearchNews,
   SafeSearchType: { STRICT: "STRICT", MODERATE: "MODERATE", OFF: "OFF" },
+}));
+
+vi.mock("exa-js", () => ({
+  default: vi.fn().mockImplementation(function MockExa() {
+    return {
+      searchAndContents: mockExaSearchAndContents,
+    };
+  }),
 }));
 
 const mockHtml = `<html><head><title>Test</title></head><body><p>Hello world</p><a href="https://example.com">Link</a></body></html>`;
 
-vi.stubGlobal(
-  "fetch",
-  vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    text: vi.fn().mockResolvedValue(mockHtml),
-    json: vi.fn().mockResolvedValue({}),
-  })
-);
+vi.stubGlobal("fetch", mockFetch);
+mockFetch.mockResolvedValue({
+  ok: true,
+  status: 200,
+  text: vi.fn().mockResolvedValue(mockHtml),
+  json: vi.fn().mockResolvedValue({}),
+});
+
+import * as mod from "@/lib/agents/searchAgent/tools";
 
 describe("SearchAgent Tools", () => {
-  let mod: typeof import("@/lib/agents/searchAgent/tools");
-
-  beforeEach(async () => {
-    vi.resetModules();
-    vi.mock("duck-duck-scrape", () => ({
-      search: vi.fn().mockResolvedValue({
-        results: [{ title: "Test Result", url: "https://example.com", description: "desc" }],
-        noResults: false,
-      }),
-      SafeSearchType: { STRICT: "STRICT", MODERATE: "MODERATE", OFF: "OFF" },
-    }));
-    mod = await import("@/lib/agents/searchAgent/tools");
-  });
-
   afterEach(() => {
     vi.clearAllMocks();
+    delete process.env.EXA_API_KEY;
+
+    mockSearch.mockResolvedValue({
+      results: [
+        {
+          title: "Test Result",
+          url: "https://example.com",
+          description: "A test search result description",
+        },
+      ],
+      noResults: false,
+    });
+    mockSearchNews.mockResolvedValue({ results: [] });
+    mockExaSearchAndContents.mockResolvedValue({
+      results: [
+        {
+          title: "Exa Result",
+          url: "https://example.com/exa",
+          highlights: ["A semantic search result"],
+        },
+      ],
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue(mockHtml),
+      json: vi.fn().mockResolvedValue({}),
+    });
   });
 
   it("createAllSearchAgentTools() returns a non-empty array of tools", () => {
@@ -113,13 +140,11 @@ describe("SearchAgent Tools", () => {
   });
 
   it("createWebSearchTool handles search errors and returns a string", async () => {
-    vi.mock("duck-duck-scrape", () => ({
-      search: vi.fn().mockRejectedValue(new Error("Network failure")),
-      SafeSearchType: { STRICT: "STRICT", MODERATE: "MODERATE", OFF: "OFF" },
-    }));
-    const freshMod = await import("@/lib/agents/searchAgent/tools");
-    const tool = freshMod.createWebSearchTool();
+    mockSearch.mockRejectedValueOnce(new Error("Network failure"));
+
+    const tool = mod.createWebSearchTool();
     const result = await tool.invoke({ query: "test" });
     expect(typeof result).toBe("string");
+    expect(result).toContain("Error performing web search");
   });
 });

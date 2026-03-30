@@ -27,6 +27,21 @@ export class AuthPage {
     await this.page.getByRole("button", { name: "Sign Up" }).click();
   }
 
+  private async waitForAuthenticatedSession() {
+    await expect
+      .poll(
+        async () => {
+          const cookies = await this.page.context().cookies();
+
+          return cookies.some((cookie) => cookie.name.includes("session-token"));
+        },
+        {
+          message: "Expected an auth session cookie after login",
+        }
+      )
+      .toBe(true);
+  }
+
   async login(email: string, password: string) {
     await this.gotoLogin();
     await this.page.getByPlaceholder("user@acme.com").click();
@@ -34,11 +49,13 @@ export class AuthPage {
     await this.page.getByLabel("Password").click();
     await this.page.getByLabel("Password").fill(password);
     await this.page.getByRole("button", { name: "Sign In" }).click();
+    await this.waitForAuthenticatedSession();
+    await this.page.goto("/");
+    await this.page.waitForLoadState("domcontentloaded");
   }
 
   async logout(email: string, password: string) {
     await this.login(email, password);
-    await this.page.waitForURL("/");
 
     await this.openSidebar();
 

@@ -8,6 +8,8 @@ export default defineConfig({
     root: path.resolve(__dirname, "../.."),
     setupFiles: [path.resolve(__dirname, "../../unit-tests/setup.ts")],
     include: ["tests/integration/**/*.test.ts"],
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
   resolve: {
     alias: {

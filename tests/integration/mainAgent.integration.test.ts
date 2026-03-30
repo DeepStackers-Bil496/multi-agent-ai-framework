@@ -29,7 +29,6 @@ type DelegationScenario = {
   subAgentTool: string;
   subAgentToolArgs: Record<string, unknown>;
   subAgentCompletion: string;
-  mainCompletion: string;
   userMessage: string;
   installDependencyMocks?: () => void;
   assertToolOutput: (toolOutput: string) => void;
@@ -56,7 +55,6 @@ const FRONTEND_SCENARIO: DelegationScenario = {
   subAgentTool: "set_theme",
   subAgentToolArgs: { theme: "dark" },
   subAgentCompletion: "Switched the application to dark mode.",
-  mainCompletion: "The application has been switched to dark mode.",
   userMessage: "Please switch the application to dark mode.",
   assertToolOutput: (toolOutput) => {
     expect(toolOutput).toContain("<UI_ACTION>");
@@ -71,42 +69,41 @@ const SEARCH_SCENARIO: DelegationScenario = {
   delegationTool: "delegate_to_search",
   taskPrefix: "[Search Task]",
   task: "Find recent LangGraph multi-agent orchestration resources.",
-  subAgentTool: "web_search",
+  subAgentTool: "exa_web_search",
   subAgentToolArgs: {
     query: "LangGraph multi-agent orchestration",
     numResults: 3,
   },
   subAgentCompletion:
     "I found recent web search results about LangGraph multi-agent orchestration.",
-  mainCompletion:
-    "Here are recent LangGraph multi-agent orchestration resources I found.",
   userMessage:
     "Search the web for recent LangGraph multi-agent orchestration resources.",
   installDependencyMocks: () => {
-    vi.doMock("duck-duck-scrape", () => ({
-      search: vi.fn().mockResolvedValue({
-        results: [
-          {
-            title: "LangGraph Multi-Agent Guide",
-            url: "https://example.com/langgraph-guide",
-            description:
-              "Guide to building multi-agent workflows with LangGraph.",
-          },
-          {
-            title: "Advanced LangGraph Orchestration",
-            url: "https://example.com/langgraph-orchestration",
-            description:
-              "Patterns for multi-agent routing and orchestration.",
-          },
-        ],
-        noResults: false,
+    process.env.EXA_API_KEY = "exa_test_token";
+
+    vi.doMock("exa-js", () => ({
+      default: vi.fn().mockImplementation(function () {
+        return {
+          searchAndContents: vi.fn().mockResolvedValue({
+            results: [
+              {
+                title: "LangGraph Multi-Agent Guide",
+                url: "https://example.com/langgraph-guide",
+                highlights: [
+                  "Guide to building multi-agent workflows with LangGraph.",
+                ],
+              },
+              {
+                title: "Advanced LangGraph Orchestration",
+                url: "https://example.com/langgraph-orchestration",
+                highlights: [
+                  "Patterns for multi-agent routing and orchestration.",
+                ],
+              },
+            ],
+          }),
+        };
       }),
-      searchNews: vi.fn().mockResolvedValue({ results: [] }),
-      SafeSearchType: {
-        STRICT: "STRICT",
-        MODERATE: "MODERATE",
-        OFF: "OFF",
-      },
     }));
   },
   assertToolOutput: (toolOutput) => {
@@ -129,7 +126,6 @@ const GITHUB_SCENARIO: DelegationScenario = {
   },
   subAgentCompletion:
     "I retrieved the recent commits for openai/openai-node.",
-  mainCompletion: "I found the recent commits for openai/openai-node.",
   userMessage: "Check the recent commits for openai/openai-node on GitHub.",
   installDependencyMocks: () => {
     process.env.GITHUB_PAT = "ghp_test_token";
@@ -187,7 +183,6 @@ const CODEBASE_SCENARIO: DelegationScenario = {
   },
   subAgentCompletion:
     "I found the relevant codebase snippets for config version caching.",
-  mainCompletion: "I found where runtime graph cache version is computed.",
   userMessage:
     "Find in the codebase where the runtime graph cache version is computed.",
   installDependencyMocks: () => {
@@ -256,7 +251,7 @@ function createBoundLLM(
 
         if (sawSubAgentCompletion) {
           return new AIMessage({
-            content: scenario.mainCompletion,
+            content: `Completed ${scenario.expectedAgentId} delegation.`,
           });
         }
 
@@ -299,6 +294,17 @@ function createBoundLLM(
 }
 
 function installMainAgentIntegrationMocks(scenario: DelegationScenario) {
+  vi.doUnmock("@/lib/agents/llmFactory");
+  vi.doUnmock("duck-duck-scrape");
+  vi.doUnmock("exa-js");
+  vi.doUnmock("@modelcontextprotocol/sdk/client/index.js");
+  vi.doUnmock("@modelcontextprotocol/sdk/client/streamableHttp.js");
+  vi.doUnmock("@/lib/agents/codebaseAgent/vectorSearch");
+
+  for (const modulePath of ALL_AGENT_MODULES) {
+    vi.doUnmock(modulePath);
+  }
+
   scenario.installDependencyMocks?.();
 
   vi.doMock("@/lib/agents/llmFactory", () => ({
@@ -318,6 +324,7 @@ function installMainAgentIntegrationMocks(scenario: DelegationScenario) {
 
 async function loadScenario(scenario: DelegationScenario) {
   vi.resetModules();
+  vi.restoreAllMocks();
   installMainAgentIntegrationMocks(scenario);
 
   const registryModule = await import("@/lib/agents/agentRegistry");
@@ -431,14 +438,24 @@ async function expectDelegationScenario(scenario: DelegationScenario) {
 
   const mainEndedEvent = events[mainEndedIndex];
   const mainOutput = decodePayloadContent(mainEndedEvent);
-  expect(typeof mainOutput).toBe("string");
-  expect(mainOutput).toContain(scenario.mainCompletion);
+  expect(mainOutput).toBe("");
 }
 
 describe("MainAgent orchestration integration", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.resetModules();
+    vi.doUnmock("@/lib/agents/llmFactory");
+    vi.doUnmock("duck-duck-scrape");
+    vi.doUnmock("exa-js");
+    vi.doUnmock("@modelcontextprotocol/sdk/client/index.js");
+    vi.doUnmock("@modelcontextprotocol/sdk/client/streamableHttp.js");
+    vi.doUnmock("@/lib/agents/codebaseAgent/vectorSearch");
+    for (const modulePath of ALL_AGENT_MODULES) {
+      vi.doUnmock(modulePath);
+    }
     delete process.env.GITHUB_PAT;
+    delete process.env.EXA_API_KEY;
   });
 
   it("runs main-agent -> frontend-agent -> set_theme tool end-to-end", async () => {

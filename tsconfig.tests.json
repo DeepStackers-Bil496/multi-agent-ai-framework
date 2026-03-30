@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "plugins": [],
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "unit-tests/**/*.ts",
+    "unit-tests/**/*.tsx",
+    "playwright/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
