@@ -18,6 +18,9 @@ const PORT = process.env.PORT || 3000;
  * of the WebServer respecting the correct set port
  */
 const baseURL = `http://localhost:${PORT}`;
+const defaultWorkers = process.env.CI ? 2 : 2;
+const routeTraceMode =
+  process.env.PLAYWRIGHT_ROUTE_TRACE === "True" ? "retain-on-failure" : "off";
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -25,13 +28,13 @@ const baseURL = `http://localhost:${PORT}`;
 export default defineConfig({
   testDir: "./tests",
   /* Run tests in files in parallel */
-  fullyParallel: true,
+  fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 2 : 8,
+  workers: defaultWorkers,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -63,6 +66,9 @@ export default defineConfig({
       testMatch: /routes\/.*.test.ts/,
       use: {
         ...devices["Desktop Chrome"],
+        trace: routeTraceMode,
+        screenshot: "off",
+        video: "off",
       },
     },
     {
@@ -107,6 +113,6 @@ export default defineConfig({
     command: "pnpm dev",
     url: `${baseURL}/ping`,
     timeout: 120 * 1000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "True",
   },
 });

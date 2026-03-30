@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 import { createIsolatedUserContext, expectGuestRedirect } from "./utils";
 
 test.describe("/api/settings/profile", () => {

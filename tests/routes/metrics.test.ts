@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 import type { ExecutionStep } from "@/lib/types";
 import {
   createIsolatedUserContext,

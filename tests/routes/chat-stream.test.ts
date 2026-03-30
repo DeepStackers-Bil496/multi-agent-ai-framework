@@ -1,14 +1,13 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 import {
   createIsolatedUserContext,
   createOwnedDocument,
+  createStreamIdForChat,
   expectGuestRedirect,
+  seedChatForUser,
+  seedEmptyChatForUser,
 } from "./utils";
 import { generateUUID } from "@/lib/utils";
-
-async function getDbQueries() {
-  return import("@/lib/db/queries");
-}
 
 test.describe("/api/chat/[id]/stream", () => {
   test("anonymous GET is redirected to guest auth", async ({ request }) => {
@@ -36,14 +35,9 @@ test.describe("/api/chat/[id]/stream", () => {
 
     try {
       const document = await createOwnedDocument(isolated.request);
-      const chatId = generateUUID();
-      const { saveChat } = await getDbQueries();
-
-      await saveChat({
-        id: chatId,
+      const chatId = await seedEmptyChatForUser({
         userId: document.userId,
         title: "Stream Route Seed Chat",
-        visibility: "private",
       });
 
       const response = await isolated.request.get(`/api/chat/${chatId}/stream`);
@@ -64,20 +58,12 @@ test.describe("/api/chat/[id]/stream", () => {
 
     try {
       const document = await createOwnedDocument(ada.request);
-      const chatId = generateUUID();
-      const { createStreamId, saveChat } = await getDbQueries();
-
-      await saveChat({
-        id: chatId,
+      const chatId = await seedEmptyChatForUser({
         userId: document.userId,
         title: "Ada Private Stream Chat",
-        visibility: "private",
       });
 
-      await createStreamId({
-        streamId: generateUUID(),
-        chatId,
-      });
+      await createStreamIdForChat(chatId);
 
       const response = await babbage.request.get(`/api/chat/${chatId}/stream`);
 
@@ -97,33 +83,13 @@ test.describe("/api/chat/[id]/stream", () => {
 
     try {
       const document = await createOwnedDocument(isolated.request);
-      const chatId = generateUUID();
-      const { createStreamId, saveChat, saveMessages } = await getDbQueries();
-
-      await saveChat({
-        id: chatId,
+      const chatId = await seedChatForUser({
         userId: document.userId,
         title: "Restorable Stream Chat",
-        visibility: "private",
+        assistantParts: [{ type: "text", text: "Restored assistant message" }],
       });
 
-      await saveMessages({
-        messages: [
-          {
-            id: generateUUID(),
-            chatId,
-            role: "assistant",
-            parts: [{ type: "text", text: "Restored assistant message" }],
-            attachments: [],
-            createdAt: new Date(),
-          },
-        ],
-      });
-
-      await createStreamId({
-        streamId: generateUUID(),
-        chatId,
-      });
+      await createStreamIdForChat(chatId);
 
       const response = await isolated.request.get(`/api/chat/${chatId}/stream`);
       expect(response.status()).toBe(200);

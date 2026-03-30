@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 
 /**
  * Route tests for GET /api/history and DELETE /api/history

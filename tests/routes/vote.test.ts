@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 import { createAgentChat, expectGuestRedirect, getAssistantMessageId } from "./utils";
 import { generateUUID } from "@/lib/utils";
 

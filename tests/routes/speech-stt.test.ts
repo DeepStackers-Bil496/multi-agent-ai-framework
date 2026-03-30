@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 import { expectGuestRedirect } from "./utils";
 
 test.describe("/api/speech/stt", () => {

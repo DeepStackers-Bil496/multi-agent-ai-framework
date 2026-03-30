@@ -17,6 +17,12 @@ export type UserContext = {
   request: APIRequestContext;
 };
 
+type AuthenticatedContextOptions = {
+  browser: Browser;
+  name: string;
+  navigateToRoot?: boolean;
+};
+
 async function waitForAuthenticatedSession(context: BrowserContext) {
   await expect
     .poll(
@@ -50,13 +56,21 @@ async function signInWithCredentials({
   await page.getByRole("button", { name: "Sign In" }).click();
 }
 
+function buildTestEmail(name: string) {
+  const safePrefix = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 12);
+  const uniqueSuffix = generateId().toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
+
+  return `pw-${safePrefix}-${uniqueSuffix}@playwright.dev`;
+}
+
 export async function createAuthenticatedContext({
   browser,
   name,
-}: {
-  browser: Browser;
-  name: string;
-}): Promise<UserContext> {
+  navigateToRoot = true,
+}: AuthenticatedContextOptions): Promise<UserContext> {
   const directory = path.join(__dirname, "../playwright/.sessions");
 
   if (!fs.existsSync(directory)) {
@@ -68,7 +82,7 @@ export async function createAuthenticatedContext({
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  const email = `test-${name}@playwright.com`;
+  const email = buildTestEmail(name);
   const password = generateId();
 
   // ── Register the user ────────────────────────────────────────────────────
@@ -95,14 +109,31 @@ export async function createAuthenticatedContext({
   // ── Return a fresh context backed by the saved session ───────────────────
   const newContext = await browser.newContext({ storageState: storageFile });
   const newPage = await newContext.newPage();
-  await newPage.goto("http://localhost:3000/");
-  await newPage.waitForLoadState("domcontentloaded");
+
+  if (navigateToRoot) {
+    await newPage.goto("http://localhost:3000/");
+    await newPage.waitForLoadState("domcontentloaded");
+  }
 
   return {
     context: newContext,
     page: newPage,
     request: newContext.request,
   };
+}
+
+export async function createAuthenticatedRequestContext({
+  browser,
+  name,
+}: {
+  browser: Browser;
+  name: string;
+}): Promise<UserContext> {
+  return createAuthenticatedContext({
+    browser,
+    name,
+    navigateToRoot: false,
+  });
 }
 
 export function generateRandomTestUser() {

@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 import { createOwnedDocument, expectGuestRedirect, seedDocumentSuggestion } from "./utils";
 import { generateUUID } from "@/lib/utils";
 

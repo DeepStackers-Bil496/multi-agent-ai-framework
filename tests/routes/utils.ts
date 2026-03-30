@@ -1,22 +1,53 @@
 import type { APIRequestContext, Browser } from "@playwright/test";
-import { expect } from "../fixtures";
-import { createAuthenticatedContext, type UserContext } from "../helpers";
+import { expect } from "./fixtures";
+import {
+  createAuthenticatedRequestContext,
+  type UserContext,
+} from "../helpers";
 import type { Document } from "@/lib/db/schema";
 import type { AppUsage } from "@/lib/usage";
 import type { ExecutionStep } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
 
 type OwnedDocument = Omit<Document, "createdAt"> & { createdAt: Date };
+type SeededSuggestion = {
+  id: string;
+  documentId: string;
+  documentCreatedAt: Date;
+  originalText: string;
+  suggestedText: string;
+  description: string;
+  isResolved: boolean;
+  userId: string;
+  createdAt: Date;
+};
 
-async function getDbQueries() {
-  return import("@/lib/db/queries");
+const TEST_SEED_ROUTE = `http://localhost:${process.env.PORT || 3000}/api/testing/seed`;
+
+async function postTestSeed<T>(body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(TEST_SEED_ROUTE, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Test seed request failed (${response.status}): ${errorText || response.statusText}`
+    );
+  }
+
+  return response.json() as Promise<T>;
 }
 
 export async function createIsolatedUserContext(
   browser: Browser,
   prefix: string
 ): Promise<UserContext> {
-  return createAuthenticatedContext({
+  return createAuthenticatedRequestContext({
     browser,
     name: `${prefix}-${generateUUID()}`,
   });
@@ -66,52 +97,23 @@ export async function seedChatForUser({
   assistantParts?: Array<Record<string, unknown>>;
   lastContext?: { totalTokens?: number; inputTokens?: number; outputTokens?: number };
 }) {
-  const chatId = generateUUID();
-  const { saveChat, saveMessages, updateChatLastContextById } =
-    await getDbQueries();
-
-  await saveChat({
-    id: chatId,
+  const payload = await postTestSeed<{ chatId: string }>({
+    action: "seedChat",
     userId,
     title,
-    visibility: "private",
+    assistantParts:
+      assistantParts ??
+      [{ type: "text", text: `${title} assistant response` }],
+    lastContext: lastContext
+      ? ({
+          totalTokens: lastContext.totalTokens ?? 0,
+          inputTokens: lastContext.inputTokens ?? 0,
+          outputTokens: lastContext.outputTokens ?? 0,
+        } satisfies AppUsage)
+      : undefined,
   });
 
-  await saveMessages({
-    messages: [
-      {
-        id: generateUUID(),
-        chatId,
-        role: "user",
-        parts: [{ type: "text", text: `${title} user prompt` }],
-        attachments: [],
-        createdAt: new Date(),
-      },
-      {
-        id: generateUUID(),
-        chatId,
-        role: "assistant",
-        parts:
-          assistantParts ??
-          [{ type: "text", text: `${title} assistant response` }],
-        attachments: [],
-        createdAt: new Date(),
-      },
-    ],
-  });
-
-  if (lastContext) {
-    await updateChatLastContextById({
-      chatId,
-      context: {
-        totalTokens: lastContext.totalTokens ?? 0,
-        inputTokens: lastContext.inputTokens ?? 0,
-        outputTokens: lastContext.outputTokens ?? 0,
-      } as AppUsage,
-    });
-  }
-
-  return chatId;
+  return payload.chatId;
 }
 
 export async function seedExecutionChatForUser({
@@ -159,15 +161,12 @@ export async function createAgentChat(
 }
 
 export async function getAssistantMessageId(chatId: string) {
-  const { getMessagesByChatId } = await getDbQueries();
-  const messages = await getMessagesByChatId({ id: chatId });
-  const assistantMessage = messages.find((message) => message.role === "assistant");
+  const payload = await postTestSeed<{ assistantMessageId: string }>({
+    action: "getAssistantMessageId",
+    chatId,
+  });
 
-  if (!assistantMessage) {
-    throw new Error(`No assistant message found for chat ${chatId}`);
-  }
-
-  return assistantMessage.id;
+  return payload.assistantMessageId;
 }
 
 export async function seedDocumentSuggestion({
@@ -177,19 +176,51 @@ export async function seedDocumentSuggestion({
   document: OwnedDocument;
   userId: string;
 }) {
-  const { saveSuggestions } = await getDbQueries();
-  const suggestion = {
-    id: generateUUID(),
+  const payload = await postTestSeed<{
+    id: string;
+    documentId: string;
+    documentCreatedAt: string;
+    originalText: string;
+    suggestedText: string;
+    description: string;
+    isResolved: boolean;
+    userId: string;
+    createdAt: string;
+  }>({
+    action: "seedSuggestion",
     documentId: document.id,
-    documentCreatedAt: document.createdAt,
-    originalText: "Original sentence",
-    suggestedText: "Improved sentence",
-    description: "Tighten the wording",
-    isResolved: false,
+    documentCreatedAt: document.createdAt.toISOString(),
     userId,
-    createdAt: new Date(),
-  };
+  });
 
-  await saveSuggestions({ suggestions: [suggestion] });
-  return suggestion;
+  return {
+    ...payload,
+    documentCreatedAt: new Date(payload.documentCreatedAt),
+    createdAt: new Date(payload.createdAt),
+  } satisfies SeededSuggestion;
+}
+
+export async function seedEmptyChatForUser({
+  userId,
+  title,
+}: {
+  userId: string;
+  title: string;
+}) {
+  const payload = await postTestSeed<{ chatId: string }>({
+    action: "seedEmptyChat",
+    userId,
+    title,
+  });
+
+  return payload.chatId;
+}
+
+export async function createStreamIdForChat(chatId: string) {
+  const payload = await postTestSeed<{ streamId: string }>({
+    action: "createStreamId",
+    chatId,
+  });
+
+  return payload.streamId;
 }

@@ -1,5 +1,5 @@
 import { generateUUID } from "@/lib/utils";
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 
 /**
  * Route tests for POST /api/chat — agent integration path.
