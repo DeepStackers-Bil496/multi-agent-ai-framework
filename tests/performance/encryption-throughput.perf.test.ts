@@ -1,5 +1,5 @@
 import { generateUUID } from "@/lib/utils";
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 
 /**
  * Performance tests — encryption throughput (via agent-config API round-trips)

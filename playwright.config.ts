@@ -18,7 +18,14 @@ const PORT = process.env.PORT || 3000;
  * of the WebServer respecting the correct set port
  */
 const baseURL = `http://localhost:${PORT}`;
-const defaultWorkers = process.env.CI ? 2 : 2;
+const configuredWorkers = Number.parseInt(
+  process.env.PLAYWRIGHT_WORKERS ?? "",
+  10
+);
+const defaultWorkers =
+  Number.isFinite(configuredWorkers) && configuredWorkers > 0
+    ? configuredWorkers
+    : 1;
 const routeTraceMode =
   process.env.PLAYWRIGHT_ROUTE_TRACE === "True" ? "retain-on-failure" : "off";
 
@@ -114,5 +121,9 @@ export default defineConfig({
     url: `${baseURL}/ping`,
     timeout: 120 * 1000,
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "True",
+    env: {
+      ...process.env,
+      PLAYWRIGHT: process.env.PLAYWRIGHT ?? "True",
+    },
   },
 });

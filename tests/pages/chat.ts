@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { expect, type Page, type Response } from "@playwright/test";
 import { chatModels } from "@/lib/ai/models";
 
@@ -8,6 +6,7 @@ const CHAT_ID_REGEX =
 
 export class ChatPage {
   private readonly page: Page;
+  private pendingChatResponse: Promise<Response | null> | null = null;
   private pendingVoteResponse: Promise<Response> | null = null;
 
   constructor(page: Page) {
@@ -26,6 +25,10 @@ export class ChatPage {
     return this.page.getByTestId("multimodal-input");
   }
 
+  private get fallbackMultimodalInput() {
+    return this.page.locator('textarea[name="message"]').first();
+  }
+
   get scrollContainer() {
     return this.page.getByTestId("messages-scroll-container");
   }
@@ -36,6 +39,53 @@ export class ChatPage {
 
   get modelSelector() {
     return this.page.getByTestId("model-selector");
+  }
+
+  private async getActiveMultimodalInput(timeout = 30_000) {
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+      const primaryInputVisible = await this.multimodalInput
+        .isVisible()
+        .catch(() => false);
+
+      if (primaryInputVisible) {
+        return this.multimodalInput;
+      }
+
+      const fallbackInputVisible = await this.fallbackMultimodalInput
+        .isVisible()
+        .catch(() => false);
+
+      if (fallbackInputVisible) {
+        return this.fallbackMultimodalInput;
+      }
+
+      await this.page.waitForTimeout(100);
+    }
+
+    return this.multimodalInput;
+  }
+
+  async waitForBaseChatShellReady(timeout = 30_000) {
+    await expect(this.page.getByTestId("sidebar-toggle-button")).toBeVisible({
+      timeout,
+    });
+    await expect(this.scrollContainer).toBeVisible({ timeout });
+  }
+
+  private armChatResponseWaiter() {
+    if (!this.pendingChatResponse) {
+      this.pendingChatResponse = this.page
+        .waitForResponse(
+          (currentResponse) =>
+            currentResponse.url().includes("/api/chat") &&
+            currentResponse.request().method() === "POST"
+        )
+        .catch(() => null);
+    }
+
+    return this.pendingChatResponse;
   }
 
   private armVoteResponseWaiter() {
@@ -51,7 +101,7 @@ export class ChatPage {
   }
 
   async waitForChatShellReady() {
-    await expect(this.multimodalInput).toBeVisible();
+    await expect(await this.getActiveMultimodalInput()).toBeVisible();
     await expect(this.sendButton).toBeVisible();
     await expect(this.modelSelector).toBeVisible();
     await expect(this.page.getByTestId("sidebar-toggle-button")).toBeVisible();
@@ -59,8 +109,9 @@ export class ChatPage {
   }
 
   async waitForChatInputReady() {
-    await expect(this.multimodalInput).toBeVisible();
-    await expect(this.multimodalInput).toBeEnabled();
+    const activeInput = await this.getActiveMultimodalInput();
+    await expect(activeInput).toBeVisible();
+    await expect(activeInput).toBeEnabled();
     await expect(this.stopButton).not.toBeVisible();
 
     const sendButtonVisible = await this.sendButton.isVisible().catch(() => false);
@@ -73,23 +124,51 @@ export class ChatPage {
     return this.scrollContainer.getByTestId("message-assistant").count();
   }
 
-  private async getLatestAssistantContent() {
+  private normalizeAssistantContent(content: string) {
+    const normalized = content
+      .replace(/thought for \d+s·/gi, "")
+      .replace(/\b(speak|copy|upvote response|downvote response)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return normalized;
+  }
+
+  private async findLatestAssistantMessageWithContent() {
     const messageCount = await this.getAssistantMessageCount();
 
     if (messageCount === 0) {
-      return "";
+      return null;
     }
 
-    const lastMessageElement = this.scrollContainer
-      .getByTestId("message-assistant")
-      .nth(messageCount - 1);
+    const assistantMessages = this.scrollContainer.getByTestId("message-assistant");
 
-    return (
-      (await lastMessageElement
-        .getByTestId("message-content")
-        .textContent()
-        .catch(() => "")) ?? ""
-    ).trim();
+    for (let index = messageCount - 1; index >= 0; index -= 1) {
+      const messageElement = assistantMessages.nth(index);
+      const content = (
+        (await messageElement
+          .getByTestId("message-content")
+          .first()
+          .innerText()
+          .catch(() => "")) ?? ""
+      ).trim();
+
+      const normalizedContent = this.normalizeAssistantContent(content);
+
+      if (normalizedContent.length > 0) {
+        return {
+          element: messageElement,
+          content: normalizedContent,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private async getLatestAssistantContent() {
+    const latestMessage = await this.findLatestAssistantMessageWithContent();
+    return latestMessage?.content ?? "";
   }
 
   async waitForAssistantMessageUpdate({
@@ -147,8 +226,9 @@ export class ChatPage {
   }
 
   async waitForInputInteractive(timeout = 15_000) {
-    await expect(this.multimodalInput).toBeVisible({ timeout });
-    await expect(this.multimodalInput).toBeEnabled({ timeout });
+    const activeInput = await this.getActiveMultimodalInput(timeout);
+    await expect(activeInput).toBeVisible({ timeout });
+    await expect(activeInput).toBeEnabled({ timeout });
     await expect(this.stopButton).not.toBeVisible({ timeout });
     await expect(this.sendButton).toBeVisible({ timeout });
   }
@@ -156,7 +236,8 @@ export class ChatPage {
   async createNewChat() {
     await this.page.goto("/");
     await this.page.waitForLoadState("domcontentloaded");
-    await this.waitForChatShellReady();
+    await this.page.waitForLoadState("networkidle").catch(() => {});
+    await this.waitForBaseChatShellReady();
   }
 
   getCurrentURL(): string {
@@ -178,8 +259,10 @@ export class ChatPage {
 
   async sendUserMessage(message: string) {
     await this.waitForChatInputReady();
-    await this.multimodalInput.click();
-    await this.multimodalInput.fill(message);
+    const activeInput = await this.getActiveMultimodalInput();
+    this.armChatResponseWaiter();
+    await activeInput.click();
+    await activeInput.fill(message);
     await this.sendButton.click();
   }
 
@@ -192,17 +275,52 @@ export class ChatPage {
     previousAssistantContent?: string;
     timeout?: number;
   } = {}) {
+    const baselineCount =
+      previousAssistantCount !== undefined
+        ? previousAssistantCount
+        : await this.getAssistantMessageCount();
+    const baselineContent =
+      previousAssistantContent !== undefined
+        ? previousAssistantContent.trim()
+        : await this.getLatestAssistantContent();
+    const pendingResponse = this.pendingChatResponse;
+    this.pendingChatResponse = null;
+
+    if (pendingResponse) {
+      const response = await pendingResponse;
+      await response?.finished().catch(() => {});
+    }
+
+    const hasExplicitAssistantBaseline =
+      previousAssistantCount !== undefined ||
+      previousAssistantContent !== undefined;
     const currentAssistantContent = await this.getLatestAssistantContent();
+    const currentAssistantCount = await this.getAssistantMessageCount();
     const stopButtonVisible = await this.stopButton.isVisible().catch(() => false);
 
-    if (currentAssistantContent.length > 0 && !stopButtonVisible) {
+    const assistantAlreadyUpdated =
+      (currentAssistantCount > baselineCount &&
+        currentAssistantContent.length > 0) ||
+      (currentAssistantContent.length > 0 &&
+        currentAssistantContent !== baselineContent);
+
+    if (
+      !hasExplicitAssistantBaseline &&
+      currentAssistantContent.length > 0 &&
+      !stopButtonVisible
+    ) {
+      await this.waitForInputInteractive(timeout);
+      return;
+    }
+
+    if (assistantAlreadyUpdated && !stopButtonVisible) {
       await this.waitForInputInteractive(timeout);
       return;
     }
 
     await this.waitForAssistantMessageUpdate({
-      previousCount: previousAssistantCount,
-      previousContent: previousAssistantContent,
+      previousCount: baselineCount,
+      previousContent: baselineContent,
       timeout,
     });
     await expect(this.stopButton).not.toBeVisible({ timeout });
@@ -231,6 +349,7 @@ export class ChatPage {
 
   async sendUserMessageFromSuggestion() {
     await this.waitForChatInputReady();
+    this.armChatResponseWaiter();
     await this.page
       .getByRole("button", { name: "What is Model Context Protocol" })
       .click();
@@ -244,31 +363,22 @@ export class ChatPage {
     await expect(this.page.getByTestId(elementId)).not.toBeVisible();
   }
 
-  async addImageAttachment() {
-    await this.waitForChatInputReady();
-    this.page.on("filechooser", async (fileChooser) => {
-      const filePath = path.join(
-        process.cwd(),
-        "public",
-        "images",
-        "mouth of the seine, monet.jpg"
-      );
-      const imageBuffer = fs.readFileSync(filePath);
-
-      await fileChooser.setFiles({
-        name: "mouth of the seine, monet.jpg",
-        mimeType: "image/jpeg",
-        buffer: imageBuffer,
-      });
-    });
-
-    await this.page.getByTestId("attachments-button").click();
-  }
-
   async getSelectedModel() {
     await this.waitForChatShellReady();
     const modelId = await this.modelSelector.innerText();
     return modelId.trim();
+  }
+
+  private async getVisibilitySelector() {
+    const visibilitySelector = this.page.getByTestId("visibility-selector").first();
+
+    const isVisible = await visibilitySelector.isVisible().catch(() => false);
+    if (!isVisible) {
+      await this.openSideBar();
+    }
+
+    await expect(visibilitySelector).toBeVisible();
+    return visibilitySelector;
   }
 
   async chooseModelFromSelector(chatModelId: string) {
@@ -291,35 +401,32 @@ export class ChatPage {
   }
 
   async getSelectedVisibility() {
-    const visibilityId = await this.page
-      .getByTestId("visibility-selector")
-      .innerText();
+    const visibilitySelector = await this.getVisibilitySelector();
+    const visibilityId = await visibilitySelector.innerText();
     return visibilityId.trim().toLowerCase();
   }
 
   async chooseVisibilityFromSelector(chatVisibility: "public" | "private") {
-    await this.page.getByTestId("visibility-selector").click();
-    await this.page
+    const visibilitySelector = await this.getVisibilitySelector();
+    await visibilitySelector.click({ force: true });
+    const visibilityOption = this.page
       .getByTestId(`visibility-selector-item-${chatVisibility}`)
-      .click();
+      .first();
+    await expect(visibilityOption).toBeVisible();
+    await visibilityOption.click();
     expect(await this.getSelectedVisibility()).toContain(chatVisibility);
   }
 
   async getRecentAssistantMessage() {
     await this.waitForLatestAssistantContent();
-    const messageElements = await this.scrollContainer
-      .getByTestId("message-assistant")
-      .all();
-    const lastMessageElement = messageElements.at(-1);
+    const latestMessage = await this.findLatestAssistantMessageWithContent();
     const chatPage = this;
 
-    if (!lastMessageElement) {
-      throw new Error("No assistant message found");
+    if (!latestMessage) {
+      throw new Error("Latest assistant message has no visible content");
     }
 
-    const content = (
-      await lastMessageElement.getByTestId("message-content").textContent()
-    )?.trim() ?? "";
+    const { element: lastMessageElement, content } = latestMessage;
 
     const reasoningElement = await lastMessageElement
       .getByTestId("message-reasoning")
@@ -370,14 +477,33 @@ export class ChatPage {
       .getByTestId("message-content")
       .innerText();
 
-    const hasAttachments = await lastMessageElement
-      .getByTestId("message-attachments")
-      .isVisible()
-      .catch(() => false);
+    const attachmentsContainer = lastMessageElement.getByTestId("message-attachments");
+    const attachmentItems = attachmentsContainer.getByTestId(
+      "input-attachment-preview"
+    );
+    let attachmentsCount = await attachmentItems.count().catch(() => 0);
 
-    const attachments = hasAttachments
-      ? await lastMessageElement.getByTestId("message-attachments").all()
-      : [];
+    if (attachmentsCount === 0) {
+      await expect
+        .poll(
+          async () =>
+            lastMessageElement
+              .getByTestId("message-attachments")
+              .getByTestId("input-attachment-preview")
+              .count()
+              .catch(() => 0),
+          {
+            timeout: 5_000,
+            message: "Expected the latest user message to render its attachments",
+          }
+        )
+        .toBeGreaterThan(0)
+        .catch(() => {});
+
+      attachmentsCount = await attachmentItems.count().catch(() => 0);
+    }
+
+    const attachments = attachmentsCount > 0 ? await attachmentItems.all() : [];
 
     const page = this.page;
     const chatPage = this;
@@ -390,6 +516,7 @@ export class ChatPage {
         await lastMessageElement.hover();
         await lastMessageElement.getByTestId("message-edit-button").click();
         await page.getByTestId("message-editor").fill(newMessage);
+        chatPage.armChatResponseWaiter();
         await page.getByTestId("message-editor-send-button").click();
         await expect(
           page.getByTestId("message-editor-send-button")

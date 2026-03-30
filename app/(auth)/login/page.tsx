@@ -38,7 +38,8 @@ export default function Page() {
       });
     } else if (state.status === "success") {
       setIsSuccessful(true);
-      updateSession();
+      void updateSession();
+      router.push("/");
       router.refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

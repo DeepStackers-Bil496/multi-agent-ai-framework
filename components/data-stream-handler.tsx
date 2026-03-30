@@ -42,6 +42,7 @@ export function DataStreamHandler() {
             return {
               ...draftArtifact,
               documentId: delta.data,
+              isVisible: true,
               status: "streaming",
             };
 
@@ -49,6 +50,7 @@ export function DataStreamHandler() {
             return {
               ...draftArtifact,
               title: delta.data,
+              isVisible: true,
               status: "streaming",
             };
 
@@ -56,6 +58,7 @@ export function DataStreamHandler() {
             return {
               ...draftArtifact,
               kind: delta.data,
+              isVisible: true,
               status: "streaming",
             };
 

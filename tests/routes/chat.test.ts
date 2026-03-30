@@ -46,6 +46,23 @@ function userMessage(text: string) {
   };
 }
 
+function userMessageWithImage(text: string) {
+  return {
+    id: generateUUID(),
+    role: "user" as const,
+    parts: [
+      {
+        type: "file" as const,
+        url: "https://example.com/mouth-of-the-seine-monet.jpg",
+        name: "mouth-of-the-seine-monet.jpg",
+        mediaType: "image/jpeg",
+      },
+      { type: "text" as const, text },
+    ],
+    createdAt: new Date().toISOString(),
+  };
+}
+
 test.describe.serial("/api/chat — main-agent stream events", () => {
   // ─── Basic streaming response ────────────────────────────────────────────
 
@@ -257,6 +274,53 @@ test.describe.serial("/api/chat — main-agent stream events", () => {
     });
 
     expect(response.status()).toBe(200);
+  });
+
+  test("accepts a user message that includes an image file part", async ({
+    adaContext,
+  }) => {
+    const response = await adaContext.request.post("/api/chat", {
+      data: {
+        id: generateUUID(),
+        message: userMessageWithImage("Who painted this?"),
+        selectedChatModel: "main-agent",
+        selectedVisibilityType: "private",
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const body = await response.text();
+    expect(body.trim().length).toBeGreaterThan(0);
+  });
+
+  test("image file part + prompt produces the deterministic multimodal mock answer", async ({
+    adaContext,
+  }) => {
+    const response = await adaContext.request.post("/api/chat", {
+      data: {
+        id: generateUUID(),
+        message: userMessageWithImage("Who painted this?"),
+        selectedChatModel: "main-agent",
+        selectedVisibilityType: "private",
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const events = parseStreamEvents(await response.text());
+
+    const accumulated = events
+      .filter((e) => e.type === "agent_stream")
+      .map((e) => {
+        const content = e.payload.content;
+        if (typeof content === "string") return content;
+        if (content?.kwargs?.content) return content.kwargs.content;
+        if (content?.lc_kwargs?.content) return content.lc_kwargs.content;
+        if (content?.content) return content.content;
+        return "";
+      })
+      .join("");
+
+    expect(accumulated).toContain("Monet");
   });
 
   // ─── Schema validation ───────────────────────────────────────────────────

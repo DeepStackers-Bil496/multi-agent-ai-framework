@@ -16,11 +16,11 @@ export class ArtifactPage {
   }
 
   get stopButton() {
-    return this.page.getByTestId("stop-button");
+    return this.artifact.getByTestId("stop-button");
   }
 
   get multimodalInput() {
-    return this.page.getByTestId("multimodal-input");
+    return this.artifact.getByTestId("multimodal-input");
   }
 
   private get documentContent() {

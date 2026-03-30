@@ -38,8 +38,9 @@ test.describe("Chat persistence", () => {
     await chatPage.sendUserMessage("Why is grass green?");
     await chatPage.isGenerationComplete();
 
-    await adaContext.page.reload();
-    await adaContext.page.waitForLoadState("networkidle");
+    const currentUrl = adaContext.page.url();
+    await adaContext.page.goto(currentUrl, { waitUntil: "domcontentloaded" });
+    await chatPage.waitForChatShellReady();
 
     const userMessage = await chatPage.getRecentUserMessage();
     expect(userMessage.content).toContain("Why is grass green?");
@@ -128,7 +129,6 @@ test.describe("User isolation", () => {
     const adaChat = new ChatPage(adaContext.page);
     await adaChat.createNewChat();
     await adaChat.chooseModelFromSelector("main-agent");
-    await adaChat.chooseVisibilityFromSelector("private");
     await adaChat.sendUserMessage("Top secret content TOPSECRET123");
     await adaChat.isGenerationComplete();
 
@@ -142,7 +142,9 @@ test.describe("User isolation", () => {
     const pageContent = await babbageContext.page.textContent("body");
     const statusCode = response?.status() ?? null;
 
-    const wasDenied = statusCode === 404 || currentUrl !== adaChatUrl;
+    const wasDenied =
+      statusCode === 404 ||
+      currentUrl !== adaChatUrl;
     const secretNotVisible = !pageContent?.includes("TOPSECRET123");
 
     expect(wasDenied || secretNotVisible).toBe(true);

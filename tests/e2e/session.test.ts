@@ -100,6 +100,10 @@ test.describe
 
     const testUser = generateRandomTestUser();
 
+    const ensureExistingAccount = async () => {
+      await authPage.ensureRegistered(testUser.email, testUser.password);
+    };
+
     test.beforeEach(({ page }) => {
       authPage = new AuthPage(page);
     });
@@ -110,11 +114,13 @@ test.describe
     });
 
     test("Register new account with existing email", async () => {
+      await ensureExistingAccount();
       await authPage.register(testUser.email, testUser.password);
       await authPage.expectToastToContain("Account already exists!");
     });
 
     test("Log into account that exists", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
 
       await page.waitForURL("/");
@@ -122,6 +128,7 @@ test.describe
     });
 
     test("Display user email in user menu", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
 
       await page.waitForURL("/");
@@ -135,12 +142,14 @@ test.describe
     });
 
     test("Log out as non-guest user", async () => {
+      await ensureExistingAccount();
       await authPage.logout(testUser.email, testUser.password);
     });
 
     test("Do not force create a guest session if non-guest session already exists", async ({
       page,
     }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
@@ -156,6 +165,7 @@ test.describe
     });
 
     test("Log out is available for non-guest users", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
@@ -175,6 +185,7 @@ test.describe
     test("Do not navigate to /register for non-guest users", async ({
       page,
     }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
@@ -183,6 +194,7 @@ test.describe
     });
 
     test("Do not navigate to /login for non-guest users", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 

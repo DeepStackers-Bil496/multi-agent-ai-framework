@@ -29,6 +29,7 @@ async function postTestSeed<T>(body: Record<string, unknown>): Promise<T> {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      "x-playwright-test-seed": "true",
     },
     body: JSON.stringify(body),
   });

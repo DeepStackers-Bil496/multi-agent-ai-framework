@@ -23,7 +23,7 @@ type AuthenticatedContextOptions = {
 };
 
 async function waitForAuthenticatedSession(
-  context: BrowserContext,
+  page: Page,
   {
     expectedEmail,
     expectedType = "regular",
@@ -35,34 +35,103 @@ async function waitForAuthenticatedSession(
   await expect
     .poll(
       async () => {
-        const response = await context.request.get(
-          "http://localhost:3000/api/auth/session"
+        return page.evaluate(
+          async ({ email, type }) => {
+            try {
+              const response = await fetch("/api/auth/session", {
+                credentials: "include",
+              });
+
+              if (!response.ok()) {
+                return null;
+              }
+
+              const session = await response.json().catch(() => null);
+              const sessionEmail =
+                typeof session?.user?.email === "string"
+                  ? session.user.email
+                  : null;
+              const sessionType =
+                typeof session?.user?.type === "string"
+                  ? session.user.type
+                  : null;
+
+              if (email && sessionEmail !== email) {
+                return null;
+              }
+
+              if (sessionType !== type) {
+                return null;
+              }
+
+              return email ? `${sessionEmail}:${sessionType}` : sessionType;
+            } catch {
+              return null;
+            }
+          },
+          {
+            email: expectedEmail,
+            type: expectedType,
+          }
         );
-
-        if (!response.ok()) {
-          return null;
-        }
-
-        const session = await response.json().catch(() => null);
-        const sessionEmail =
-          typeof session?.user?.email === "string" ? session.user.email : null;
-        const sessionType =
-          typeof session?.user?.type === "string" ? session.user.type : null;
-
-        if (expectedEmail && sessionEmail !== expectedEmail) {
-          return null;
-        }
-
-        if (sessionType !== expectedType) {
-          return null;
-        }
-
-        return expectedEmail
-          ? `${sessionEmail}:${sessionType}`
-          : sessionType;
       },
       {
         message: "Expected the browser context to have a hydrated auth session",
+        timeout: 15_000,
+      }
+    )
+    .toBe(expectedEmail ? `${expectedEmail}:${expectedType}` : expectedType);
+}
+
+async function waitForAuthenticatedRequestSession(
+  request: APIRequestContext,
+  {
+    expectedEmail,
+    expectedType = "regular",
+  }: {
+    expectedEmail?: string;
+    expectedType?: "guest" | "regular";
+  } = {}
+) {
+  await expect
+    .poll(
+      async () => {
+        try {
+          const response = await request.get(
+            "http://localhost:3000/api/auth/session"
+          );
+
+          if (!response.ok()) {
+            return null;
+          }
+
+          const session = await response.json().catch(() => null);
+          const sessionEmail =
+            typeof session?.user?.email === "string"
+              ? session.user.email
+              : null;
+          const sessionType =
+            typeof session?.user?.type === "string"
+              ? session.user.type
+              : null;
+
+          if (expectedEmail && sessionEmail !== expectedEmail) {
+            return null;
+          }
+
+          if (sessionType !== expectedType) {
+            return null;
+          }
+
+          return expectedEmail
+            ? `${sessionEmail}:${sessionType}`
+            : sessionType;
+        } catch {
+          return null;
+        }
+      },
+      {
+        message: "Expected persisted storage state to carry an auth session",
         timeout: 15_000,
       }
     )
@@ -118,10 +187,10 @@ function buildTestEmail(name: string) {
   return `pw-${safePrefix}-${uniqueSuffix}@playwright.dev`;
 }
 
-export async function createAuthenticatedContext({
+async function createAuthenticatedContextOnce({
   browser,
   name,
-  navigateToRoot = true,
+  navigateToRoot,
 }: AuthenticatedContextOptions): Promise<UserContext> {
   const directory = path.join(__dirname, "../playwright/.sessions");
 
@@ -130,52 +199,87 @@ export async function createAuthenticatedContext({
   }
 
   const storageFile = path.join(directory, `${name}.json`);
+  const setupContext = await browser.newContext();
+  let newContext: BrowserContext | null = null;
 
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  try {
+    const page = await setupContext.newPage();
+    const email = buildTestEmail(name);
+    const password = generateId();
+    const username = email.split("@")[0];
 
-  const email = buildTestEmail(name);
-  const password = generateId();
+    await page.goto("http://localhost:3000/register");
+    await page.getByPlaceholder("user@acme.com").click();
+    await page.getByPlaceholder("user@acme.com").fill(email);
+    await page.getByLabel("Password").click();
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign Up" }).click();
 
-  // ── Register the user ────────────────────────────────────────────────────
-  await page.goto("http://localhost:3000/register");
-  await page.getByPlaceholder("user@acme.com").click();
-  await page.getByPlaceholder("user@acme.com").fill(email);
-  await page.getByLabel("Password").click();
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign Up" }).click();
+    const toast = page.getByTestId("toast");
+    await expect(toast).toBeVisible();
+    const toastText = (await toast.textContent()) ?? "";
 
-  const toast = page.getByTestId("toast");
-  await expect(toast).toBeVisible();
-  const toastText = (await toast.textContent()) ?? "";
+    if (!toastText.includes("Account created successfully!")) {
+      await signInWithCredentials({ page, email, password });
+    }
 
-  if (!toastText.includes("Account created successfully!")) {
-    await signInWithCredentials({ page, email, password });
+    await page.goto("http://localhost:3000/");
+    await page.waitForLoadState("domcontentloaded");
+    await waitForRegularUserShell(page, username);
+    await waitForAuthenticatedSession(page, {
+      expectedEmail: email,
+      expectedType: "regular",
+    }).catch(() => {});
+
+    await setupContext.storageState({ path: storageFile });
+    await setupContext.close();
+
+    newContext = await browser.newContext({ storageState: storageFile });
+    const newPage = await newContext.newPage();
+
+    await waitForAuthenticatedRequestSession(newContext.request, {
+      expectedEmail: email,
+      expectedType: "regular",
+    });
+
+    if (navigateToRoot) {
+      await newPage.goto("http://localhost:3000/");
+      await newPage.waitForLoadState("domcontentloaded");
+      await waitForRegularUserShell(newPage, username);
+    }
+
+    return {
+      context: newContext,
+      page: newPage,
+      request: newContext.request,
+    };
+  } catch (error) {
+    await setupContext.close().catch(() => {});
+    await newContext?.close().catch(() => {});
+    throw error;
+  }
+}
+
+export async function createAuthenticatedContext({
+  browser,
+  name,
+  navigateToRoot = true,
+}: AuthenticatedContextOptions): Promise<UserContext> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await createAuthenticatedContextOnce({
+        browser,
+        name,
+        navigateToRoot,
+      });
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  await waitForAuthenticatedSession(context, {
-    expectedEmail: email,
-    expectedType: "regular",
-  });
-
-  await context.storageState({ path: storageFile });
-  await page.close();
-
-  // ── Return a fresh context backed by the saved session ───────────────────
-  const newContext = await browser.newContext({ storageState: storageFile });
-  const newPage = await newContext.newPage();
-
-  if (navigateToRoot) {
-    await newPage.goto("http://localhost:3000/");
-    await newPage.waitForLoadState("domcontentloaded");
-    await waitForRegularUserShell(newPage, email.split("@")[0]);
-  }
-
-  return {
-    context: newContext,
-    page: newPage,
-    request: newContext.request,
-  };
+  throw lastError;
 }
 
 export async function createAuthenticatedRequestContext({
