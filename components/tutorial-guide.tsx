@@ -3,19 +3,28 @@
 import { useEffect } from "react";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
+import { useSidebar } from "@/components/ui/sidebar";
 
 export function TutorialGuide() {
+  // 1. Hook'lar her zaman en üstte çağrılır
+  const { open,openMobile,toggleSidebar } = useSidebar();
+
   useEffect(() => {
-    // Projeyi canlıya alırken alttaki satırı açıp, 'false' olanı silmeyi unutma
-    // const hasSeenTutorial = localStorage.getItem("tutorial-completed");
-    const hasSeenTutorial = false; // Test modu
+    const hasSeenTutorial = localStorage.getItem("tutorial-completed");
+    //const hasSeenTutorial = "false"; // Test modu
     
-    if (hasSeenTutorial) return;
+    if (hasSeenTutorial === "true") return;
+
+
+    if (open || openMobile) {
+      toggleSidebar();
+    }
+
 
     const driverObj = driver({
       showProgress: true,
       animate: true,
-      allowClose: true, // Sağ üstte X çıkar, tıklayınca kapanır
+      allowClose: true, 
       doneBtnText: "Finish",
       nextBtnText: "Next",
       prevBtnText: "Back",
@@ -66,7 +75,7 @@ export function TutorialGuide() {
             align: "start",
           },
         },
-        // 5. Chat Input (Son Adım - Sadece Tanıtım)
+        // 5. Chat Input (Son Adım)
         {
           element: "#chat-input-area",
           popover: {
@@ -74,7 +83,6 @@ export function TutorialGuide() {
             description: "Type your questions here and press Enter to interact with your AI assistant. Enjoy!",
             side: "top",
             align: "center",
-            // Burası son adım olduğu için otomatik olarak "Finish" butonu çıkacaktır.
           },
         }
       ],
