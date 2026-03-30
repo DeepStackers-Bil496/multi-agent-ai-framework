@@ -98,9 +98,10 @@ const PurePreviewMessage = ({
               data-testid={"message-attachments"}
             >
               {attachmentsFromMessage.map((attachment) => (
+                
                 <PreviewAttachment
                   attachment={{
-                    name: attachment.filename ?? "file",
+                    name: (attachment as any).name ?? attachment.filename ?? "file",
                     contentType: attachment.mediaType,
                     url: attachment.url,
                   }}
