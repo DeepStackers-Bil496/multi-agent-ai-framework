@@ -137,10 +137,12 @@ export async function POST(request: Request) {
 
     const messageCount = Number.isFinite(testMessageCount)
       ? testMessageCount
-      : await getMessageCountByUserId({
-          id: session.user.id,
-          differenceInHours: 24,
-        });
+      : isTestEnvironment
+        ? 0
+        : await getMessageCountByUserId({
+            id: session.user.id,
+            differenceInHours: 24,
+          });
 
     if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
       return new ChatSDKError("rate_limit:chat").toResponse();
@@ -366,41 +368,45 @@ export async function POST(request: Request) {
     // Get the selected agent
     const agent = getAgentById(selectedChatModel);
 
-    // Resolve user-specific configuration for this agent
-    const resolvedConfig = await resolveAgentConfig(
-      session.user.id,
-      selectedChatModel
-    );
-
     let runtimeConfig: Partial<LLMImplMetadata> | undefined;
-    let runtimeSecrets = resolvedConfig.secrets;
+    let runtimeSecrets: Record<string, string> = {};
 
-    // Special handling for MainAgent: Load configs for all agents to enable orchestration
-    if (selectedChatModel === "main-agent") {
-      const allConfigs = await resolveAllAgentConfigs(session.user.id);
-      const subAgentConfigs: Record<string, Partial<LLMImplMetadata>> = {};
+    if (!isTestEnvironment) {
+      // Resolve user-specific configuration only on the real runtime path.
+      const resolvedConfig = await resolveAgentConfig(
+        session.user.id,
+        selectedChatModel
+      );
 
-      for (const [agentId, config] of Object.entries(allConfigs)) {
-        // Merge secrets so MainAgent can authenticate sub-agent tools
-        runtimeSecrets = { ...runtimeSecrets, ...config.secrets };
+      runtimeSecrets = resolvedConfig.secrets;
 
-        // Store specific LLM config for sub-agents
-        if (Object.keys(config.llmConfig).length > 0) {
-          subAgentConfigs[agentId] = config.llmConfig;
+      // Special handling for MainAgent: Load configs for all agents to enable orchestration
+      if (selectedChatModel === "main-agent") {
+        const allConfigs = await resolveAllAgentConfigs(session.user.id);
+        const subAgentConfigs: Record<string, Partial<LLMImplMetadata>> = {};
+
+        for (const [agentId, config] of Object.entries(allConfigs)) {
+          // Merge secrets so MainAgent can authenticate sub-agent tools
+          runtimeSecrets = { ...runtimeSecrets, ...config.secrets };
+
+          // Store specific LLM config for sub-agents
+          if (Object.keys(config.llmConfig).length > 0) {
+            subAgentConfigs[agentId] = config.llmConfig;
+          }
         }
-      }
 
-      // Attach subAgentConfigs to runtimeConfig
-      runtimeConfig = {
-        ...resolvedConfig.llmConfig,
-        subAgentConfigs,
-      };
-      // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
-      runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
-    } else {
-      runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
-        ? resolvedConfig.llmConfig
-        : undefined;
+        // Attach subAgentConfigs to runtimeConfig
+        runtimeConfig = {
+          ...resolvedConfig.llmConfig,
+          subAgentConfigs,
+        };
+        // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
+        runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
+      } else {
+        runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
+          ? resolvedConfig.llmConfig
+          : undefined;
+      }
     }
 
     const mockArtifactDraft = isTestEnvironment

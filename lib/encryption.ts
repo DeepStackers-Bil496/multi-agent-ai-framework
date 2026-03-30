@@ -7,6 +7,8 @@ import {
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
+let cachedSecret: string | null = null;
+let cachedKey: Buffer | null = null;
 
 /**
  * Derives the encryption key from the ENCRYPTION_SECRET environment variable.
@@ -19,8 +21,16 @@ function getEncryptionKey(): Buffer {
       "ENCRYPTION_SECRET environment variable must be at least 32 characters"
     );
   }
-  // Use scrypt for key derivation with a fixed salt for consistency
-  return scryptSync(secret, "agent-config-salt-v1", 32);
+  if (cachedKey && cachedSecret === secret) {
+    return cachedKey;
+  }
+
+  // Use scrypt for key derivation with a fixed salt for consistency.
+  // Cache the derived key because the secret is process-wide and deriving it
+  // on every encrypt/decrypt call adds unnecessary synchronous CPU overhead.
+  cachedSecret = secret;
+  cachedKey = scryptSync(secret, "agent-config-salt-v1", 32);
+  return cachedKey;
 }
 
 /**
