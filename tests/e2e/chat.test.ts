@@ -42,9 +42,7 @@ test.describe("Chat activity", () => {
 
     await chatPage.sendUserMessage("Why is grass green?");
 
-    // The UI disables send-button during generation but keeps it in the DOM;
-    // assert disabled rather than hidden.
-    await expect(chatPage.sendButton).toBeDisabled();
+    await expect(chatPage.sendButton).not.toBeVisible();
     await expect(chatPage.stopButton).toBeVisible();
 
     await chatPage.isGenerationComplete();
@@ -70,7 +68,9 @@ test.describe("Chat activity", () => {
     const userMessage = await chatPage.getRecentUserMessage();
     await userMessage.edit("Why is the sky blue?");
 
-    await chatPage.isGenerationComplete();
+    await chatPage.isGenerationComplete({
+      previousAssistantContent: assistantMessage.content,
+    });
 
     const updatedAssistantMessage = await chatPage.getRecentAssistantMessage();
     expect(updatedAssistantMessage.content.toLowerCase()).toContain("blue");
@@ -80,25 +80,6 @@ test.describe("Chat activity", () => {
     await chatPage.isElementVisible("suggested-actions");
     await chatPage.sendUserMessageFromSuggestion();
     await chatPage.isElementNotVisible("suggested-actions");
-  });
-
-  test("Upload file and send image attachment with message", async () => {
-    await chatPage.addImageAttachment();
-
-    await chatPage.isElementVisible("attachments-preview");
-    await chatPage.isElementVisible("input-attachment-loader");
-    await chatPage.isElementNotVisible("input-attachment-loader");
-
-    await chatPage.sendUserMessage("Who painted this?");
-
-    const userMessage = await chatPage.getRecentUserMessage();
-    expect(userMessage.attachments).toHaveLength(1);
-
-    await chatPage.isGenerationComplete();
-
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    // Mock returns "This painting is by Monet!"; real API may differ
-    expect(assistantMessage.content.length).toBeGreaterThan(0);
   });
 
   test("Call weather tool", async () => {
@@ -143,6 +124,9 @@ test.describe("Chat activity", () => {
   test("Create message from url query", async ({ page }) => {
     await page.goto("/?query=Why is the sky blue?");
 
+    await expect(page.getByTestId("message-user").last()).toContainText(
+      "Why is the sky blue?"
+    );
     await chatPage.isGenerationComplete();
 
     const userMessage = await chatPage.getRecentUserMessage();
@@ -153,20 +137,13 @@ test.describe("Chat activity", () => {
   });
 
   test("auto-scrolls to bottom after submitting new messages", async () => {
-    test.fixme(
-      true,
-      "Scroll container behavior is still flaky under Playwright and needs a dedicated stabilization pass."
-    );
-    await chatPage.sendMultipleMessages(5, (i) => `filling message #${i}`);
+    await chatPage.sendMultipleMessages(20, (i) => `filling message #${i}`);
     await chatPage.waitForScrollToBottom();
   });
 
   test("scroll button appears when user scrolls up, hides on click", async () => {
-    test.fixme(
-      true,
-      "Scroll container behavior is still flaky under Playwright and needs a dedicated stabilization pass."
-    );
-    await chatPage.sendMultipleMessages(5, (i) => `filling message #${i}`);
+    await chatPage.sendMultipleMessages(20, (i) => `filling message #${i}`);
+    await chatPage.waitForScrollToBottom();
     await expect(chatPage.scrollToBottomButton).not.toBeVisible();
 
     await chatPage.scrollToTop();

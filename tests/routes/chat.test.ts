@@ -1,15 +1,15 @@
 import { generateUUID } from "@/lib/utils";
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 
 /**
  * Route tests for POST /api/chat — agent integration path.
  *
- * SCOPE — what is NOT duplicated from the existing tests/routes/chat.test.ts:
+ * SCOPE — what is intentionally left to adjacent route suites:
  *  - Empty body → 400                    (already covered)
  *  - Babbage cannot append to Ada's chat  (already covered)
  *  - Babbage cannot delete Ada's chat     (already covered)
  *  - Ada can delete her own chat          (already covered)
- *  - Stream resume via /api/chat/:id/stream (already covered)
+ *  - Stream resume via /api/chat/:id/stream (covered in chat-stream.test.ts)
  *
  * What these tests ADD (agent-specific path via selectedChatModel="main-agent"):
  *  1. main-agent produces a valid 200 streaming response
@@ -42,6 +42,23 @@ function userMessage(text: string) {
     id: generateUUID(),
     role: "user" as const,
     parts: [{ type: "text", text }],
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function userMessageWithImage(text: string) {
+  return {
+    id: generateUUID(),
+    role: "user" as const,
+    parts: [
+      {
+        type: "file" as const,
+        url: "https://example.com/mouth-of-the-seine-monet.jpg",
+        name: "mouth-of-the-seine-monet.jpg",
+        mediaType: "image/jpeg",
+      },
+      { type: "text" as const, text },
+    ],
     createdAt: new Date().toISOString(),
   };
 }
@@ -257,6 +274,53 @@ test.describe.serial("/api/chat — main-agent stream events", () => {
     });
 
     expect(response.status()).toBe(200);
+  });
+
+  test("accepts a user message that includes an image file part", async ({
+    adaContext,
+  }) => {
+    const response = await adaContext.request.post("/api/chat", {
+      data: {
+        id: generateUUID(),
+        message: userMessageWithImage("Who painted this?"),
+        selectedChatModel: "main-agent",
+        selectedVisibilityType: "private",
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const body = await response.text();
+    expect(body.trim().length).toBeGreaterThan(0);
+  });
+
+  test("image file part + prompt produces the deterministic multimodal mock answer", async ({
+    adaContext,
+  }) => {
+    const response = await adaContext.request.post("/api/chat", {
+      data: {
+        id: generateUUID(),
+        message: userMessageWithImage("Who painted this?"),
+        selectedChatModel: "main-agent",
+        selectedVisibilityType: "private",
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const events = parseStreamEvents(await response.text());
+
+    const accumulated = events
+      .filter((e) => e.type === "agent_stream")
+      .map((e) => {
+        const content = e.payload.content;
+        if (typeof content === "string") return content;
+        if (content?.kwargs?.content) return content.kwargs.content;
+        if (content?.lc_kwargs?.content) return content.lc_kwargs.content;
+        if (content?.content) return content.content;
+        return "";
+      })
+      .join("");
+
+    expect(accumulated).toContain("Monet");
   });
 
   // ─── Schema validation ───────────────────────────────────────────────────

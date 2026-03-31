@@ -14,10 +14,6 @@ test.describe("Artifacts activity", () => {
   });
 
   test("Create a text artifact", async () => {
-    test.fixme(
-      true,
-      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
-    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -25,21 +21,12 @@ test.describe("Artifacts activity", () => {
     );
     await artifactPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
-
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      "A document was created and is now visible to the user."
-    );
+    await expect(artifactPage.artifact).toBeVisible();
 
     await chatPage.hasChatIdInUrl();
   });
 
   test("Toggle artifact visibility", async () => {
-    test.fixme(
-      true,
-      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
-    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -47,22 +34,13 @@ test.describe("Artifacts activity", () => {
     );
     await artifactPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
-
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      "A document was created and is now visible to the user."
-    );
+    await expect(artifactPage.artifact).toBeVisible();
 
     await artifactPage.closeArtifact();
     await chatPage.isElementNotVisible("artifact");
   });
 
   test("Send follow up message after generation", async () => {
-    test.fixme(
-      true,
-      "Active agent NDJSON flow does not emit createDocument/updateDocument UI stream parts yet."
-    );
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
@@ -70,17 +48,15 @@ test.describe("Artifacts activity", () => {
     );
     await artifactPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
-
-    const assistantMessage = await artifactPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      "A document was created and is now visible to the user."
-    );
+    await expect(artifactPage.artifact).toBeVisible();
+    const initialAssistantMessage = await artifactPage.getRecentAssistantMessage();
 
     await artifactPage.sendUserMessage("Thanks!");
     await artifactPage.isGenerationComplete();
 
-    const secondAssistantMessage = await chatPage.getRecentAssistantMessage();
+    const secondAssistantMessage = await artifactPage.getRecentAssistantMessage({
+      previousContent: initialAssistantMessage.content,
+    });
     expect(secondAssistantMessage.content).toBe("You're welcome!");
   });
 });

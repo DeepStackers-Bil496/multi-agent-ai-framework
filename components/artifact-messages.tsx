@@ -30,6 +30,7 @@ function PureArtifactMessages({
   isReadonly,
   selectedModelId,
 }: ArtifactMessagesProps) {
+  const isGenerating = status === "submitted" || status === "streaming";
   const {
     containerRef: messagesContainerRef,
     endRef: messagesEndRef,
@@ -48,7 +49,7 @@ function PureArtifactMessages({
       {messages.map((message, index) => (
         <PreviewMessage
           chatId={chatId}
-          isLoading={status === "streaming" && index === messages.length - 1}
+          isLoading={isGenerating && index === messages.length - 1}
           isReadonly={isReadonly}
           key={message.id}
           message={message}
@@ -67,7 +68,7 @@ function PureArtifactMessages({
       ))}
 
       <AnimatePresence mode="wait">
-        {status === "submitted" && <ThinkingMessage key="thinking" />}
+        {isGenerating && <ThinkingMessage key="thinking" />}
       </AnimatePresence>
 
       <motion.div

@@ -34,6 +34,7 @@ import {
   getMessageCountByUserId,
   getMessagesByChatId,
   saveChat,
+  saveDocument,
   saveMessages,
   updateChatLastContextById,
 } from "@/lib/db/queries";
@@ -41,7 +42,7 @@ import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import type { ChatMessage, AgentChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
-import { convertToUIMessages, generateUUID } from "@/lib/utils";
+import { convertToUIMessages, generateUUID, getTextFromMessage } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { getAgentById } from "@/lib/agents";
@@ -49,7 +50,10 @@ import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_E
 import type { ExecutionStep } from "@/lib/types";
 import { resolveAgentConfig, resolveAllAgentConfigs, recomputeConfigVersion } from "@/lib/agents/configResolver";
 import { LLMImplMetadata } from "@/lib/types";
-import { createMockAgentResponse } from "@/lib/testing/mock-agent-response";
+import {
+  createMockAgentResponse,
+  getMockArtifactDraft,
+} from "@/lib/testing/mock-agent-response";
 
 
 export const maxDuration = 60;
@@ -105,15 +109,17 @@ export async function POST(request: Request) {
   try {
     const {
       id,
+      assistantMessageId,
       message,
       selectedChatModel,
       selectedVisibilityType,
     }: {
       id: string;
+      assistantMessageId?: string;
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
-    } = requestBody;
+    } = requestBody as any;
 
     const session = await auth();
 
@@ -123,16 +129,26 @@ export async function POST(request: Request) {
 
     const userType: UserType = session.user.type;
 
-    const messageCount = await getMessageCountByUserId({
-      id: session.user.id,
-      differenceInHours: 24,
-    });
+    const testMessageCountHeader = request.headers.get("x-test-message-count");
+    const testMessageCount =
+      isTestEnvironment && testMessageCountHeader !== null
+        ? Number.parseInt(testMessageCountHeader, 10)
+        : Number.NaN;
 
-    if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
+    const messageCount = Number.isFinite(testMessageCount)
+      ? testMessageCount
+      : isTestEnvironment
+        ? 0
+        : await getMessageCountByUserId({
+            id: session.user.id,
+            differenceInHours: 24,
+          });
+
+    if (Number(messageCount) > Number(entitlementsByUserType[userType].maxMessagesPerDay)) {
       return new ChatSDKError("rate_limit:chat").toResponse();
     }
 
-    const chat = await getChatById({ id });
+    const chat = await getChatById({ id }) as any;
     let messagesFromDb: DBMessage[] = [];
 
     if (chat) {
@@ -140,7 +156,7 @@ export async function POST(request: Request) {
         return new ChatSDKError("forbidden:chat").toResponse();
       }
       // Only fetch messages if chat already exists
-      messagesFromDb = await getMessagesByChatId({ id });
+      messagesFromDb = await getMessagesByChatId({ id }) as DBMessage[];
     } else {
       const title = await generateTitleFromUserMessage({
         message,
@@ -308,25 +324,82 @@ export async function POST(request: Request) {
     // AGENT INTEGRATION - NEW CODE
     // ============================================================
     // Convert UI messages to Agent format (including image URLs for multimodal support)
-    const agentMessages: AgentChatMessage[] = uiMessages.map((msg) => {
-      // Extract text content from message parts
-      const textContent = msg.parts
-        ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
-        .map((part) => part.text)
-        .join("") || "";
+    // Convert UI messages to Agent format (including text/code/pdf content extraction)
+    const agentMessages: AgentChatMessage[] = await Promise.all(
+      uiMessages.map(async (msg) => {
+        // Extract text content from message parts
+        const textContent = msg.parts
+          ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
+          .map((part) => part.text)
+          .join("") || "";
 
-      // Extract ALL file attachments (images, CSV, Excel, etc.)
-      const fileAttachments = msg.parts
-        ?.filter((part): part is { type: "file"; url: string; name: string; mediaType: string } => part.type === "file")
-        .map((part) => {
-          // For images: Vision Agent format
+        // Extract and process ALL file attachments
+        const fileParts = msg.parts?.filter(
+          (part): part is { type: "file"; url: string; name: string; mediaType: string } => part.type === "file"
+        ) || [];
+
+        const fileAttachmentsPromises = fileParts.map(async (part) => {
           if (part.mediaType?.startsWith("image/")) {
             return `[Image: ${part.url}]`;
           }
-          // For data files: Data Analyst format
+
+          const filename = (part.name || "").toLowerCase();
+          const media = (part.mediaType || "").toLowerCase();
+
+          const isTextOrCode = 
+            media.includes("text") || 
+            media.includes("javascript") || 
+            media.includes("typescript") || 
+            media.includes("json") ||
+            media.includes("python") ||
+            filename.endsWith(".py") || 
+            filename.endsWith(".java") || 
+            filename.endsWith(".ts") || 
+            filename.endsWith(".tsx") ||
+            filename.endsWith(".md") ||
+            filename.endsWith(".txt") ||
+            filename.endsWith(".csv");
+
+          const isPdf = media.includes("pdf") || filename.endsWith(".pdf");
+
+          if (isTextOrCode) {
+            console.log(`[Dosya Okuma] Metin/Kod indiriliyor... URL: ${part.url}`);
+            try {
+              const response = await fetch(part.url);
+              if (response.ok) {
+                const fileContent = await response.text();
+                return `\n--- KULLANICININ YÜKLEDİĞİ DOSYA: ${part.name} ---\n\`\`\`\n${fileContent}\n\`\`\`\n--- DOSYA SONU ---\n`;
+              }
+            } catch (e) {
+              console.error(`[Dosya Okuma] FETCH HATASI:`, e);
+            }
+          } 
+          else if (isPdf) {
+            console.log(`[PDF Okuma] PDF indiriliyor ve çevriliyor... URL: ${part.url}`);
+            try {
+              const response = await fetch(part.url);
+              if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                
+                // İŞTE ÇÖZÜM BURADA: Sunucuyu kilitlemeyen güvenli çağrı!
+                const pdfParse = require("pdf-parse"); 
+                const pdfData = await pdfParse(buffer);
+                
+                console.log(`[PDF Okuma] BAŞARILI! Toplam karakter: ${pdfData.text.length}`);
+                return `\n--- KULLANICININ YÜKLEDİĞİ PDF DOSYASI: ${part.name} ---\n\`\`\`\n${pdfData.text}\n\`\`\`\n--- DOSYA SONU ---\n`;
+              }
+            } catch (e) {
+              console.error(`[PDF Okuma] PDF Çeviri Hatası: ${filename}`, e);
+            }
+          }
+
+          // Okunabilir değilse sadece URL bırak (Ajanın kendi toolları varsa kullanır)
           return `[File: ${part.name} (${part.mediaType}) - URL: ${part.url}]`;
-        })
-        .join("\n") || "";
+        });
+
+        const resolvedAttachments = await Promise.all(fileAttachmentsPromises);
+        const fileAttachments = resolvedAttachments.join("\n");
 
       // DEBUG: Log file attachments
       if (fileAttachments) {
@@ -343,50 +416,76 @@ export async function POST(request: Request) {
         console.log('[CHAT] User message with files:', fullContent.slice(0, 300));
       }
 
-      return {
-        role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,
-        content: fullContent,
-      };
-    });
+        return {
+          role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,
+          content: fullContent,
+        };
+      })
+    );
 
     // Get the selected agent
     const agent = getAgentById(selectedChatModel);
 
-    // Resolve user-specific configuration for this agent
-    const resolvedConfig = await resolveAgentConfig(
-      session.user.id,
-      selectedChatModel
-    );
-
     let runtimeConfig: Partial<LLMImplMetadata> | undefined;
-    let runtimeSecrets = resolvedConfig.secrets;
+    let runtimeSecrets: Record<string, string> = {};
 
-    // Special handling for MainAgent: Load configs for all agents to enable orchestration
-    if (selectedChatModel === "main-agent") {
-      const allConfigs = await resolveAllAgentConfigs(session.user.id);
-      const subAgentConfigs: Record<string, Partial<LLMImplMetadata>> = {};
+    if (!isTestEnvironment) {
+      // Resolve user-specific configuration only on the real runtime path.
+      const resolvedConfig = await resolveAgentConfig(
+        session.user.id,
+        selectedChatModel
+      );
 
-      for (const [agentId, config] of Object.entries(allConfigs)) {
-        // Merge secrets so MainAgent can authenticate sub-agent tools
-        runtimeSecrets = { ...runtimeSecrets, ...config.secrets };
+      runtimeSecrets = resolvedConfig.secrets;
 
-        // Store specific LLM config for sub-agents
-        if (Object.keys(config.llmConfig).length > 0) {
-          subAgentConfigs[agentId] = config.llmConfig;
+      // Special handling for MainAgent: Load configs for all agents to enable orchestration
+      if (selectedChatModel === "main-agent") {
+        const allConfigs = await resolveAllAgentConfigs(session.user.id);
+        const subAgentConfigs: Record<string, Partial<LLMImplMetadata>> = {};
+
+        for (const [agentId, config] of Object.entries(allConfigs)) {
+          // Merge secrets so MainAgent can authenticate sub-agent tools
+          runtimeSecrets = { ...runtimeSecrets, ...config.secrets };
+
+          // Store specific LLM config for sub-agents
+          if (Object.keys(config.llmConfig).length > 0) {
+            subAgentConfigs[agentId] = config.llmConfig;
+          }
         }
-      }
 
-      // Attach subAgentConfigs to runtimeConfig
-      runtimeConfig = {
-        ...resolvedConfig.llmConfig,
-        subAgentConfigs,
-      };
-      // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
-      runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
-    } else {
-      runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
-        ? resolvedConfig.llmConfig
-        : undefined;
+        // Attach subAgentConfigs to runtimeConfig
+        runtimeConfig = {
+          ...resolvedConfig.llmConfig,
+          subAgentConfigs,
+        };
+        // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
+        runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
+      } else {
+        runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
+          ? resolvedConfig.llmConfig
+          : undefined;
+      }
+    }
+
+    const mockArtifactDraft = isTestEnvironment
+      ? getMockArtifactDraft(getTextFromMessage(message))
+      : null;
+
+    const persistedArtifactDraft = mockArtifactDraft
+      ? {
+          ...mockArtifactDraft,
+          id: generateUUID(),
+        }
+      : undefined;
+
+    if (persistedArtifactDraft) {
+      await saveDocument({
+        id: persistedArtifactDraft.id,
+        title: persistedArtifactDraft.title,
+        content: persistedArtifactDraft.content,
+        kind: persistedArtifactDraft.kind,
+        userId: session.user.id,
+      });
     }
 
     const agentResponse = isTestEnvironment
@@ -394,6 +493,7 @@ export async function POST(request: Request) {
           agentId: agent.id,
           agentName: agent.name,
           inputMessages: agentMessages,
+          artifactDraft: persistedArtifactDraft,
         })
       : await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
 
@@ -402,7 +502,7 @@ export async function POST(request: Request) {
     }
 
     // Create a passthrough stream that captures content and execution flow for persistence
-    const assistantMessageId = generateUUID();
+    const persistedAssistantMessageId = assistantMessageId ?? generateUUID();
     let accumulatedContent = "";
     const activeAgentStack: string[] = [];
     const nodeMap = new Map<string, ExecutionStep>();
@@ -422,6 +522,16 @@ export async function POST(request: Request) {
 
     const passthroughStream = new ReadableStream({
       async start(controller) {
+        const safeParse = (content: any) => {
+          if (!content) return undefined;
+          if (typeof content !== "string") return content;
+          try {
+            return JSON.parse(content);
+          } catch {
+            return content;
+          }
+        };
+
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -447,7 +557,7 @@ export async function POST(request: Request) {
                     status: "running",
                     startTime: Date.now(),
                     children: [],
-                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                    input: safeParse(data.payload.content)
                   };
                   nodeMap.set(step.id, step);
                   if (activeAgentStack.length === 0) rootSteps.push(step);
@@ -462,7 +572,7 @@ export async function POST(request: Request) {
                   if (step) {
                     step.status = "completed";
                     step.endTime = Date.now();
-                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                    step.output = safeParse(data.payload.content);
                   }
                   activeAgentStack.pop();
                 }
@@ -474,7 +584,7 @@ export async function POST(request: Request) {
                     status: "running",
                     startTime: Date.now(),
                     children: [],
-                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                    input: safeParse(data.payload.content)
                   };
                   nodeMap.set(step.id, step);
                   if (activeAgentStack.length > 0) {
@@ -489,7 +599,7 @@ export async function POST(request: Request) {
                   if (step) {
                     step.status = "completed";
                     step.endTime = Date.now();
-                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                    step.output = safeParse(data.payload.content);
                   }
 
                   // Check if this tool output contains a generated image
@@ -504,7 +614,7 @@ export async function POST(request: Request) {
                       try {
                         toolOutput = JSON.parse(toolOutput);
                       } catch {
-                        // Not valid JSON, keep as string
+                        // ignore
                       }
                     }
 
@@ -512,7 +622,7 @@ export async function POST(request: Request) {
                       generatedImages.push(toolOutput.__generatedImage);
                     }
                   } catch {
-                    // Not JSON or no image data, ignore
+                    // ignore
                   }
                 }
                 else if (data.type === AGENT_ERROR) {
@@ -543,8 +653,6 @@ export async function POST(request: Request) {
             }
           }
 
-          controller.close();
-
           // Save assistant message to database after stream ends
           const parts = [];
 
@@ -569,7 +677,7 @@ export async function POST(request: Request) {
           if (parts.length > 0) {
             await saveMessages({
               messages: [{
-                id: assistantMessageId,
+                id: persistedAssistantMessageId,
                 role: "assistant",
                 parts: parts as any,
                 createdAt: new Date(),
@@ -578,6 +686,8 @@ export async function POST(request: Request) {
               }],
             });
           }
+
+          controller.close();
         } catch (error) {
           controller.error(error);
         }

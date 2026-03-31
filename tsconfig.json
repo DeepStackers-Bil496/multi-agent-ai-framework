@@ -41,6 +41,11 @@
   ],
   "exclude": [
     "node_modules",
-    "scripts/**/*"
+    "scripts/**/*",
+    "tests/**/*",
+    "unit-tests/**/*",
+    "playwright/**/*",
+    "coverage/**/*",
+    "test-results/**/*"
   ]
 }

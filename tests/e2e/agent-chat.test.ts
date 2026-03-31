@@ -38,8 +38,9 @@ test.describe("Chat persistence", () => {
     await chatPage.sendUserMessage("Why is grass green?");
     await chatPage.isGenerationComplete();
 
-    await adaContext.page.reload();
-    await adaContext.page.waitForLoadState("networkidle");
+    const currentUrl = adaContext.page.url();
+    await adaContext.page.goto(currentUrl, { waitUntil: "domcontentloaded" });
+    await chatPage.waitForChatShellReady();
 
     const userMessage = await chatPage.getRecentUserMessage();
     expect(userMessage.content).toContain("Why is grass green?");
@@ -80,7 +81,7 @@ test.describe("Chat persistence", () => {
     const chatHistory = adaContext.page.getByTestId("chat-history");
     await expect(chatHistory).toBeVisible();
 
-    const chatItems = chatHistory.locator("[data-testid^='chat-item']");
+    const chatItems = chatHistory.locator("[data-testid^='chat-item-']");
     await expect(chatItems.first()).toBeVisible();
   });
 
@@ -134,16 +135,19 @@ test.describe("User isolation", () => {
     const adaChatUrl = adaContext.page.url();
     expect(adaChatUrl).toMatch(/\/chat\//);
 
-    await babbageContext.page.goto(adaChatUrl);
+    const response = await babbageContext.page.goto(adaChatUrl);
     await babbageContext.page.waitForLoadState("networkidle");
 
     const currentUrl = babbageContext.page.url();
     const pageContent = await babbageContext.page.textContent("body");
+    const statusCode = response?.status() ?? null;
 
-    const wasRedirected = currentUrl !== adaChatUrl;
+    const wasDenied =
+      statusCode === 404 ||
+      currentUrl !== adaChatUrl;
     const secretNotVisible = !pageContent?.includes("TOPSECRET123");
 
-    expect(wasRedirected || secretNotVisible).toBe(true);
+    expect(wasDenied || secretNotVisible).toBe(true);
   });
 });
 

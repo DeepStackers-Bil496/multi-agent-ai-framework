@@ -234,10 +234,8 @@ export function SidebarHistory({
   return (
     <>
       <SidebarGroup>
-        <SidebarGroupContent>
-
-          <div className="flex flex-col gap-1 px-2 pb-2 pt-0 sticky top-0 bg-sidebar z-10">
-            
+        <SidebarGroupContent>   
+          <div className="flex flex-col gap-1 px-2 pb-2 pt-0 sticky top-0 bg-sidebar z-10" id="sidebar-actions-group">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -350,7 +348,7 @@ export function SidebarHistory({
               onOpenChange={setIsAgentPanelOpen}
               selectedModelId={selectedModelId}
             />
-          </div>
+          </div>        
         </SidebarGroupContent>
 
         <SidebarGroupContent>
@@ -360,7 +358,7 @@ export function SidebarHistory({
             </div>
           ) : (
             <>
-              <SidebarMenu>
+              <SidebarMenu data-testid="chat-history" id="sidebar-history-list" >
                 {paginatedChatHistories &&
                   (() => {
                     const chatsFromHistory = paginatedChatHistories.flatMap(

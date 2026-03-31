@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "./fixtures";
 
 test.describe("/api/files/upload", () => {
   test("anonymous requests are redirected to guest auth", async ({

@@ -3,7 +3,13 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
 import { ChatHeader } from "@/components/chat-header";
@@ -22,7 +28,11 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
 import type { Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import type { Attachment, ChatMessage, AgentStreamEvent } from "@/lib/types";
+import type {
+  Attachment,
+  ChatMessage,
+  MainAgentStreamEvent,
+} from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
@@ -32,13 +42,20 @@ import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
-import { AGENT_STREAM, AGENT_STARTED, AGENT_ENDED, AGENT_ERROR, TOOL_STARTED, TOOL_ENDED } from "@/lib/constants";
+import {
+  AGENT_STREAM,
+  AGENT_STARTED,
+  AGENT_ENDED,
+  AGENT_ERROR,
+  TOOL_STARTED,
+  TOOL_ENDED,
+  UI_STREAM_PART,
+} from "@/lib/constants";
 import type { ExecutionStep } from "@/lib/types";
 import {
   useUIPreferences,
   parseUIActions,
 } from "@/hooks/use-ui-preferences";
-
 
 export function Chat({
   id,
@@ -143,10 +160,32 @@ export function Chat({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState<"ready" | "streaming" | "error">("ready");
   const abortControllerRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const updateMessages = useCallback(
+    (value: SetStateAction<ChatMessage[]>) => {
+      setMessages((currentMessages) => {
+        const nextMessages =
+          typeof value === "function"
+            ? (value as (messages: ChatMessage[]) => ChatMessage[])(currentMessages)
+            : value;
+
+        messagesRef.current = nextMessages;
+        return nextMessages;
+      });
+    },
+    []
+  );
 
   // Extract text content from a stream event payload
   // Handles various LangChain AIMessageChunk formats
-  const extractTextContent = (content: AgentStreamEvent["payload"]["content"]): string => {
+  const extractTextContent = (
+    content: string | Record<string, unknown>
+  ): string => {
     // Direct string
     if (typeof content === "string") {
       return content;
@@ -190,7 +229,6 @@ export function Chat({
       return;
     }
 
-    const modelIdAtSend = currentModelIdRef.current;
     // Create user message
     const newUserMessage: ChatMessage = {
       id: generateUUID(),
@@ -199,9 +237,7 @@ export function Chat({
       metadata: { createdAt: new Date().toISOString() },
     };
 
-    // Add user message to state
-    const updatedMessages = [...messages, newUserMessage];
-    setMessages(updatedMessages);
+    const updatedMessages = [...messagesRef.current, newUserMessage];
     setStatus("streaming");
 
     // Create placeholder assistant message
@@ -212,26 +248,23 @@ export function Chat({
       parts: [{ type: "text", text: "" }],
       metadata: { createdAt: new Date().toISOString() },
     };
-    setMessages([...updatedMessages, assistantMessage]);
+    updateMessages([...updatedMessages, assistantMessage]);
 
     try {
       abortControllerRef.current = new AbortController();
 
-      const response = await fetch("/api/chat", {
+      const response = await fetchWithErrorHandlers("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id,
           message: newUserMessage,
+          assistantMessageId,
           selectedChatModel: currentModelIdRef.current,
           selectedVisibilityType: visibilityType,
         }),
         signal: abortControllerRef.current.signal,
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       if (!response.body) {
         throw new Error("No response body");
@@ -240,6 +273,9 @@ export function Chat({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
+      
+      let streamBuffer = ""; 
+      
       const activeAgentStack: string[] = [];
       const nodeMap = new Map<string, ExecutionStep>();
       const rootSteps: ExecutionStep[] = [];
@@ -257,12 +293,30 @@ export function Chat({
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+        streamBuffer += decoder.decode(value, { stream: true });
+        
+        const lines = streamBuffer.split("\n");
+        
+        streamBuffer = lines.pop() || "";
 
         for (const line of lines) {
+          if (line.trim() === "") continue;
+
           try {
-            const data: AgentStreamEvent = JSON.parse(line);
+            const data: MainAgentStreamEvent = JSON.parse(line);
+
+            if (data.type === UI_STREAM_PART) {
+              setDataStream((currentDataStream) => [
+                ...currentDataStream,
+                data.payload,
+              ]);
+
+              if (data.payload.type === "data-usage") {
+                setUsage(data.payload.data);
+              }
+
+              continue;
+            }
 
             if (data.type === AGENT_STARTED) {
               const step: ExecutionStep = {
@@ -398,7 +452,7 @@ export function Chat({
             }
 
             // Update messages with execution flow, generated images, and text
-            setMessages((prev) =>
+            updateMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMessageId
                   ? {
@@ -429,11 +483,27 @@ export function Chat({
         setStatus("ready");
         return;
       }
+      if (error instanceof ChatSDKError) {
+        if (
+          error.message?.includes(
+            "AI Gateway requires a valid credit card on file to service requests"
+          )
+        ) {
+          setShowCreditCardAlert(true);
+        } else {
+          toast({
+            type: "error",
+            description: error.message,
+          });
+        }
+        setStatus("ready");
+        return;
+      }
       console.error("Stream error:", error);
       setStatus("error");
       toast({ type: "error", description: "Failed to get response from agent" });
     }
-  }, [messages, id, visibilityType, mutate, applyUIAction]);
+  }, [id, visibilityType, mutate, applyUIAction, updateMessages]);
 
   // Stop function
   const stop = useCallback(async () => {
@@ -447,13 +517,16 @@ export function Chat({
   // Placeholder regenerate function (simplified)
   const regenerate = useCallback(async () => {
     // Remove last assistant message and resend
-    const lastUserMessageIndex = messages.findLastIndex((m) => m.role === "user");
+    const currentMessages = messagesRef.current;
+    const lastUserMessageIndex = currentMessages.findLastIndex(
+      (m) => m.role === "user"
+    );
     if (lastUserMessageIndex >= 0) {
-      const lastUserMessage = messages[lastUserMessageIndex];
-      setMessages(messages.slice(0, lastUserMessageIndex));
+      const lastUserMessage = currentMessages[lastUserMessageIndex];
+      updateMessages(currentMessages.slice(0, lastUserMessageIndex));
       await sendMessage(lastUserMessage);
     }
-  }, [messages, sendMessage]);
+  }, [sendMessage, updateMessages]);
 
   // Placeholder resumeStream (not supported with MainAgent yet)
   const resumeStream = useCallback(async () => {
@@ -492,9 +565,8 @@ export function Chat({
     autoResume,
     initialMessages,
     resumeStream,
-    setMessages,
+    setMessages: updateMessages,
   });
-
 
   return (
     <>
@@ -513,7 +585,7 @@ export function Chat({
           messages={messages}
           regenerate={regenerate}
           selectedModelId={currentModelId}
-          setMessages={setMessages}
+          setMessages={updateMessages}
           status={status}
           votes={votes}
         />
@@ -531,7 +603,7 @@ export function Chat({
               sendMessage={sendMessage}
               setAttachments={setAttachments}
               setInput={setInput}
-              setMessages={setMessages}
+              setMessages={updateMessages}
               status={status}
               stop={stop}
               usage={usage}
@@ -553,7 +625,7 @@ export function Chat({
         sendMessage={sendMessage}
         setAttachments={setAttachments}
         setInput={setInput}
-        setMessages={setMessages}
+        setMessages={updateMessages}
         status={status}
         stop={stop}
         votes={votes}

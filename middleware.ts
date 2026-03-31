@@ -17,6 +17,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Route tests seed application state via a dedicated test-only endpoint.
+  // Those requests come from Node fetch rather than an authenticated browser
+  // context, so they must bypass the guest-auth redirect here.
+  if (
+    pathname.startsWith("/api/testing") &&
+    (process.env.PLAYWRIGHT === "True" ||
+      request.headers.get("x-playwright-test-seed") === "true")
+  ) {
+    return NextResponse.next();
+  }
+
   const token = await getToken({
     req: request,
     secret: process.env.AUTH_SECRET,

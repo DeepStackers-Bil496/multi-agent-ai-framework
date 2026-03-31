@@ -12,19 +12,29 @@ const FileSchema = z.object({
     .refine((file) => file.size <= 5 * 1024 * 1024, {
       message: "File size should be less than 5MB",
     })
-    // Accept images, CSV, and Excel files
     .refine(
-      (file) =>
-        [
-          "image/jpeg",
-          "image/png",
-          "text/csv",
-          "application/csv",
-          "application/vnd.ms-excel",
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ].includes(file.type),
+      (file) => {
+        const allowedTypes = [
+          "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+          "text/csv", "application/csv", "application/json",
+          "application/pdf",
+          "application/msword", // .doc
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+          "application/vnd.ms-excel", // .xls
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+          "application/vnd.ms-powerpoint", // .ppt
+          "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+        ];
+
+        return (
+          allowedTypes.includes(file.type) || 
+          file.type.startsWith("text/") || 
+          file.type === "application/octet-stream" || 
+          file.type === ""
+        );
+      },
       {
-        message: "File type should be JPEG, PNG, CSV, or Excel",
+        message: "Unsupported file type uploaded. Please upload images, documents, data, or code files.",
       }
     ),
 });

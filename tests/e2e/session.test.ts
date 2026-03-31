@@ -1,4 +1,5 @@
 import { getMessageByErrorCode } from "@/lib/errors";
+import type { Request } from "@playwright/test";
 import { expect, test } from "../fixtures";
 import { generateRandomTestUser } from "../helpers";
 import { AuthPage } from "../pages/auth";
@@ -15,7 +16,7 @@ test.describe
         throw new Error("Failed to load page");
       }
 
-      let request = response.request();
+      let request: Request | null = response.request();
 
       const chain: string[] = [];
 
@@ -58,7 +59,7 @@ test.describe
         throw new Error("Failed to load page");
       }
 
-      let request = response.request();
+      let request: Request | null = response.request();
 
       const chain: string[] = [];
 
@@ -99,6 +100,10 @@ test.describe
 
     const testUser = generateRandomTestUser();
 
+    const ensureExistingAccount = async () => {
+      await authPage.ensureRegistered(testUser.email, testUser.password);
+    };
+
     test.beforeEach(({ page }) => {
       authPage = new AuthPage(page);
     });
@@ -109,11 +114,13 @@ test.describe
     });
 
     test("Register new account with existing email", async () => {
+      await ensureExistingAccount();
       await authPage.register(testUser.email, testUser.password);
       await authPage.expectToastToContain("Account already exists!");
     });
 
     test("Log into account that exists", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
 
       await page.waitForURL("/");
@@ -121,6 +128,7 @@ test.describe
     });
 
     test("Display user email in user menu", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
 
       await page.waitForURL("/");
@@ -134,12 +142,14 @@ test.describe
     });
 
     test("Log out as non-guest user", async () => {
+      await ensureExistingAccount();
       await authPage.logout(testUser.email, testUser.password);
     });
 
     test("Do not force create a guest session if non-guest session already exists", async ({
       page,
     }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
@@ -155,6 +165,7 @@ test.describe
     });
 
     test("Log out is available for non-guest users", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
@@ -174,6 +185,7 @@ test.describe
     test("Do not navigate to /register for non-guest users", async ({
       page,
     }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
@@ -182,6 +194,7 @@ test.describe
     });
 
     test("Do not navigate to /login for non-guest users", async ({ page }) => {
+      await ensureExistingAccount();
       await authPage.login(testUser.email, testUser.password);
       await page.waitForURL("/");
 
@@ -198,17 +211,8 @@ test.describe("Entitlements", () => {
   });
 
   test("Guest user cannot send more than 20 messages/day", async () => {
-    test.fixme(
-      true,
-      "Guest entitlement limits need a deterministic quota fixture instead of depending on mutable daily counters."
-    );
+    await chatPage.setChatRequestHeaders({ "x-test-message-count": "21" });
     await chatPage.createNewChat();
-
-    for (let i = 0; i <= 20; i++) {
-      await chatPage.sendUserMessage("Why is the sky blue?");
-      await chatPage.isGenerationComplete();
-    }
-
     await chatPage.sendUserMessage("Why is the sky blue?");
     await chatPage.expectToastToContain(
       getMessageByErrorCode("rate_limit:chat")

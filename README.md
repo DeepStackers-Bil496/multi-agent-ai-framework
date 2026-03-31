@@ -23,6 +23,8 @@ Your app template should now be running on [localhost:3000](http://localhost:300
 pnpm test:unit # run once
 pnpm test:unit:watch # watch mode
 pnpm test:unit:coverage # with coverage
+pnpm test:integration # integration tests
+pnpm test:integration:watch # integration watch mode
 
 ### Playwright — route + e2e (requires pnpm dev or pnpm test which starts it)
 
