@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
-    } = requestBody;
+    } = requestBody as any;
 
     const session = await auth();
 
@@ -144,11 +144,11 @@ export async function POST(request: Request) {
             differenceInHours: 24,
           });
 
-    if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
+    if (Number(messageCount) > Number(entitlementsByUserType[userType].maxMessagesPerDay)) {
       return new ChatSDKError("rate_limit:chat").toResponse();
     }
 
-    const chat = await getChatById({ id });
+    const chat = await getChatById({ id }) as any;
     let messagesFromDb: DBMessage[] = [];
 
     if (chat) {
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
         return new ChatSDKError("forbidden:chat").toResponse();
       }
       // Only fetch messages if chat already exists
-      messagesFromDb = await getMessagesByChatId({ id });
+      messagesFromDb = await getMessagesByChatId({ id }) as DBMessage[];
     } else {
       const title = await generateTitleFromUserMessage({
         message,
@@ -324,25 +324,82 @@ export async function POST(request: Request) {
     // AGENT INTEGRATION - NEW CODE
     // ============================================================
     // Convert UI messages to Agent format (including image URLs for multimodal support)
-    const agentMessages: AgentChatMessage[] = uiMessages.map((msg) => {
-      // Extract text content from message parts
-      const textContent = msg.parts
-        ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
-        .map((part) => part.text)
-        .join("") || "";
+    // Convert UI messages to Agent format (including text/code/pdf content extraction)
+    const agentMessages: AgentChatMessage[] = await Promise.all(
+      uiMessages.map(async (msg) => {
+        // Extract text content from message parts
+        const textContent = msg.parts
+          ?.filter((part): part is { type: "text"; text: string } => part.type === "text")
+          .map((part) => part.text)
+          .join("") || "";
 
-      // Extract ALL file attachments (images, CSV, Excel, etc.)
-      const fileAttachments = msg.parts
-        ?.filter((part): part is { type: "file"; url: string; name: string; mediaType: string } => part.type === "file")
-        .map((part) => {
-          // For images: Vision Agent format
+        // Extract and process ALL file attachments
+        const fileParts = msg.parts?.filter(
+          (part): part is { type: "file"; url: string; name: string; mediaType: string } => part.type === "file"
+        ) || [];
+
+        const fileAttachmentsPromises = fileParts.map(async (part) => {
           if (part.mediaType?.startsWith("image/")) {
             return `[Image: ${part.url}]`;
           }
-          // For data files: Data Analyst format
+
+          const filename = (part.name || "").toLowerCase();
+          const media = (part.mediaType || "").toLowerCase();
+
+          const isTextOrCode = 
+            media.includes("text") || 
+            media.includes("javascript") || 
+            media.includes("typescript") || 
+            media.includes("json") ||
+            media.includes("python") ||
+            filename.endsWith(".py") || 
+            filename.endsWith(".java") || 
+            filename.endsWith(".ts") || 
+            filename.endsWith(".tsx") ||
+            filename.endsWith(".md") ||
+            filename.endsWith(".txt") ||
+            filename.endsWith(".csv");
+
+          const isPdf = media.includes("pdf") || filename.endsWith(".pdf");
+
+          if (isTextOrCode) {
+            console.log(`[Dosya Okuma] Metin/Kod indiriliyor... URL: ${part.url}`);
+            try {
+              const response = await fetch(part.url);
+              if (response.ok) {
+                const fileContent = await response.text();
+                return `\n--- KULLANICININ YÜKLEDİĞİ DOSYA: ${part.name} ---\n\`\`\`\n${fileContent}\n\`\`\`\n--- DOSYA SONU ---\n`;
+              }
+            } catch (e) {
+              console.error(`[Dosya Okuma] FETCH HATASI:`, e);
+            }
+          } 
+          else if (isPdf) {
+            console.log(`[PDF Okuma] PDF indiriliyor ve çevriliyor... URL: ${part.url}`);
+            try {
+              const response = await fetch(part.url);
+              if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                
+                // İŞTE ÇÖZÜM BURADA: Sunucuyu kilitlemeyen güvenli çağrı!
+                const pdfParse = require("pdf-parse"); 
+                const pdfData = await pdfParse(buffer);
+                
+                console.log(`[PDF Okuma] BAŞARILI! Toplam karakter: ${pdfData.text.length}`);
+                return `\n--- KULLANICININ YÜKLEDİĞİ PDF DOSYASI: ${part.name} ---\n\`\`\`\n${pdfData.text}\n\`\`\`\n--- DOSYA SONU ---\n`;
+              }
+            } catch (e) {
+              console.error(`[PDF Okuma] PDF Çeviri Hatası: ${filename}`, e);
+            }
+          }
+
+          // Okunabilir değilse sadece URL bırak (Ajanın kendi toolları varsa kullanır)
           return `[File: ${part.name} (${part.mediaType}) - URL: ${part.url}]`;
-        })
-        .join("\n") || "";
+        });
+
+        const resolvedAttachments = await Promise.all(fileAttachmentsPromises);
+        const fileAttachments = resolvedAttachments.join("\n");
 
       // DEBUG: Log file attachments
       if (fileAttachments) {
@@ -359,11 +416,12 @@ export async function POST(request: Request) {
         console.log('[CHAT] User message with files:', fullContent.slice(0, 300));
       }
 
-      return {
-        role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,
-        content: fullContent,
-      };
-    });
+        return {
+          role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,
+          content: fullContent,
+        };
+      })
+    );
 
     // Get the selected agent
     const agent = getAgentById(selectedChatModel);
@@ -464,6 +522,16 @@ export async function POST(request: Request) {
 
     const passthroughStream = new ReadableStream({
       async start(controller) {
+        const safeParse = (content: any) => {
+          if (!content) return undefined;
+          if (typeof content !== "string") return content;
+          try {
+            return JSON.parse(content);
+          } catch {
+            return content;
+          }
+        };
+
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -489,7 +557,7 @@ export async function POST(request: Request) {
                     status: "running",
                     startTime: Date.now(),
                     children: [],
-                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                    input: safeParse(data.payload.content)
                   };
                   nodeMap.set(step.id, step);
                   if (activeAgentStack.length === 0) rootSteps.push(step);
@@ -504,7 +572,7 @@ export async function POST(request: Request) {
                   if (step) {
                     step.status = "completed";
                     step.endTime = Date.now();
-                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                    step.output = safeParse(data.payload.content);
                   }
                   activeAgentStack.pop();
                 }
@@ -516,7 +584,7 @@ export async function POST(request: Request) {
                     status: "running",
                     startTime: Date.now(),
                     children: [],
-                    input: data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined
+                    input: safeParse(data.payload.content)
                   };
                   nodeMap.set(step.id, step);
                   if (activeAgentStack.length > 0) {
@@ -531,7 +599,7 @@ export async function POST(request: Request) {
                   if (step) {
                     step.status = "completed";
                     step.endTime = Date.now();
-                    try { step.output = data.payload.content ? (typeof data.payload.content === "string" ? JSON.parse(data.payload.content) : data.payload.content) : undefined; } catch { step.output = data.payload.content; }
+                    step.output = safeParse(data.payload.content);
                   }
 
                   // Check if this tool output contains a generated image
@@ -546,7 +614,7 @@ export async function POST(request: Request) {
                       try {
                         toolOutput = JSON.parse(toolOutput);
                       } catch {
-                        // Not valid JSON, keep as string
+                        // ignore
                       }
                     }
 
@@ -554,7 +622,7 @@ export async function POST(request: Request) {
                       generatedImages.push(toolOutput.__generatedImage);
                     }
                   } catch {
-                    // Not JSON or no image data, ignore
+                    // ignore
                   }
                 }
                 else if (data.type === AGENT_ERROR) {

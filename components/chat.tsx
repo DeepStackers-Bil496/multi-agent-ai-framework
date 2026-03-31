@@ -57,7 +57,6 @@ import {
   parseUIActions,
 } from "@/hooks/use-ui-preferences";
 
-
 export function Chat({
   id,
   initialMessages,
@@ -230,7 +229,6 @@ export function Chat({
       return;
     }
 
-    const modelIdAtSend = currentModelIdRef.current;
     // Create user message
     const newUserMessage: ChatMessage = {
       id: generateUUID(),
@@ -275,6 +273,9 @@ export function Chat({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
+      
+      let streamBuffer = ""; 
+      
       const activeAgentStack: string[] = [];
       const nodeMap = new Map<string, ExecutionStep>();
       const rootSteps: ExecutionStep[] = [];
@@ -292,10 +293,15 @@ export function Chat({
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+        streamBuffer += decoder.decode(value, { stream: true });
+        
+        const lines = streamBuffer.split("\n");
+        
+        streamBuffer = lines.pop() || "";
 
         for (const line of lines) {
+          if (line.trim() === "") continue;
+
           try {
             const data: MainAgentStreamEvent = JSON.parse(line);
 
@@ -561,7 +567,6 @@ export function Chat({
     resumeStream,
     setMessages: updateMessages,
   });
-
 
   return (
     <>
