@@ -20,10 +20,6 @@ export async function GET(
   const streamContext = getStreamContext();
   const resumeRequestedAt = new Date();
 
-  if (!streamContext) {
-    return new Response(null, { status: 204 });
-  }
-
   if (!chatId) {
     return new ChatSDKError("bad_request:api").toResponse();
   }
@@ -67,9 +63,11 @@ export async function GET(
     execute: () => {},
   });
 
-  const stream = await streamContext.resumableStream(recentStreamId, () =>
-    emptyDataStream.pipeThrough(new JsonToSseTransformStream())
-  );
+  const stream = streamContext
+    ? await streamContext.resumableStream(recentStreamId, () =>
+        emptyDataStream.pipeThrough(new JsonToSseTransformStream())
+      )
+    : null;
 
   /*
    * For when the generation is streaming during SSR

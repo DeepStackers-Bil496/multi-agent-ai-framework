@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures";
 import { ChatPage } from "../pages/chat";
 
-test.describe("chat activity with reasoning", () => {
+test.describe("chat activity with execution flow", () => {
   let chatPage: ChatPage;
 
   test.beforeEach(async ({ curieContext }) => {
@@ -9,55 +9,54 @@ test.describe("chat activity with reasoning", () => {
     await chatPage.createNewChat();
   });
 
-  test("Curie can send message and generate response with reasoning", async () => {
+  test("shows an execution summary for streamed agent responses", async ({
+    curieContext,
+  }) => {
     await chatPage.sendUserMessage("Why is the sky blue?");
     await chatPage.isGenerationComplete();
 
     const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe("It's just blue duh!");
+    // Mock: "It's just blue duh!" — real Gemini: mentions "blue"
+    expect(assistantMessage.content.toLowerCase()).toContain("blue");
 
-    expect(assistantMessage.reasoning).toBe(
-      "The sky is blue because of rayleigh scattering!"
-    );
+    await expect(
+      curieContext.page.getByTestId("thinking-flow-trigger").last()
+    ).toBeVisible();
   });
 
-  test("Curie can toggle reasoning visibility", async () => {
+  test("can expand execution flow details", async ({ curieContext }) => {
     await chatPage.sendUserMessage("Why is the sky blue?");
     await chatPage.isGenerationComplete();
 
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    const reasoningElement =
-      assistantMessage.element.getByTestId("message-reasoning");
-    expect(reasoningElement).toBeVisible();
+    await curieContext.page.getByTestId("thinking-flow-trigger").last().click();
 
-    await assistantMessage.toggleReasoningVisibility();
-    await expect(reasoningElement).not.toBeVisible();
-
-    await assistantMessage.toggleReasoningVisibility();
-    await expect(reasoningElement).toBeVisible();
+    await expect(
+      curieContext.page
+        .getByTestId("execution-step-name")
+        .filter({ hasText: "Main Agent" })
+        .last()
+    ).toBeVisible();
   });
 
-  test("Curie can edit message and resubmit", async () => {
+  test("updates the response after editing a message", async ({
+    curieContext,
+  }) => {
     await chatPage.sendUserMessage("Why is the sky blue?");
     await chatPage.isGenerationComplete();
 
-    const assistantMessage = await chatPage.getRecentAssistantMessage();
-    const reasoningElement =
-      assistantMessage.element.getByTestId("message-reasoning");
-    expect(reasoningElement).toBeVisible();
+    const firstAssistant = await chatPage.getRecentAssistantMessage();
+    expect(firstAssistant.content.toLowerCase()).toContain("blue");
 
     const userMessage = await chatPage.getRecentUserMessage();
-
-    const generationCompletePromise = chatPage.isGenerationComplete();
     await userMessage.edit("Why is grass green?");
-    await generationCompletePromise;
+
+    // Wait for the second /api/chat response after the edit
+    await chatPage.isGenerationComplete({
+      previousAssistantContent: firstAssistant.content,
+    });
 
     const updatedAssistantMessage = await chatPage.getRecentAssistantMessage();
-
-    expect(updatedAssistantMessage.content).toBe("It's just green duh!");
-
-    expect(updatedAssistantMessage.reasoning).toBe(
-      "Grass is green because of chlorophyll absorption!"
-    );
+    // Mock: "It's just green duh!" — real Gemini: mentions "green"
+    expect(updatedAssistantMessage.content.toLowerCase()).toContain("green");
   });
 });

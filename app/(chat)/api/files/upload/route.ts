@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/app/(auth)/auth";
+import { isTestEnvironment } from "@/lib/constants";
 
 // Use Blob instead of File since File is not available in Node.js environment
 const FileSchema = z.object({
@@ -70,6 +71,14 @@ export async function POST(request: Request) {
     // Get filename from formData since Blob doesn't have name property
     const filename = (formData.get("file") as File).name;
     const fileBuffer = await file.arrayBuffer();
+
+    if (isTestEnvironment) {
+      return NextResponse.json({
+        url: `https://blob.mock.local/${encodeURIComponent(filename)}`,
+        pathname: filename,
+        contentType: file.type,
+      });
+    }
 
     try {
       console.log('[Upload] Uploading file:', filename, 'Size:', fileBuffer.byteLength, 'bytes');

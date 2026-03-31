@@ -40,6 +40,12 @@
     ".next\\dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "scripts/**/*",
+    "tests/**/*",
+    "unit-tests/**/*",
+    "playwright/**/*",
+    "coverage/**/*",
+    "test-results/**/*"
   ]
 }

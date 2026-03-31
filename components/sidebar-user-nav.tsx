@@ -44,14 +44,17 @@ export function SidebarUserNav({ user }: { user: User }) {
     fetcher
   );
 
-  const isGuest = guestRegex.test(sessionData?.user?.email ?? "");
+  const effectiveUser = sessionData?.user ?? user;
+  const isGuest =
+    effectiveUser?.type === "guest" ||
+    guestRegex.test(effectiveUser?.email ?? "");
 
   // Display name priority: fullName > nickname > "Guest" > email
   const displayName = isGuest
     ? "Guest"
     : profileData?.profile?.fullName ||
     profileData?.profile?.nickname ||
-    user?.email?.split("@")[0] ||
+    effectiveUser?.email?.split("@")[0] ||
     "User";
 
   return (
@@ -77,10 +80,10 @@ export function SidebarUserNav({ user }: { user: User }) {
                 data-testid="user-nav-button"
               >
                 <Image
-                  alt={user.email ?? "User Avatar"}
+                  alt={effectiveUser?.email ?? "User Avatar"}
                   className="rounded-full"
                   height={24}
-                  src={`https://avatar.vercel.sh/${user.email}`}
+                  src={`https://avatar.vercel.sh/${effectiveUser?.email}`}
                   width={24}
                 />
                 <span className="truncate font-medium" data-testid="user-email">
@@ -101,7 +104,7 @@ export function SidebarUserNav({ user }: { user: User }) {
             {/* Email Label */}
             <DropdownMenuLabel className="font-normal" inset>
               <p className="text-sm text-muted-foreground truncate">
-                {isGuest ? "Guest Account" : user?.email}
+                {isGuest ? "Guest Account" : effectiveUser?.email}
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

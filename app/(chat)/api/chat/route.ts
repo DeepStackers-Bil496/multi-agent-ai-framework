@@ -26,7 +26,7 @@ import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { updateDocument } from "@/lib/ai/tools/update-document";
-import { isProductionEnvironment } from "@/lib/constants";
+import { isProductionEnvironment, isTestEnvironment } from "@/lib/constants";
 import {
   createStreamId,
   deleteChatById,
@@ -34,6 +34,7 @@ import {
   getMessageCountByUserId,
   getMessagesByChatId,
   saveChat,
+  saveDocument,
   saveMessages,
   updateChatLastContextById,
 } from "@/lib/db/queries";
@@ -41,7 +42,7 @@ import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import type { ChatMessage, AgentChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
-import { convertToUIMessages, generateUUID } from "@/lib/utils";
+import { convertToUIMessages, generateUUID, getTextFromMessage } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { getAgentById } from "@/lib/agents";
@@ -49,6 +50,11 @@ import { AgentUserRole, AgentAssistantRole, AGENT_STREAM, AGENT_STARTED, AGENT_E
 import type { ExecutionStep } from "@/lib/types";
 import { resolveAgentConfig, resolveAllAgentConfigs, recomputeConfigVersion } from "@/lib/agents/configResolver";
 import { LLMImplMetadata } from "@/lib/types";
+import {
+  createMockAgentResponse,
+  getMockArtifactDraft,
+} from "@/lib/testing/mock-agent-response";
+
 
 export const maxDuration = 60;
 
@@ -103,11 +109,13 @@ export async function POST(request: Request) {
   try {
     const {
       id,
+      assistantMessageId,
       message,
       selectedChatModel,
       selectedVisibilityType,
     }: {
       id: string;
+      assistantMessageId?: string;
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
@@ -121,10 +129,20 @@ export async function POST(request: Request) {
 
     const userType: UserType = session.user.type;
 
-    const messageCount = await getMessageCountByUserId({
-      id: session.user.id,
-      differenceInHours: 24,
-    });
+    const testMessageCountHeader = request.headers.get("x-test-message-count");
+    const testMessageCount =
+      isTestEnvironment && testMessageCountHeader !== null
+        ? Number.parseInt(testMessageCountHeader, 10)
+        : Number.NaN;
+
+    const messageCount = Number.isFinite(testMessageCount)
+      ? testMessageCount
+      : isTestEnvironment
+        ? 0
+        : await getMessageCountByUserId({
+            id: session.user.id,
+            differenceInHours: 24,
+          });
 
     if (Number(messageCount) > Number(entitlementsByUserType[userType].maxMessagesPerDay)) {
       return new ChatSDKError("rate_limit:chat").toResponse();
@@ -383,9 +401,20 @@ export async function POST(request: Request) {
         const resolvedAttachments = await Promise.all(fileAttachmentsPromises);
         const fileAttachments = resolvedAttachments.join("\n");
 
-        const fullContent = fileAttachments 
-          ? `${textContent}\n\n${fileAttachments}`
-          : textContent;
+      // DEBUG: Log file attachments
+      if (fileAttachments) {
+        console.log('[CHAT] File attachments detected:', fileAttachments);
+      }
+
+      // Combine text and file info
+      const fullContent = fileAttachments 
+        ? `${textContent}\n\n${fileAttachments}`
+        : textContent;
+      
+      // DEBUG: Log final content
+      if (msg.role === 'user' && fileAttachments) {
+        console.log('[CHAT] User message with files:', fullContent.slice(0, 300));
+      }
 
         return {
           role: msg.role === "user" ? AgentUserRole : AgentAssistantRole,
@@ -396,50 +425,84 @@ export async function POST(request: Request) {
 
     // Get the selected agent
     const agent = getAgentById(selectedChatModel);
-    const resolvedConfig = await resolveAgentConfig(
-      session.user.id,
-      selectedChatModel
-    );
 
     let runtimeConfig: Partial<LLMImplMetadata> | undefined;
-    let runtimeSecrets = resolvedConfig.secrets;
+    let runtimeSecrets: Record<string, string> = {};
 
-    // Special handling for MainAgent: Load configs for all agents to enable orchestration
-    if (selectedChatModel === "main-agent") {
-      const allConfigs = await resolveAllAgentConfigs(session.user.id);
-      const subAgentConfigs: Record<string, Partial<LLMImplMetadata>> = {};
+    if (!isTestEnvironment) {
+      // Resolve user-specific configuration only on the real runtime path.
+      const resolvedConfig = await resolveAgentConfig(
+        session.user.id,
+        selectedChatModel
+      );
 
-      for (const [agentId, config] of Object.entries(allConfigs)) {
-        // Merge secrets so MainAgent can authenticate sub-agent tools
-        runtimeSecrets = { ...runtimeSecrets, ...config.secrets };
+      runtimeSecrets = resolvedConfig.secrets;
 
-        // Store specific LLM config for sub-agents
-        if (Object.keys(config.llmConfig).length > 0) {
-          subAgentConfigs[agentId] = config.llmConfig;
+      // Special handling for MainAgent: Load configs for all agents to enable orchestration
+      if (selectedChatModel === "main-agent") {
+        const allConfigs = await resolveAllAgentConfigs(session.user.id);
+        const subAgentConfigs: Record<string, Partial<LLMImplMetadata>> = {};
+
+        for (const [agentId, config] of Object.entries(allConfigs)) {
+          // Merge secrets so MainAgent can authenticate sub-agent tools
+          runtimeSecrets = { ...runtimeSecrets, ...config.secrets };
+
+          // Store specific LLM config for sub-agents
+          if (Object.keys(config.llmConfig).length > 0) {
+            subAgentConfigs[agentId] = config.llmConfig;
+          }
         }
-      }
 
-      // Attach subAgentConfigs to runtimeConfig
-      runtimeConfig = {
-        ...resolvedConfig.llmConfig,
-        subAgentConfigs,
-      };
-      // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
-      runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
-    } else {
-      runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
-        ? resolvedConfig.llmConfig
-        : undefined;
+        // Attach subAgentConfigs to runtimeConfig
+        runtimeConfig = {
+          ...resolvedConfig.llmConfig,
+          subAgentConfigs,
+        };
+        // Recompute version to include sub-agent configs (ensures cache invalidation when any sub-agent changes)
+        runtimeConfig._configVersion = recomputeConfigVersion(runtimeConfig, runtimeSecrets);
+      } else {
+        runtimeConfig = Object.keys(resolvedConfig.llmConfig).length > 0
+          ? resolvedConfig.llmConfig
+          : undefined;
+      }
     }
 
-    const agentResponse = await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
+    const mockArtifactDraft = isTestEnvironment
+      ? getMockArtifactDraft(getTextFromMessage(message))
+      : null;
+
+    const persistedArtifactDraft = mockArtifactDraft
+      ? {
+          ...mockArtifactDraft,
+          id: generateUUID(),
+        }
+      : undefined;
+
+    if (persistedArtifactDraft) {
+      await saveDocument({
+        id: persistedArtifactDraft.id,
+        title: persistedArtifactDraft.title,
+        content: persistedArtifactDraft.content,
+        kind: persistedArtifactDraft.kind,
+        userId: session.user.id,
+      });
+    }
+
+    const agentResponse = isTestEnvironment
+      ? createMockAgentResponse({
+          agentId: agent.id,
+          agentName: agent.name,
+          inputMessages: agentMessages,
+          artifactDraft: persistedArtifactDraft,
+        })
+      : await agent.instance.run(agentMessages, runtimeConfig, runtimeSecrets);
 
     if (!agentResponse.body) {
       throw new Error("No response body from Agent");
     }
 
     // Create a passthrough stream that captures content and execution flow for persistence
-    const assistantMessageId = generateUUID();
+    const persistedAssistantMessageId = assistantMessageId ?? generateUUID();
     let accumulatedContent = "";
     const activeAgentStack: string[] = [];
     const nodeMap = new Map<string, ExecutionStep>();
@@ -590,8 +653,6 @@ export async function POST(request: Request) {
             }
           }
 
-          controller.close();
-
           // Save assistant message to database after stream ends
           const parts = [];
 
@@ -616,7 +677,7 @@ export async function POST(request: Request) {
           if (parts.length > 0) {
             await saveMessages({
               messages: [{
-                id: assistantMessageId,
+                id: persistedAssistantMessageId,
                 role: "assistant",
                 parts: parts as any,
                 createdAt: new Date(),
@@ -625,6 +686,8 @@ export async function POST(request: Request) {
               }],
             });
           }
+
+          controller.close();
         } catch (error) {
           controller.error(error);
         }

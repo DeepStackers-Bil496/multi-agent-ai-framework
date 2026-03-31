@@ -16,6 +16,7 @@ const partSchema = z.union([textPartSchema, filePartSchema]);
 
 export const postRequestBodySchema = z.object({
   id: z.string().uuid(),
+  assistantMessageId: z.string().uuid().optional(),
   message: z.object({
     id: z.string().uuid(),
     role: z.enum(["user"]),

@@ -8,6 +8,7 @@ export function useMessages({
 }: {
   status: UseChatHelpers<ChatMessage>["status"];
 }) {
+  const isGenerating = status === "submitted" || status === "streaming";
   const {
     containerRef,
     endRef,
@@ -20,10 +21,10 @@ export function useMessages({
   const [hasSentMessage, setHasSentMessage] = useState(false);
 
   useEffect(() => {
-    if (status === "submitted") {
+    if (isGenerating) {
       setHasSentMessage(true);
     }
-  }, [status]);
+  }, [isGenerating]);
 
   return {
     containerRef,
