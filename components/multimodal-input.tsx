@@ -490,7 +490,7 @@ function PureMultimodalInput({
         ref={fileInputRef}
         tabIndex={-1}
         type="file"
-        accept="image/jpeg,image/png,text/csv,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept="image/jpeg, image/png, image/gif, image/webp, image/svg+xml, text/plain, application/pdf, application/json, text/csv, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, .py, .ipynb, .java, .js, .jsx, .ts, .tsx, .html, .htm, .css, .scss, .sass, .less, .vue, .svelte, .c, .cpp, .h, .hpp, .cs, .go, .rs, .rb, .php, .swift, .kt, .kts, .scala, .dart, .lua, .sh, .bash, .bat, .ps1, .xml, .yaml, .yml, .toml, .ini, .env, .sql, .md, .r"
       />
 
       <PromptInput

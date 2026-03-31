@@ -2,13 +2,13 @@ import { z } from "zod";
 
 const textPartSchema = z.object({
   type: z.enum(["text"]),
-  text: z.string().min(1).max(2000),
+  text: z.string().min(1).max(100000),
 });
 
 const filePartSchema = z.object({
   type: z.enum(["file"]),
-  mediaType: z.enum(["image/jpeg", "image/png", "text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]),
-  name: z.string().min(1).max(100),
+  mediaType: z.string().optional().nullable(), 
+  name: z.string().max(300).optional().nullable(),
   url: z.string().url(),
 });
 
