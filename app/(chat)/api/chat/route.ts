@@ -148,7 +148,7 @@ export async function POST(request: Request) {
       return new ChatSDKError("rate_limit:chat").toResponse();
     }
 
-    const chat = await getChatById({ id });
+    const chat = await getChatById({ id }) as any;
     let messagesFromDb: DBMessage[] = [];
 
     if (chat) {
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
         return new ChatSDKError("forbidden:chat").toResponse();
       }
       // Only fetch messages if chat already exists
-      messagesFromDb = await getMessagesByChatId({ id });
+      messagesFromDb = await getMessagesByChatId({ id }) as DBMessage[];
     } else {
       const title = await generateTitleFromUserMessage({
         message,
