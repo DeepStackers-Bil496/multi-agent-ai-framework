@@ -208,6 +208,26 @@ const CODEBASE_SCENARIO: DelegationScenario = {
   },
 };
 
+const DATA_ANALYST_SCENARIO: DelegationScenario = {
+  activeAgentModule: "@/lib/agents/dataAnalystAgent/dataAnalystAgent",
+  expectedAgentId: "data-analyst-agent",
+  delegationTool: "delegate_to_data_analyst",
+  taskPrefix: "[Data Analyst Task]",
+  task: "Analyze this CSV and summarize the Sales column: Name,Sales Ada,100 Babbage,200 Curie,150",
+  subAgentTool: "analyze_csv_data",
+  subAgentToolArgs: {
+    csvData: "Name,Sales\nAda,100\nBabbage,200\nCurie,150",
+    focusColumns: ["Sales"],
+  },
+  subAgentCompletion: "I analyzed the CSV and summarized the Sales column.",
+  userMessage:
+    "Analyze this CSV data and summarize the Sales column: Name,Sales Ada,100 Babbage,200 Curie,150",
+  assertToolOutput: (toolOutput) => {
+    expect(toolOutput).toContain("Statistical Analysis Results");
+    expect(toolOutput).toContain("Sales");
+  },
+};
+
 function makeToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -472,5 +492,9 @@ describe("MainAgent orchestration integration", () => {
 
   it("runs main-agent -> codebase-agent -> search_codebase tool end-to-end", async () => {
     await expectDelegationScenario(CODEBASE_SCENARIO);
+  });
+
+  it("runs main-agent -> data-analyst-agent -> analyze_csv_data tool end-to-end", async () => {
+    await expectDelegationScenario(DATA_ANALYST_SCENARIO);
   });
 });
