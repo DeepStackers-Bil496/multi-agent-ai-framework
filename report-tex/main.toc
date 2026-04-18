@@ -1,0 +1,118 @@
+\babel@toc {english}{}\relax 
+\contentsline {chapter}{Abstract}{iii}{chapter*.2}%
+\contentsline {chapter}{\numberline {1}Final Status and System Architecture}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Final System Architecture and Design}{1}{section.1.1}%
+\contentsline {subsection}{\numberline {1.1.1}Executive Summary}{1}{subsection.1.1.1}%
+\contentsline {subsection}{\numberline {1.1.2}Core Architectural Principles}{1}{subsection.1.1.2}%
+\contentsline {subsubsection}{Self-Registration Pattern}{1}{subsubsection*.3}%
+\contentsline {subsubsection}{BaseAgent Abstraction Framework}{2}{subsubsection*.4}%
+\contentsline {subsubsection}{LangGraph StatefulGraph Architecture}{2}{subsubsection*.5}%
+\contentsline {subsection}{\numberline {1.1.3}Multi-Agent Orchestration System}{2}{subsection.1.1.3}%
+\contentsline {subsubsection}{MainAgent Orchestrator Architecture}{2}{subsubsection*.6}%
+\contentsline {subsubsection}{Main Agent and Specialized Agent Interaction}{3}{subsubsection*.7}%
+\contentsline {subsubsection}{Configuration Cascading System}{3}{subsubsection*.8}%
+\contentsline {subsection}{\numberline {1.1.4}Specialized Agent Implementations}{4}{subsection.1.1.4}%
+\contentsline {subsubsection}{GitHub Agent}{4}{subsubsection*.9}%
+\contentsline {subsubsection}{Codebase Agent}{4}{subsubsection*.10}%
+\contentsline {subsubsection}{Google Workspace Agent}{4}{subsubsection*.11}%
+\contentsline {subsubsection}{Search Agent}{4}{subsubsection*.12}%
+\contentsline {subsubsection}{Vision Agent}{4}{subsubsection*.13}%
+\contentsline {subsubsection}{Data Analyst Agent}{4}{subsubsection*.14}%
+\contentsline {subsubsection}{Coding Agent}{5}{subsubsection*.15}%
+\contentsline {subsubsection}{Frontend Agent}{5}{subsubsection*.16}%
+\contentsline {subsubsection}{HuggingFace Agent}{5}{subsubsection*.17}%
+\contentsline {subsection}{\numberline {1.1.5}Streaming and Real-Time Response Architecture}{5}{subsection.1.1.5}%
+\contentsline {subsubsection}{Custom JSON Event Streaming}{5}{subsubsection*.18}%
+\contentsline {subsubsection}{Event Flow and Lifecycle}{5}{subsubsection*.19}%
+\contentsline {subsubsection}{Event Streaming Implementation}{6}{subsubsection*.20}%
+\contentsline {subsection}{\numberline {1.1.6}Database Architecture and Persistence}{6}{subsection.1.1.6}%
+\contentsline {subsubsection}{Core Schema Design}{6}{subsubsection*.21}%
+\contentsline {subsubsection}{Vector Search Implementation}{6}{subsubsection*.22}%
+\contentsline {subsection}{\numberline {1.1.7}Frontend Integration and User Experience}{7}{subsection.1.1.7}%
+\contentsline {subsubsection}{Chat API Route Flow}{7}{subsubsection*.23}%
+\contentsline {subsubsection}{Frontend Chat Component Architecture}{7}{subsubsection*.24}%
+\contentsline {subsubsection}{Model Selection and Configuration}{7}{subsubsection*.25}%
+\contentsline {subsection}{\numberline {1.1.8}LLM Provider Abstraction}{7}{subsection.1.1.8}%
+\contentsline {subsubsection}{LLM Factory Pattern}{7}{subsubsection*.26}%
+\contentsline {subsubsection}{Supported Providers}{8}{subsubsection*.27}%
+\contentsline {subsubsection}{Custom Endpoint Support}{8}{subsubsection*.28}%
+\contentsline {subsection}{\numberline {1.1.9}Tool Creation and Execution Pattern}{9}{subsection.1.1.9}%
+\contentsline {subsubsection}{DynamicStructuredTool Definition}{9}{subsubsection*.29}%
+\contentsline {subsubsection}{Tool Characteristics}{9}{subsubsection*.30}%
+\contentsline {subsubsection}{MCP Integration (GitHub Agent Example)}{9}{subsubsection*.31}%
+\contentsline {subsection}{\numberline {1.1.10}Request/Response Message Protocol}{9}{subsection.1.1.10}%
+\contentsline {subsubsection}{Message Type Definitions}{9}{subsubsection*.32}%
+\contentsline {subsubsection}{Message Persistence}{10}{subsubsection*.33}%
+\contentsline {subsection}{\numberline {1.1.11}Testing Architecture}{10}{subsection.1.1.11}%
+\contentsline {subsubsection}{Automated Testing Strategy}{10}{subsubsection*.34}%
+\contentsline {subsubsection}{Test Execution}{10}{subsubsection*.35}%
+\contentsline {subsection}{\numberline {1.1.12}Authentication and Session Management}{11}{subsection.1.1.12}%
+\contentsline {subsubsection}{NextAuth v5 Configuration}{11}{subsubsection*.36}%
+\contentsline {subsubsection}{Session Middleware}{11}{subsubsection*.37}%
+\contentsline {section}{\numberline {1.2}Final Project Status}{11}{section.1.2}%
+\contentsline {subsection}{\numberline {1.2.1}Implementation Completeness}{11}{subsection.1.2.1}%
+\contentsline {paragraph}{Core systems --- complete.}{11}{paragraph*.38}%
+\contentsline {paragraph}{Specialized agents --- complete.}{11}{paragraph*.39}%
+\contentsline {paragraph}{LLM provider support --- complete.}{11}{paragraph*.40}%
+\contentsline {paragraph}{Database \& persistence --- complete.}{11}{paragraph*.41}%
+\contentsline {paragraph}{Testing framework --- complete.}{11}{paragraph*.42}%
+\contentsline {subsection}{\numberline {1.2.2}Code Quality and Standards}{12}{subsection.1.2.2}%
+\contentsline {paragraph}{Architecture standards.}{12}{paragraph*.43}%
+\contentsline {paragraph}{TypeScript usage.}{12}{paragraph*.44}%
+\contentsline {paragraph}{Code organization.}{12}{paragraph*.45}%
+\contentsline {subsection}{\numberline {1.2.3}Deployment and Production Readiness}{12}{subsection.1.2.3}%
+\contentsline {paragraph}{Infrastructure requirements.}{12}{paragraph*.46}%
+\contentsline {paragraph}{Environment variables.}{12}{paragraph*.47}%
+\contentsline {paragraph}{Performance optimizations.}{12}{paragraph*.48}%
+\contentsline {subsection}{\numberline {1.2.4}Project Statistics}{13}{subsection.1.2.4}%
+\contentsline {subsection}{\numberline {1.2.5}Development Workflow Commands}{13}{subsection.1.2.5}%
+\contentsline {subsection}{\numberline {1.2.6}Conclusion}{14}{subsection.1.2.6}%
+\contentsline {subsection}{\numberline {1.2.7}Final System Architecture and Design Diagram}{14}{subsection.1.2.7}%
+\contentsline {chapter}{\numberline {2}Newly Used Tools and Technologies}{18}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Integration of New Technologies}{18}{section.2.1}%
+\contentsline {subsection}{\numberline {2.1.1}Agent Orchestration Layer}{18}{subsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.1.2}Large Language Model Providers}{18}{subsection.2.1.2}%
+\contentsline {subsection}{\numberline {2.1.3}Retrieval-Augmented Generation Stack}{19}{subsection.2.1.3}%
+\contentsline {subsection}{\numberline {2.1.4}External Service Integrations}{20}{subsection.2.1.4}%
+\contentsline {subsection}{\numberline {2.1.5}Web and Frontend Platform}{20}{subsection.2.1.5}%
+\contentsline {subsection}{\numberline {2.1.6}Persistence, Authentication, and Streaming}{20}{subsection.2.1.6}%
+\contentsline {subsection}{\numberline {2.1.7}Testing, Observability, and Quality Tooling}{21}{subsection.2.1.7}%
+\contentsline {subsection}{\numberline {2.1.8}Why These Choices Matter}{21}{subsection.2.1.8}%
+\contentsline {chapter}{\numberline {3}Impacts of the Engineering Solutions}{22}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Economic Impacts}{22}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Environmental Impacts}{22}{section.3.2}%
+\contentsline {paragraph}{Positive environmental impacts.}{22}{paragraph*.49}%
+\contentsline {paragraph}{Negative environmental impacts.}{23}{paragraph*.50}%
+\contentsline {section}{\numberline {3.3}Societal and Global Impacts}{23}{section.3.3}%
+\contentsline {paragraph}{Accessibility and the digital divide.}{23}{paragraph*.51}%
+\contentsline {paragraph}{Employment and workforce transformation.}{23}{paragraph*.52}%
+\contentsline {paragraph}{Education and access to knowledge.}{23}{paragraph*.53}%
+\contentsline {paragraph}{Global competition and technological sovereignty.}{23}{paragraph*.54}%
+\contentsline {chapter}{\numberline {4}Current Issues Related to the Project Field}{24}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Current Discussions in the Field}{24}{section.4.1}%
+\contentsline {paragraph}{Hallucination and reliability.}{24}{paragraph*.55}%
+\contentsline {paragraph}{AI safety and alignment.}{24}{paragraph*.56}%
+\contentsline {paragraph}{Data privacy and GDPR compliance.}{24}{paragraph*.57}%
+\contentsline {paragraph}{Controllability in multi-agent systems.}{24}{paragraph*.58}%
+\contentsline {paragraph}{Tension between open-source and closed-source models.}{24}{paragraph*.59}%
+\contentsline {paragraph}{Artificial intelligence and copyright.}{25}{paragraph*.60}%
+\contentsline {chapter}{\numberline {5}Background Research and Use of Sources}{26}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Similar Designs and Component Information}{26}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Multi-Agent Orchestration Frameworks}{26}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Foundational Academic Work on LLM Agents}{26}{subsection.5.1.2}%
+\contentsline {subsection}{\numberline {5.1.3}Protocols, Standards, and Vendor Documentation}{27}{subsection.5.1.3}%
+\contentsline {subsection}{\numberline {5.1.4}Web Platform and Infrastructure References}{27}{subsection.5.1.4}%
+\contentsline {subsection}{\numberline {5.1.5}How Prior Art Was Adapted}{28}{subsection.5.1.5}%
+\contentsline {section}{\numberline {5.2}Fundamental Engineering Principles and Lifelong Learning}{28}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Engineering Principles Applied}{28}{subsection.5.2.1}%
+\contentsline {paragraph}{SOLID principles.}{28}{paragraph*.61}%
+\contentsline {paragraph}{Design patterns.}{29}{paragraph*.62}%
+\contentsline {paragraph}{Architectural principles.}{29}{paragraph*.63}%
+\contentsline {paragraph}{Data and algorithmic principles.}{29}{paragraph*.64}%
+\contentsline {paragraph}{Security and privacy principles.}{29}{paragraph*.65}%
+\contentsline {subsection}{\numberline {5.2.2}Lifelong Learning and Self-Directed Study}{30}{subsection.5.2.2}%
+\contentsline {chapter}{\numberline {6}Test Results and Evaluation}{31}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Test Cases}{32}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Statistical Evaluation of the Tests}{40}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Future Enhancements}{43}{section.6.3}%
+\contentsline {chapter}{\numberline {7}References}{45}{chapter.7}%
