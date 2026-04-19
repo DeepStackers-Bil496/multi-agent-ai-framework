@@ -11,14 +11,12 @@ const frontendAgentUserMetadata: AgentUserMetadata = {
     long_description: "Customize the application's appearance including themes, colors, fonts, effects, gradients, and styling through natural language commands.",
     icon: MdPalette,
     suggestedActions: [
-        "Apply the cyberpunk theme",
-        "Enable glassmorphism with strong blur",
-        "Set a purple to blue gradient background",
-        "Make everything more rounded with dramatic shadows",
-        "Switch to dark mode with neon pink accent",
-        "Use a playful font and bouncy animations",
-        "Apply ocean theme preset",
-        "Reset all styles to default"
+        "Apply the cyberpunk preset.",
+        "Dark mode with a neon pink accent and bouncy animations.",
+        "Enable strong glassmorphism.",
+        "Purple-to-blue gradient background with dramatic shadows.",
+        "Use a serif font, rounded borders, and subtle shadows.",
+        "Reset all styles to default.",
     ],
 };
 

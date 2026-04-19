@@ -7,14 +7,17 @@ import { mainAgentSystemPrompt } from "./prompt";
 const mainAgentUserMetadata: AgentUserMetadata = {
     id: "main-agent",
     name: "Main Agent",
-    short_description: "Main Agent that is used as orchestrator.",
-    long_description: "Main Agent that handles the conversation.",
+    short_description: "Orchestrator that chains specialized agents to complete complex tasks end-to-end.",
+    long_description:
+        "Plans and executes multi-step tasks by delegating to specialized agents (GitHub, Search, Vision, Coding, Data Analyst, Google Workspace, Hugging Face, Codebase, Frontend) in sequence, carrying context between steps so the user only sees the final synthesized result.",
     icon: FiCpu,
     suggestedActions: [
-        "Search this link oruccakir.live",
-        "Get the last two commits from Evangeline repo owner is oruccakir",
-        "What is Mustafa Kemal Atatürk?",
-        "What is Model Context Protocol"
+        "Find the latest arXiv paper on retrieval-augmented generation, summarize its key contributions, and draft an email about it to my team.",
+        "Check my last 3 commits in the Evangeline repo, analyze how they changed the codebase, and suggest what tests to add.",
+        "Search Hugging Face for trending text-to-image models, pick the most popular, and generate a demo image with it.",
+        "Scrape the release notes from a URL I'll give you, identify breaking changes, and open a GitHub issue summarizing them.",
+        "Analyze the screenshot I attached, extract the color palette, and apply a matching theme to this app.",
+        "Read this CSV, run a correlation analysis, produce a chart, and save a one-page summary to my Google Drive.",
     ],
 }
 

@@ -7,29 +7,17 @@ import { dataAnalystAgentSystemPrompt } from "./prompt";
 const dataAnalystAgentUserMetadata: AgentUserMetadata = {
   id: "data-analyst-agent",
   name: "Data Analyst Agent",
-  short_description: "Advanced data analysis with Python execution, ML, and real-time visualizations.",
+  short_description: "Statistics, charts, transformations, and ML on tabular data.",
   long_description:
-    "Expert data scientist agent with dual-phase capabilities:\n" +
-    "• PHASE 1: CSV/JSON parsing, descriptive statistics, correlation analysis, outlier detection, insight generation, visualization code\n" +
-    "• PHASE 2 (E2B): Python code execution, real chart generation (PNG), pandas transformations, machine learning models (regression, classification), feature importance analysis\n" +
-    "Transforms raw data into actionable insights with production-ready analysis.",
+    "Ingests CSV/JSON (uploaded file or pasted text), computes statistics and correlations, detects outliers, runs pandas transformations, renders real charts, and trains baseline ML models (regression, classification, feature importance). Python execution via E2B sandbox when configured.",
   icon: FiPieChart,
   suggestedActions: [
-    // Phase 1 actions (always available)
-    "Analyze this dataset and show key statistics",
-    "Find correlations in my data",
-    "Identify outliers and missing values",
-    
-    // Phase 2 actions (E2B required)
-    "Show me a scatter plot of sales vs marketing",
-    "Predict future sales using machine learning",
-    "Group data by region and visualize totals",
-    "Run a regression analysis and show feature importance",
-    "Generate a heatmap showing correlations",
-    
-    // Advanced analysis
-    "Which variables influence revenue the most?",
-    "Transform this data and calculate weighted averages",
+    "Give me summary statistics for this CSV.",
+    "Find the strongest correlations between the numeric columns.",
+    "Plot a histogram of the SALES column.",
+    "Train a random-forest model to predict `churn` and report feature importance.",
+    "Group by Region, aggregate Sales sum, and show the top 5.",
+    "Detect outliers in the `price` column using IQR.",
   ],
 };
 

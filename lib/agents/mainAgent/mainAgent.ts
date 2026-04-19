@@ -80,17 +80,47 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     }
 
     /**
-     * Create a prepare task node for a delegatable agent
+     * Build a single self-contained HumanMessage for the sub-agent that includes
+     * the original user request and a synthesized record of prior delegation
+     * outputs, so the sub-agent has full context regardless of the noisy
+     * accumulated MessagesAnnotation state.
      */
     private createPrepareTaskNode(agent: DelegatableAgent) {
         return (state: typeof MessagesAnnotation.State) => {
             const { messages } = state;
             const lastMessage = messages[messages.length - 1] as AIMessage;
             const delegation = lastMessage.tool_calls?.find(tc => tc.name === agent.toolName);
-            const task = delegation?.args?.task as string || `Help with ${agent.name}`;
+            const task = (delegation?.args?.task as string) || `Help with ${agent.name}`;
+
+            const firstUser = messages.find((m) => m instanceof HumanMessage);
+            const originalGoal = firstUser ? String(firstUser.content).trim() : "";
+
+            const priorResults: string[] = [];
+            for (let i = 0; i < messages.length - 1; i++) {
+                const m = messages[i];
+                if (
+                    m instanceof AIMessage &&
+                    (!m.tool_calls || m.tool_calls.length === 0) &&
+                    typeof m.content === "string" &&
+                    m.content.trim().length > 0
+                ) {
+                    priorResults.push(m.content.trim().slice(0, 4000));
+                }
+            }
+
+            const goalBlock = originalGoal
+                ? `\n\nORIGINAL USER REQUEST:\n${originalGoal}`
+                : "";
+            const priorBlock = priorResults.length
+                ? `\n\nPRIOR AGENT OUTPUTS (most recent last):\n${priorResults
+                      .map((c, i) => `[${i + 1}] ${c}`)
+                      .join("\n\n")}`
+                : "";
+
+            const body = `${agent.taskPrefix} ${task}${goalBlock}${priorBlock}`;
             console.log(`[MainAgent] Preparing task for ${agent.name}:`, task);
             return {
-                messages: [new HumanMessage(`${agent.taskPrefix} ${task}`)]
+                messages: [new HumanMessage(body)],
             };
         };
     }

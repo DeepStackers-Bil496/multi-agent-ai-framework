@@ -17,10 +17,11 @@ const codebaseAgentUserMetadata: AgentUserMetadata = {
     icon: FiCode,
     suggestedActions: [
         "How does authentication work in this project?",
-        "What agents are available and what do they do?",
-        "Explain the MainAgent routing logic",
-        "Where is the database schema defined?",
-        "How does message streaming work?",
+        "Where is the MainAgent's orchestration graph built?",
+        "Find everywhere `agentRegistry.register` is called.",
+        "Explain the streaming event pipeline from baseAgent.run() to the frontend.",
+        "Which files touch the `codebaseEmbedding` table?",
+        "Show how a specialized agent binds its tools to the LLM.",
     ],
 };
 
