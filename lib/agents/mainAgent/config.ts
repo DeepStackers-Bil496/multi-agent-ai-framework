@@ -12,12 +12,10 @@ const mainAgentUserMetadata: AgentUserMetadata = {
         "Plans and executes multi-step tasks by delegating to specialized agents (GitHub, Search, Vision, Coding, Data Analyst, Google Workspace, Hugging Face, Codebase, Frontend) in sequence, carrying context between steps so the user only sees the final synthesized result.",
     icon: FiCpu,
     suggestedActions: [
-        "Find the latest arXiv paper on retrieval-augmented generation, summarize its key contributions, and draft an email about it to my team.",
+        "Find the latest arXiv paper on retrieval-augmented generation, summarize its key contributions, and draft an email about it",
         "Check my last 3 commits in the Evangeline repo, analyze how they changed the codebase, and suggest what tests to add.",
-        "Search Hugging Face for trending text-to-image models, pick the most popular, and generate a demo image with it.",
-        "Scrape the release notes from a URL I'll give you, identify breaking changes, and open a GitHub issue summarizing them.",
-        "Analyze the screenshot I attached, extract the color palette, and apply a matching theme to this app.",
-        "Read this CSV, run a correlation analysis, produce a chart, and save a one-page summary to my Google Drive.",
+        "Search Hugging Face for trending text-to-image models, pick the most popular summarize it to me",
+        "Scrape the release notes from https://oruccakir.live ",
     ],
 }
 

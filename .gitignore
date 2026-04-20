@@ -63,3 +63,4 @@ gha-creds-*.json
 # Private API keys
 E2B_API_KEY_PRIVATE.txt
 *_PRIVATE.txt
+tokens.md
