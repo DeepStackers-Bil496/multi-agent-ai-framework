@@ -33,7 +33,7 @@ agentRegistry.register({
   toolDescription: `Route coding and implementation tasks here.
 Use this when the user asks to:
 - Implement algorithms or data structures
-- Write or refactor code (Python-first unless otherwise requested)
+- Write or refactor code in any language
 - Generate tests, examples, or quick scripts
 - Provide code-level explanations and best practices`,
   taskPrefix: "[Coding Task]",

@@ -11,10 +11,12 @@ const searchAgentUserMetadata: AgentUserMetadata = {
     long_description: "Search the web, news, and academic papers. Extract text, links, and metadata from any webpage. Powered by DuckDuckGo, arXiv, and Semantic Scholar.",
     icon: FiSearch,
     suggestedActions: [
-        "Search for the latest news on AI",
-        "Find research papers about transformer architectures",
-        "Scrape the content from this URL: https://example.com",
-        "Extract all links from this webpage"
+        "Search the web for the latest LangGraph release notes.",
+        "Find arXiv papers on mixture-of-experts published this year.",
+        "Scrape the article at https://oruccakir.live and extract the main points.",
+        "Get today's top AI news headlines.",
+        "List all outbound links on https://oruccakir.live.",
+        "Pull the Open Graph metadata from https://oruccakir.live.",
     ],
 };
 

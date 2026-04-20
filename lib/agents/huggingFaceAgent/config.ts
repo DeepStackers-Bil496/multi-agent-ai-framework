@@ -7,14 +7,16 @@ import { huggingFaceAgentSystemPrompt } from "./prompt";
 const huggingFaceAgentUserMetadata: AgentUserMetadata = {
     id: "huggingface-agent",
     name: "HuggingFace Agent",
-    short_description: "HuggingFace Agent powered by Gemini",
-    long_description: "Search and discover ML models, datasets, papers, and Spaces on the Hugging Face Hub. Run ML tasks via MCP-enabled Spaces.",
+    short_description: "Search the Hugging Face Hub and run ML tasks on Spaces.",
+    long_description: "Search and discover ML models, datasets, papers, and Spaces on the Hugging Face Hub. Fetch detailed repo metadata and product docs. Invoke MCP-enabled Spaces for image generation, OCR, TTS, transcription, and more.",
     icon: SiHuggingface,
     suggestedActions: [
-        "Find the top 10 trending text-generation models",
-        "Search for papers about vision transformers",
-        "What datasets are available for sentiment analysis?",
-        "Discover available ML tasks on Hugging Face Spaces"
+        "Top 10 trending text-generation models right now.",
+        "Find datasets tagged `sentiment-analysis`, sorted by downloads.",
+        "Show details for `stabilityai/stable-diffusion-3`.",
+        "Search papers on vision transformers.",
+        "List MCP-enabled Spaces for OCR.",
+        "Invoke an MCP Space to transcribe an audio file at <URL>.",
     ],
 }
 
