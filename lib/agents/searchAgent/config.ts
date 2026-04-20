@@ -13,10 +13,10 @@ const searchAgentUserMetadata: AgentUserMetadata = {
     suggestedActions: [
         "Search the web for the latest LangGraph release notes.",
         "Find arXiv papers on mixture-of-experts published this year.",
-        "Scrape the article at <URL> and extract the main points.",
+        "Scrape the article at https://oruccakir.live and extract the main points.",
         "Get today's top AI news headlines.",
-        "List all outbound links on <URL>.",
-        "Pull the Open Graph metadata from <URL>.",
+        "List all outbound links on https://oruccakir.live.",
+        "Pull the Open Graph metadata from https://oruccakir.live.",
     ],
 };
 

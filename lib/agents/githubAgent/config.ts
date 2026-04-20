@@ -13,11 +13,9 @@ const githubAgentUserMetadata: AgentUserMetadata = {
     icon: FaGithub,
     suggestedActions: [
         "List my open pull requests across all my repos.",
-        "Show the diff of the latest commit in <owner>/<repo>.",
+        "Show the diff of the latest commit in Evangeline repo.",
         "Search code for `useEffect` across my repos.",
-        "Open an issue in <owner>/<repo> titled 'bug: X' with reproduction steps.",
-        "Create a branch `feature/Y` from main in <owner>/<repo>.",
-        "Summarize who authored what in the last 20 commits of <owner>/<repo>.",
+        "Create a branch `feature/Y` from main in Evangeline repo.",
     ],
 }
 

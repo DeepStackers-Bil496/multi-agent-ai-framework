@@ -14,11 +14,11 @@ const googleWorkspaceAgentUserMetadata: AgentUserMetadata = {
         "create and edit Google Docs, work with spreadsheet data in Sheets, and create presentations in Slides.",
     icon: SiGoogle,
     suggestedActions: [
-        "Draft an email to alice@example.com summarizing today's deploy.",
+        "Draft an email to oruccakir2525@gmail.com summarizing today's deploy.",
         "Find a 30-minute free slot tomorrow afternoon.",
         "Create a Google Doc titled 'Q2 roadmap' with these bullet points.",
         "Append today's expenses as a row in my Budget sheet.",
-        "Share the latest file in Drive with bob@example.com as a commenter.",
+        "Share the latest file in Drive with oruccakir2525@gmail.com as a commenter.",
         "List my inbox emails from the past 24 hours.",
     ],
 };
