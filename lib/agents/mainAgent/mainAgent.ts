@@ -1,6 +1,6 @@
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { Runnable } from "@langchain/core/runnables";
-import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT, TOOL_ENDED, TOOL_STARTED } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
@@ -119,9 +119,22 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
 
             const body = `${agent.taskPrefix} ${task}${goalBlock}${priorBlock}`;
             console.log(`[MainAgent] Preparing task for ${agent.name}:`, task);
-            return {
-                messages: [new HumanMessage(body)],
-            };
+
+            // CRITICAL: answer the orchestrator's delegation tool call with a ToolMessage
+            // so the conversation stays well-formed. Without it the function call is left
+            // dangling, the NEXT orchestrator turn errors, and the loop stops after one
+            // agent (never advancing to the next agent).
+            const outMessages: (ToolMessage | HumanMessage)[] = [];
+            for (const tc of (lastMessage.tool_calls ?? [])) {
+                outMessages.push(new ToolMessage({
+                    tool_call_id: tc.id ?? tc.name,
+                    content: tc.name === agent.toolName
+                        ? `Delegated to ${agent.name}; running now. Its result will follow.`
+                        : `Not run this turn; will be handled in a later step.`,
+                }));
+            }
+            outMessages.push(new HumanMessage(body));
+            return { messages: outMessages };
         };
     }
 
@@ -136,13 +149,30 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
         ];
 
         try {
-            const response = await this.agentLLM!.invoke(messagesToSend);
-            return { messages: [response] };
+            const response = await this.agentLLM!.invoke(messagesToSend) as AIMessage;
+            return { messages: [this.keepSingleDelegation(response)] };
         } catch (error) {
             console.error("[MainAgent] Error in agentNode:", error);
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
             return { messages: [new AIMessage(`Error: ${errorMessage}`)] };
         }
+    }
+
+    /**
+     * The orchestrator must delegate exactly ONE step per turn. If the model emits
+     * several tool calls at once (parallel function calling), keep only the first
+     * delegation — the extra ones would be left unanswered (dangling tool calls) and
+     * break the conversation on the next turn. Dropped steps are re-delegated on later
+     * turns, since the orchestrator re-plans from the full accumulated state.
+     */
+    private keepSingleDelegation(message: AIMessage): AIMessage {
+        const toolCalls = message.tool_calls ?? [];
+        if (toolCalls.length <= 1) {
+            return message;
+        }
+        const first = toolCalls.find(tc => agentRegistry.getByToolName(tc.name)) ?? toolCalls[0];
+        console.log(`[MainAgent] Collapsing ${toolCalls.length} parallel tool calls -> ${first.name}`);
+        return new AIMessage({ content: message.content, tool_calls: [first] });
     }
 
     /**
@@ -216,8 +246,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             ];
 
             try {
-                const response = await boundLLM.invoke(messagesToSend);
-                return { messages: [response] };
+                const response = await boundLLM.invoke(messagesToSend) as AIMessage;
+                return { messages: [this.keepSingleDelegation(response)] };
             } catch (error) {
                 console.error("[MainAgent] (Runtime) Error in agentNode:", error);
                 const errorMessage = error instanceof Error ? error.message : "Unknown error";
