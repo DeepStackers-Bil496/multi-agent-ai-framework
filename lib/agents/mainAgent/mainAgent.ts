@@ -346,12 +346,18 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                                 payload: { name: toolName, content: JSON.stringify(output), id: event.run_id }
                             });
                         }
-                        // LLM streaming
+                        // LLM streaming — ONLY the orchestrator's own tokens become the
+                        // user-facing answer. Sub-agent token streams (langgraph_node
+                        // "agentNode") stay inside the execution tree, so intermediate
+                        // agent outputs don't merge into the final response.
                         else if (event.event === ON_CHAT_MODEL_STREAM_EVENT) {
-                            enqueueJson({
-                                type: AGENT_STREAM,
-                                payload: { name: event.name, content: event.data.chunk, id: event.run_id }
-                            });
+                            const streamNode = (event.metadata as any)?.langgraph_node;
+                            if (streamNode === undefined || streamNode === "MainAgentNode") {
+                                enqueueJson({
+                                    type: AGENT_STREAM,
+                                    payload: { name: event.name, content: event.data.chunk, id: event.run_id }
+                                });
+                            }
                         }
                     }
                 }

@@ -64,3 +64,6 @@ gha-creds-*.json
 E2B_API_KEY_PRIVATE.txt
 *_PRIVATE.txt
 tokens.md
+
+MIMARI_DERIN_INCELEME.md
+sunum/

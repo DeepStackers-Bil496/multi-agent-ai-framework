@@ -273,6 +273,7 @@ export function Chat({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = "";
+      let lastStreamRunId: string | null = null;
       
       let streamBuffer = ""; 
       
@@ -430,6 +431,14 @@ export function Chat({
               }
             }
             else if (data.type === AGENT_STREAM) {
+              // Each LLM turn has its own run id. When a NEW turn starts, drop the
+              // previous turn's text so only the final answer (the orchestrator's last
+              // turn) is shown, instead of merging every agent/turn's output together.
+              const runId = (data.payload as any)?.id as string | undefined;
+              if (runId && runId !== lastStreamRunId) {
+                lastStreamRunId = runId;
+                accumulatedText = "";
+              }
               const textChunk = extractTextContent(data.payload.content);
               accumulatedText += textChunk;
             } else if (data.type === AGENT_ERROR) {

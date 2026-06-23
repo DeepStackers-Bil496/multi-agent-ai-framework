@@ -504,6 +504,7 @@ export async function POST(request: Request) {
     // Create a passthrough stream that captures content and execution flow for persistence
     const persistedAssistantMessageId = assistantMessageId ?? generateUUID();
     let accumulatedContent = "";
+    let lastStreamRunId: string | null = null;
     const activeAgentStack: string[] = [];
     const nodeMap = new Map<string, ExecutionStep>();
     const rootSteps: ExecutionStep[] = [];
@@ -636,6 +637,13 @@ export async function POST(request: Request) {
                   }
                 }
                 else if (data.type === AGENT_STREAM && data.payload?.content) {
+                  // Reset on a new LLM turn so only the final answer is persisted,
+                  // not every agent/turn's output concatenated together.
+                  const runId = data.payload?.id;
+                  if (runId && runId !== lastStreamRunId) {
+                    lastStreamRunId = runId;
+                    accumulatedContent = "";
+                  }
                   const content = data.payload.content;
                   if (typeof content === "string") {
                     accumulatedContent += content;
