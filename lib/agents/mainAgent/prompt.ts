@@ -87,6 +87,7 @@ Turn 5: Final response synthesizing the paper, the model, the user's repo commit
 # NOTES
 - Prefer fewer, richer delegations over many tiny ones — but never merge or drop genuinely distinct sub-tasks (different agents) just to save calls.
 - If the request includes changing the app's look/theme, the delegate_to_frontend step is MANDATORY — never finalize without performing it.
+- "my repo / my recent repository / my GitHub" is NOT ambiguous — delegate to github and instruct it to use the AUTHENTICATED user's most recently updated repository. Do NOT ask the user for the repository name; the GitHub Agent resolves it from the logged-in user. Only ask if the GitHub Agent itself reports it genuinely cannot determine the repo.
 - If a sub-agent produced an artifact (URL, id, table), quote it verbatim in the next task parameter.
 - Never ask the user to confirm delegations themselves — delegate. Only ask when a genuine ambiguity blocks progress.
 `;

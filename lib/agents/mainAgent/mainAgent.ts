@@ -346,13 +346,14 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                                 payload: { name: toolName, content: JSON.stringify(output), id: event.run_id }
                             });
                         }
-                        // LLM streaming — ONLY the orchestrator's own tokens become the
-                        // user-facing answer. Sub-agent token streams (langgraph_node
-                        // "agentNode") stay inside the execution tree, so intermediate
-                        // agent outputs don't merge into the final response.
+                        // LLM streaming — block ONLY sub-agent token streams (their LLM
+                        // node is named "agentNode") so intermediate agent outputs don't
+                        // merge into the answer. Everything else (the orchestrator's own
+                        // tokens, or any unknown source) is always forwarded, so the final
+                        // answer can never be accidentally suppressed.
                         else if (event.event === ON_CHAT_MODEL_STREAM_EVENT) {
                             const streamNode = (event.metadata as any)?.langgraph_node;
-                            if (streamNode === undefined || streamNode === "MainAgentNode") {
+                            if (streamNode !== "agentNode") {
                                 enqueueJson({
                                     type: AGENT_STREAM,
                                     payload: { name: event.name, content: event.data.chunk, id: event.run_id }
