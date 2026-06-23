@@ -6,7 +6,7 @@ import { Runnable } from "@langchain/core/runnables";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { createLLM } from "./llmFactory";
 import { AGENT_ENDED, AGENT_ERROR, AGENT_STARTED, AGENT_STREAM, AgentUserRole, API_MODEL_TYPE, ON_CHAT_MODEL_STREAM_EVENT, TOOL_ENDED, TOOL_ENDED_EVENT, TOOL_STARTED, TOOL_STARTED_EVENT } from "../constants";
-import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, SystemMessage, ToolMessage, BaseMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata, M extends AgentUserMetadata = AgentUserMetadata> {
@@ -98,6 +98,41 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
     }
 
     /**
+     * Strip orchestrator pollution before sending history to this agent's LLM.
+     *
+     * When an agent runs embedded under the MainAgent it shares one MessagesAnnotation
+     * and therefore receives the orchestrator's delegation function-calls and OTHER
+     * agents' tool traffic — function calls/responses for tools THIS agent does not own.
+     * Gemini intermittently fails to parse that foreign function-call history ("Failed to
+     * parse stream"), forcing wasteful retries. Keep this agent's own task (the last
+     * HumanMessage), everything after it (its own tool calls/results this turn), and
+     * earlier PLAIN text messages (legitimate conversation history); drop earlier
+     * tool-call AIMessages and ToolMessages. Standalone runs are unaffected — their
+     * history has no foreign tool traffic before the latest user message.
+     */
+    protected sanitizeMessagesForLLM(messages: BaseMessage[]): BaseMessage[] {
+        let lastHumanIdx = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i] instanceof HumanMessage) { lastHumanIdx = i; break; }
+        }
+        if (lastHumanIdx < 0) return messages;
+
+        const hasToolCall = (m: BaseMessage): boolean => {
+            const anyM = m as any;
+            if (Array.isArray(anyM.tool_calls) && anyM.tool_calls.length > 0) return true;
+            if (Array.isArray(anyM.content) && anyM.content.some((p: any) => p?.type === "functionCall")) return true;
+            return false;
+        };
+
+        return messages.filter((m, idx) => {
+            if (idx >= lastHumanIdx) return true;   // the task + this agent's own work
+            if (m instanceof ToolMessage) return false;  // foreign tool result
+            if (hasToolCall(m)) return false;            // foreign delegation / tool call
+            return true;                                 // plain text history
+        });
+    }
+
+    /**
      * Every agent must implement this method.
      * In langGraph, this method is used as the agent node.
      * @param state Agent state
@@ -107,7 +142,7 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
         const { messages } = state;
         const messagesToSend = [
             new SystemMessage(this.implementationMetadata.systemInstruction),
-            ...messages
+            ...this.sanitizeMessagesForLLM(messages)
         ]
 
         try {
@@ -256,7 +291,7 @@ export abstract class BaseAgent<T extends AgentImplMetadata = AgentImplMetadata,
             const { messages } = state;
             const messagesToSend = [
                 new SystemMessage(mergedConfig.systemInstruction),
-                ...messages
+                ...this.sanitizeMessagesForLLM(messages)
             ];
 
             try {

@@ -46,7 +46,7 @@ class GoogleWorkspaceAgent extends BaseAgent<LLMImplMetadata> {
 
         const systemInstructionWithDate = `Today is ${dateStr}.\n\n${this.implementationMetadata.systemInstruction}`;
 
-        const messagesToSend = [new SystemMessage(systemInstructionWithDate), ...messages];
+        const messagesToSend = [new SystemMessage(systemInstructionWithDate), ...this.sanitizeMessagesForLLM(messages)];
 
         try {
             console.log(`[${this.name}] Invoking LLM with date awareness: ${dateStr}`);
@@ -95,7 +95,7 @@ class GoogleWorkspaceAgent extends BaseAgent<LLMImplMetadata> {
 
             const systemInstructionWithDate = `Today is ${dateStr}.\n\n${mergedConfig.systemInstruction}`;
 
-            const messagesToSend = [new SystemMessage(systemInstructionWithDate), ...messages];
+            const messagesToSend = [new SystemMessage(systemInstructionWithDate), ...this.sanitizeMessagesForLLM(messages)];
 
             try {
                 console.log(`[${this.name}] (Runtime) Invoking LLM with date awareness: ${dateStr}`);

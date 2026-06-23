@@ -66,7 +66,7 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
         const systemInstruction = await this.buildSystemInstruction(
             this.implementationMetadata.systemInstruction
         );
-        const messagesToSend = [new SystemMessage(systemInstruction), ...messages];
+        const messagesToSend = [new SystemMessage(systemInstruction), ...this.sanitizeMessagesForLLM(messages)];
 
         try {
             console.log(`[${this.name}] Invoking LLM with auth-aware system prompt`);
@@ -105,7 +105,7 @@ class GitHubAgent extends BaseAgent<LLMImplMetadata> {
         const runtimeAgentNode = async (state: typeof MessagesAnnotation.State) => {
             const { messages } = state;
             const systemInstruction = await buildSystem();
-            const messagesToSend = [new SystemMessage(systemInstruction), ...messages];
+            const messagesToSend = [new SystemMessage(systemInstruction), ...this.sanitizeMessagesForLLM(messages)];
 
             try {
                 console.log(`[${this.name}] (Runtime) Invoking LLM with auth-aware system prompt`);

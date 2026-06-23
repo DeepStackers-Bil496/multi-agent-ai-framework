@@ -1,6 +1,6 @@
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { Runnable } from "@langchain/core/runnables";
-import { HumanMessage, AIMessage, SystemMessage, ToolMessage, BaseMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, AIMessageChunk, SystemMessage, ToolMessage, BaseMessage } from "@langchain/core/messages";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT, TOOL_ENDED, TOOL_STARTED } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
@@ -88,44 +88,24 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
     private createPrepareTaskNode(agent: DelegatableAgent) {
         return (state: typeof MessagesAnnotation.State) => {
             const { messages } = state;
-            const lastMessage = messages[messages.length - 1] as AIMessage;
-            const delegation = lastMessage.tool_calls?.find(tc => tc.name === agent.toolName);
+            const lastMessage = messages[messages.length - 1];
+            const toolCalls = this.extractToolCalls(lastMessage);
+            const delegation = toolCalls.find(tc => tc.name === agent.toolName);
             const task = (delegation?.args?.task as string) || `Help with ${agent.name}`;
 
-            const firstUser = messages.find((m) => m instanceof HumanMessage);
-            const originalGoal = firstUser ? String(firstUser.content).trim() : "";
-
-            const priorResults: string[] = [];
-            for (let i = 0; i < messages.length - 1; i++) {
-                const m = messages[i];
-                if (
-                    m instanceof AIMessage &&
-                    (!m.tool_calls || m.tool_calls.length === 0) &&
-                    typeof m.content === "string" &&
-                    m.content.trim().length > 0
-                ) {
-                    priorResults.push(m.content.trim().slice(0, 4000));
-                }
-            }
-
-            const goalBlock = originalGoal
-                ? `\n\nORIGINAL USER REQUEST:\n${originalGoal}`
-                : "";
-            const priorBlock = priorResults.length
-                ? `\n\nPRIOR AGENT OUTPUTS (most recent last):\n${priorResults
-                      .map((c, i) => `[${i + 1}] ${c}`)
-                      .join("\n\n")}`
-                : "";
-
-            const body = `${agent.taskPrefix} ${task}${goalBlock}${priorBlock}`;
+            // Give the sub-agent ONLY its specific, self-contained task. Do NOT inject the
+            // full multi-part original request: a capable agent (e.g. Search, which has web
+            // tools) would then try to satisfy EVERY part of the prompt, wasting work AND
+            // causing the orchestrator to skip the agent that should own a later step
+            // (e.g. the GitHub agent) because that data was already scraped by Search.
+            const body = `${agent.taskPrefix} ${task}`;
             console.log(`[MainAgent] Preparing task for ${agent.name}:`, task);
 
-            // CRITICAL: answer the orchestrator's delegation tool call with a ToolMessage
-            // so the conversation stays well-formed. Without it the function call is left
-            // dangling, the NEXT orchestrator turn errors, and the loop stops after one
-            // agent (never advancing to the next agent).
+            // Answer the orchestrator's delegation tool call(s) with a ToolMessage so the
+            // shared conversation the sub-agent receives stays well-formed (paired
+            // call+response); a dangling function call breaks the next Gemini turn.
             const outMessages: (ToolMessage | HumanMessage)[] = [];
-            for (const tc of (lastMessage.tool_calls ?? [])) {
+            for (const tc of toolCalls) {
                 outMessages.push(new ToolMessage({
                     tool_call_id: tc.id ?? tc.name,
                     name: tc.name,
@@ -166,13 +146,61 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
      * turns, since the orchestrator re-plans from the full accumulated state.
      */
     private keepSingleDelegation(message: AIMessage): AIMessage {
-        const toolCalls = message.tool_calls ?? [];
+        const toolCalls = this.extractToolCalls(message);
         if (toolCalls.length <= 1) {
             return message;
         }
         const first = toolCalls.find(tc => agentRegistry.getByToolName(tc.name)) ?? toolCalls[0];
         console.log(`[MainAgent] Collapsing ${toolCalls.length} parallel tool calls -> ${first.name}`);
-        return new AIMessage({ content: message.content, tool_calls: [first] });
+        return new AIMessage({
+            content: "",
+            tool_calls: [{ name: first.name, args: first.args ?? {}, id: first.id, type: "tool_call" }],
+        });
+    }
+
+    /**
+     * AIMessage OR AIMessageChunk. Under streamEvents the messages written to the shared
+     * graph state come back as AIMessageChunk instances (which are NOT instanceof
+     * AIMessage), so any check using `instanceof AIMessage` alone silently misses them.
+     */
+    private isAIMessage(m: BaseMessage): boolean {
+        return m instanceof AIMessage || m instanceof AIMessageChunk;
+    }
+
+    /**
+     * Extract tool calls robustly. A freshly-invoked AIMessage exposes them on
+     * `.tool_calls`, but a streamed / round-tripped AIMessageChunk (Gemini) carries them
+     * inside `.content` as `{ type: "functionCall", functionCall: { name, args } }` parts
+     * with an EMPTY `.tool_calls`. Both shapes must be handled, or the orchestrator never
+     * recognizes its own prior delegations and loops on the first agent forever.
+     */
+    private extractToolCalls(m: BaseMessage): Array<{ name: string; args: Record<string, unknown>; id?: string }> {
+        const anyM = m as any;
+        if (Array.isArray(anyM.tool_calls) && anyM.tool_calls.length > 0) {
+            return anyM.tool_calls.map((tc: any) => ({ name: tc.name, args: tc.args ?? {}, id: tc.id }));
+        }
+        if (Array.isArray(anyM.content)) {
+            return anyM.content
+                .filter((p: any) => p?.type === "functionCall" && p.functionCall?.name)
+                .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {}, id: p.functionCall.id }));
+        }
+        return [];
+    }
+
+    /**
+     * Extract plain text from a message whose content may be a string OR an array of
+     * parts (`{ type: "text", text }`), as produced by streamed AIMessageChunks.
+     */
+    private extractText(m: BaseMessage): string {
+        const c = (m as any).content;
+        if (typeof c === "string") return c;
+        if (Array.isArray(c)) {
+            return c
+                .filter((p: any) => p?.type === "text" && typeof p.text === "string")
+                .map((p: any) => p.text)
+                .join("");
+        }
+        return "";
     }
 
     /**
@@ -185,8 +213,8 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
      */
     private buildOrchestratorView(messages: BaseMessage[]): BaseMessage[] {
         const isDelegation = (m: BaseMessage): boolean =>
-            m instanceof AIMessage &&
-            !!m.tool_calls?.some(tc => agentRegistry.getByToolName(tc.name));
+            this.isAIMessage(m) &&
+            this.extractToolCalls(m).some(tc => agentRegistry.getByToolName(tc.name));
 
         const view: BaseMessage[] = [];
         const firstHuman = messages.find(m => m instanceof HumanMessage);
@@ -202,32 +230,27 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
                 continue;
             }
 
-            const ai = m as AIMessage;
-            const delegationTc = ai.tool_calls!.find(tc => agentRegistry.getByToolName(tc.name))!;
+            const delegationTc = this.extractToolCalls(m).find(tc => agentRegistry.getByToolName(tc.name))!;
 
-            // The sub-agent's result is the last plain AIMessage (no tool calls) before
-            // the next delegation.
+            // The sub-agent's result is the last text-only AI message (no tool calls)
+            // before the next delegation.
             let j = i + 1;
             let result = "";
             while (j < messages.length && !isDelegation(messages[j])) {
                 const mj = messages[j];
-                if (
-                    mj instanceof AIMessage &&
-                    (!mj.tool_calls || mj.tool_calls.length === 0) &&
-                    typeof mj.content === "string" &&
-                    mj.content.trim().length > 0
-                ) {
-                    result = mj.content.trim();
+                if (this.isAIMessage(mj) && this.extractToolCalls(mj).length === 0) {
+                    const text = this.extractText(mj).trim();
+                    if (text.length > 0) {
+                        result = text;
+                    }
                 }
                 j++;
             }
 
             const agentName = agentRegistry.getByToolName(delegationTc.name)?.name ?? delegationTc.name;
             // Use ONE consistent id on both the call and its response, and set the
-            // ToolMessage `name`. Without a matching id + name the Gemini converter cannot
-            // pair the function response to the call, so the orchestrator treats the
-            // delegation as still-pending and re-emits the SAME delegate_to_* every turn
-            // (e.g. forever re-running Search) instead of advancing to the next agent.
+            // ToolMessage `name` so the Gemini converter can pair the function response
+            // to the call.
             const callId = delegationTc.id ?? `call_${view.length}_${delegationTc.name}`;
             view.push(new AIMessage({
                 content: "",
@@ -249,14 +272,15 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
      */
     private orchestratorRoute(state: typeof MessagesAnnotation.State) {
         const { messages } = state;
-        const lastMessage = messages[messages.length - 1] as AIMessage;
+        const lastMessage = messages[messages.length - 1];
+        const toolCalls = this.extractToolCalls(lastMessage);
 
-        if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
+        if (toolCalls.length === 0) {
             return END;
         }
 
         // Find the matching agent from registry
-        for (const toolCall of lastMessage.tool_calls) {
+        for (const toolCall of toolCalls) {
             const agent = agentRegistry.getByToolName(toolCall.name);
             if (agent) {
                 const prepareNodeName = `Prepare_${agent.id}_Task`;

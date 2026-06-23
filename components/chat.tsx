@@ -277,7 +277,8 @@ export function Chat({
       
       let streamBuffer = ""; 
       
-      const activeAgentStack: string[] = [];
+      const activeAgentStack: Array<{ uid: string; agentKey: string }> = [];
+      let nodeCounter = 0;
       const nodeMap = new Map<string, ExecutionStep>();
       const rootSteps: ExecutionStep[] = [];
       const appliedActions = new Set<string>();
@@ -320,8 +321,13 @@ export function Chat({
             }
 
             if (data.type === AGENT_STARTED) {
+              // The SAME agent can run multiple times in one turn, so the agentId
+              // (data.payload.id) is NOT unique. Give each invocation a unique node id,
+              // otherwise the nodeMap collides and React renders duplicate keys (and
+              // tools attach to the wrong invocation).
+              const uid = `${data.payload.id}__${nodeCounter++}`;
               const step: ExecutionStep = {
-                id: data.payload.id,
+                id: uid,
                 type: "agent",
                 name: data.payload.name,
                 status: "running",
@@ -330,22 +336,30 @@ export function Chat({
                 input: data.payload.content ? JSON.parse(data.payload.content as string) : undefined
               };
 
-              nodeMap.set(step.id, step);
+              nodeMap.set(uid, step);
 
               if (activeAgentStack.length === 0) {
                 rootSteps.push(step);
               } else {
-                const parentId = activeAgentStack[activeAgentStack.length - 1];
+                const parentId = activeAgentStack[activeAgentStack.length - 1].uid;
                 const parent = nodeMap.get(parentId);
                 if (parent) {
                   parent.children.push(step);
                 }
               }
 
-              activeAgentStack.push(step.id);
+              activeAgentStack.push({ uid, agentKey: data.payload.id });
             }
             else if (data.type === AGENT_ENDED) {
-              const step = nodeMap.get(data.payload.id);
+              // Close the most-recently-started still-open invocation of this agent
+              // (LIFO); match by agentKey from the stack instead of a non-unique nodeMap
+              // lookup so repeated agents close the correct node.
+              let endIdx = -1;
+              for (let k = activeAgentStack.length - 1; k >= 0; k--) {
+                if (activeAgentStack[k].agentKey === data.payload.id) { endIdx = k; break; }
+              }
+              const entry = endIdx >= 0 ? activeAgentStack.splice(endIdx, 1)[0] : activeAgentStack.pop();
+              const step = entry ? nodeMap.get(entry.uid) : undefined;
               if (step) {
                 step.status = "completed";
                 step.endTime = Date.now();
@@ -355,7 +369,6 @@ export function Chat({
                   step.output = data.payload.content;
                 }
               }
-              activeAgentStack.pop();
             }
             else if (data.type === TOOL_STARTED) {
               const step: ExecutionStep = {
@@ -371,7 +384,7 @@ export function Chat({
               nodeMap.set(step.id, step);
 
               if (activeAgentStack.length > 0) {
-                const parentId = activeAgentStack[activeAgentStack.length - 1];
+                const parentId = activeAgentStack[activeAgentStack.length - 1].uid;
                 const parent = nodeMap.get(parentId);
                 if (parent) {
                   parent.children.push(step);
@@ -449,7 +462,7 @@ export function Chat({
 
               // Mark current active node as error
               if (activeAgentStack.length > 0) {
-                const step = nodeMap.get(activeAgentStack[activeAgentStack.length - 1]);
+                const step = nodeMap.get(activeAgentStack[activeAgentStack.length - 1].uid);
                 if (step) {
                   step.status = "error";
                   step.endTime = Date.now();
