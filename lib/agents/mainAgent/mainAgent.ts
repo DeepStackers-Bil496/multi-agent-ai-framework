@@ -128,6 +128,7 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             for (const tc of (lastMessage.tool_calls ?? [])) {
                 outMessages.push(new ToolMessage({
                     tool_call_id: tc.id ?? tc.name,
+                    name: tc.name,
                     content: tc.name === agent.toolName
                         ? `Delegated to ${agent.name}; running now. Its result will follow.`
                         : `Not run this turn; will be handled in a later step.`,
@@ -222,9 +223,19 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
             }
 
             const agentName = agentRegistry.getByToolName(delegationTc.name)?.name ?? delegationTc.name;
-            view.push(new AIMessage({ content: "", tool_calls: [delegationTc] }));
+            // Use ONE consistent id on both the call and its response, and set the
+            // ToolMessage `name`. Without a matching id + name the Gemini converter cannot
+            // pair the function response to the call, so the orchestrator treats the
+            // delegation as still-pending and re-emits the SAME delegate_to_* every turn
+            // (e.g. forever re-running Search) instead of advancing to the next agent.
+            const callId = delegationTc.id ?? `call_${view.length}_${delegationTc.name}`;
+            view.push(new AIMessage({
+                content: "",
+                tool_calls: [{ name: delegationTc.name, args: delegationTc.args ?? {}, id: callId, type: "tool_call" }],
+            }));
             view.push(new ToolMessage({
-                tool_call_id: delegationTc.id ?? delegationTc.name,
+                tool_call_id: callId,
+                name: delegationTc.name,
                 content: result || `${agentName} returned no output.`,
             }));
             i = j;
