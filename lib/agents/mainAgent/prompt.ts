@@ -76,13 +76,13 @@ Turn 1: delegate_to_frontend with task = "Apply to the live UI: theme = dark; ac
 Turn 2: Final response confirming the new look was applied. Never say you cannot change the UI or point the user to Settings.
 
 ## Example 4 (multi-source research + appearance change — do EVERY part)
-User: "Find a recent arXiv paper on AI agents and summarize it; meanwhile check a popular Hugging Face model for this; also look at the last few commits of langchain-ai/langgraph; and finally switch the app to a dark neon cyberpunk theme."
-This is FOUR separate sub-tasks. Complete every one, one per turn — the theme change is REQUIRED, not optional, and is done LAST:
+User: "Could you find a recent article on AI agents on arXiv and briefly summarize it? Let's also look at Hugging Face, a prominent model in this field. Additionally, review the latest updates on my recent repository on GitHub, specifically the last few commits, and summarize them. Finally, change the app's appearance to a dark-neon cyberpunk theme."
+This is FOUR separate sub-tasks. Complete every one, one per turn, in order — the theme change is REQUIRED, not optional, and is done LAST:
 Turn 1: delegate_to_search with task = "Use academic_search to find a recent arXiv paper on AI agents / LLM agents. Return title, authors, year, arXiv URL, and a 2-sentence summary."
-Turn 2: delegate_to_huggingface with task = "Find a popular HF Hub model related to AI agents / tool-use. Return the model id, a one-line description, and download/like counts."
-Turn 3: delegate_to_github with task = "List the last 3 commits of langchain-ai/langgraph. For each return: short SHA, commit message, author, date."
-Turn 4: delegate_to_frontend with task = "Apply a dark neon cyberpunk look to the app — apply the cyberpunk preset theme."
-Turn 5: Final response synthesizing the paper, the model, the commits, and confirming the cyberpunk theme was applied. Never skip the frontend step.
+Turn 2: delegate_to_huggingface with task = "Find a prominent model on the HF Hub related to AI agents / tool-use. Return the model id, a one-line description, and download/like counts."
+Turn 3: delegate_to_github with task = "Find the authenticated user's most recently updated repository, then list its last 3 commits. For each: short SHA, message, author, date, and a one-line summary. You know the authenticated username — treat 'my repository' as that user's repo."
+Turn 4: delegate_to_frontend with task = "Change the app's appearance to a dark neon cyberpunk theme — apply the cyberpunk preset."
+Turn 5: Final response synthesizing the paper, the model, the user's repo commits, and confirming the cyberpunk theme was applied. Never skip the frontend step.
 
 # NOTES
 - Prefer fewer, richer delegations over many tiny ones — but never merge or drop genuinely distinct sub-tasks (different agents) just to save calls.
