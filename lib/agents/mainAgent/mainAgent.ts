@@ -1,6 +1,6 @@
 import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
 import { Runnable } from "@langchain/core/runnables";
-import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, SystemMessage, ToolMessage, BaseMessage } from "@langchain/core/messages";
 import { AgentUserRole, AGENT_START_EVENT, AGENT_END_EVENT, ON_CHAT_MODEL_STREAM_EVENT, AGENT_STARTED, AGENT_ENDED, AGENT_STREAM, AGENT_ERROR, TOOL_STARTED_EVENT, TOOL_ENDED_EVENT, TOOL_ENDED, TOOL_STARTED } from "@/lib/constants";
 import { AgentChatMessage, LLMImplMetadata } from "@/lib/types";
 import { AgentConfig } from "../agentConfig";
@@ -142,10 +142,9 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
      * Orchestrator node - decides whether to answer directly or delegate
      */
     protected async agentNode(state: typeof MessagesAnnotation.State) {
-        const { messages } = state;
         const messagesToSend = [
             new SystemMessage(this.implementationMetadata.systemInstruction),
-            ...messages
+            ...this.buildOrchestratorView(state.messages)
         ];
 
         try {
@@ -173,6 +172,65 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
         const first = toolCalls.find(tc => agentRegistry.getByToolName(tc.name)) ?? toolCalls[0];
         console.log(`[MainAgent] Collapsing ${toolCalls.length} parallel tool calls -> ${first.name}`);
         return new AIMessage({ content: message.content, tool_calls: [first] });
+    }
+
+    /**
+     * Build a CLEAN conversation for the orchestrator LLM from the noisy accumulated
+     * state. The shared MessagesAnnotation accumulates every sub-agent's internal tool
+     * calls and messages; feeding those raw to the orchestrator confuses Gemini (it sees
+     * function calls for tools it doesn't own) and breaks both the final answer and the
+     * multi-step loop. This reconstructs only the well-formed supervisor view:
+     *   user request  ->  delegate_to_X call  ->  ToolMessage(sub-agent result)  ->  ...
+     */
+    private buildOrchestratorView(messages: BaseMessage[]): BaseMessage[] {
+        const isDelegation = (m: BaseMessage): boolean =>
+            m instanceof AIMessage &&
+            !!m.tool_calls?.some(tc => agentRegistry.getByToolName(tc.name));
+
+        const view: BaseMessage[] = [];
+        const firstHuman = messages.find(m => m instanceof HumanMessage);
+        if (firstHuman) {
+            view.push(firstHuman);
+        }
+
+        let i = 0;
+        while (i < messages.length) {
+            const m = messages[i];
+            if (!isDelegation(m)) {
+                i++;
+                continue;
+            }
+
+            const ai = m as AIMessage;
+            const delegationTc = ai.tool_calls!.find(tc => agentRegistry.getByToolName(tc.name))!;
+
+            // The sub-agent's result is the last plain AIMessage (no tool calls) before
+            // the next delegation.
+            let j = i + 1;
+            let result = "";
+            while (j < messages.length && !isDelegation(messages[j])) {
+                const mj = messages[j];
+                if (
+                    mj instanceof AIMessage &&
+                    (!mj.tool_calls || mj.tool_calls.length === 0) &&
+                    typeof mj.content === "string" &&
+                    mj.content.trim().length > 0
+                ) {
+                    result = mj.content.trim();
+                }
+                j++;
+            }
+
+            const agentName = agentRegistry.getByToolName(delegationTc.name)?.name ?? delegationTc.name;
+            view.push(new AIMessage({ content: "", tool_calls: [delegationTc] }));
+            view.push(new ToolMessage({
+                tool_call_id: delegationTc.id ?? delegationTc.name,
+                content: result || `${agentName} returned no output.`,
+            }));
+            i = j;
+        }
+
+        return view;
     }
 
     /**
@@ -239,10 +297,9 @@ class MainAgent extends BaseAgent<LLMImplMetadata> {
 
         // Create a runtime agent node that uses the new LLM
         const runtimeAgentNode = async (state: typeof MessagesAnnotation.State) => {
-            const { messages } = state;
             const messagesToSend = [
                 new SystemMessage(mergedConfig.systemInstruction),
-                ...messages
+                ...this.buildOrchestratorView(state.messages)
             ];
 
             try {
