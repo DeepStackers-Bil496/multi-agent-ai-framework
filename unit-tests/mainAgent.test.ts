@@ -40,17 +40,17 @@ describe("MainAgent", () => {
   });
 
   it("prompt still allows direct answers for general questions", () => {
-    expect(mainAgentSystemPrompt).toMatch(/answer directly without tools/i);
-    expect(mainAgentSystemPrompt).toMatch(/general knowledge questions/i);
+    expect(mainAgentSystemPrompt).toMatch(/answer directly/i);
+    expect(mainAgentSystemPrompt).toMatch(/general[-\s]knowledge/i);
   });
 
-  it("suggested actions include MCP and repository tasks", () => {
+  it("suggested actions cover repository and research tasks", () => {
     const actions = MainAgentConfig.user_metadata.suggestedActions ?? [];
 
     expect(actions.length).toBeGreaterThanOrEqual(4);
-    expect(
-      actions.some((action) => action.includes("Model Context Protocol"))
-    ).toBe(true);
     expect(actions.some((action) => /commits/i.test(action))).toBe(true);
+    expect(
+      actions.some((action) => /hugging face|arxiv/i.test(action))
+    ).toBe(true);
   });
 });

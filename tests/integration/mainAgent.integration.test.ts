@@ -228,6 +228,122 @@ const DATA_ANALYST_SCENARIO: DelegationScenario = {
   },
 };
 
+// --- Scenarios matching the demo prompt (arXiv + HuggingFace + GitHub + cyberpunk) ---
+
+const ACADEMIC_SEARCH_SCENARIO: DelegationScenario = {
+  activeAgentModule: "@/lib/agents/searchAgent/searchAgent",
+  expectedAgentId: "search-agent",
+  delegationTool: "delegate_to_search",
+  taskPrefix: "[Search Task]",
+  task: "Find a recent arXiv paper on AI agents and briefly summarize it.",
+  subAgentTool: "academic_search",
+  subAgentToolArgs: { query: "AI agents", source: "arxiv", numResults: 3 },
+  subAgentCompletion: "I found a recent arXiv paper on AI agents.",
+  userMessage:
+    "Could you find a recent article on AI agents on arXiv and briefly summarize it?",
+  installDependencyMocks: () => {
+    const arxivXml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<feed xmlns="http://www.w3.org/2005/Atom">',
+      "<entry>",
+      "<id>http://arxiv.org/abs/2501.12345v1</id>",
+      "<published>2025-01-15T00:00:00Z</published>",
+      "<title>A Survey of LLM-based Autonomous AI Agents</title>",
+      "<summary>This paper surveys LLM-based autonomous agents: planning, tool use, and multi-agent orchestration.</summary>",
+      "<author><name>Ada Lovelace</name></author>",
+      "<author><name>Alan Turing</name></author>",
+      '<category term="cs.AI"/>',
+      "</entry>",
+      "</feed>",
+    ].join("\n");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        const u = String(url);
+        if (u.includes("export.arxiv.org")) {
+          return { ok: true, status: 200, text: async () => arxivXml } as unknown as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+          text: async () => "",
+        } as unknown as Response;
+      })
+    );
+  },
+  assertToolOutput: (toolOutput) => {
+    expect(toolOutput).toContain("A Survey of LLM-based Autonomous AI Agents");
+    expect(toolOutput).toContain("2501.12345v1");
+  },
+};
+
+const HUGGINGFACE_SCENARIO: DelegationScenario = {
+  activeAgentModule: "@/lib/agents/huggingFaceAgent/huggingFaceAgent",
+  expectedAgentId: "huggingface-agent",
+  delegationTool: "delegate_to_huggingface",
+  taskPrefix: "[HuggingFace Task]",
+  task: "Find a prominent model related to AI agents on the Hub.",
+  subAgentTool: "model_search",
+  subAgentToolArgs: { query: "AI agents", limit: 5 },
+  subAgentCompletion: "I found a prominent AI-agents model on the Hub.",
+  userMessage:
+    "On Hugging Face, find a prominent model in the AI agents field.",
+  installDependencyMocks: () => {
+    process.env.HF_TOKEN = "hf_test_token";
+
+    vi.doMock("@modelcontextprotocol/sdk/client/index.js", () => ({
+      Client: vi.fn().mockImplementation(function () {
+        return {
+          connect: vi.fn().mockResolvedValue(undefined),
+          callTool: vi.fn().mockResolvedValue({
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify([
+                  {
+                    id: "agentic-ai/llm-agent-orchestrator",
+                    downloads: 123456,
+                    likes: 789,
+                    pipeline_tag: "text-generation",
+                  },
+                ]),
+              },
+            ],
+          }),
+        };
+      }),
+    }));
+
+    vi.doMock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
+      StreamableHTTPClientTransport: vi.fn().mockImplementation(function () {
+        return {};
+      }),
+    }));
+  },
+  assertToolOutput: (toolOutput) => {
+    expect(toolOutput).toContain("agentic-ai/llm-agent-orchestrator");
+  },
+};
+
+const FRONTEND_CYBERPUNK_SCENARIO: DelegationScenario = {
+  activeAgentModule: "@/lib/agents/frontendAgent/frontendAgent",
+  expectedAgentId: "frontend-agent",
+  delegationTool: "delegate_to_frontend",
+  taskPrefix: "[Frontend Task]",
+  task: "Change the app appearance to a dark-neon cyberpunk theme.",
+  subAgentTool: "apply_preset_theme",
+  subAgentToolArgs: { theme: "cyberpunk" },
+  subAgentCompletion: "Applied the cyberpunk theme preset.",
+  userMessage: "Change the app's appearance to a dark-neon cyberpunk theme.",
+  assertToolOutput: (toolOutput) => {
+    expect(toolOutput).toContain("<UI_ACTION>");
+    expect(toolOutput).toContain("apply_preset_theme");
+    expect(toolOutput).toContain("cyberpunk");
+  },
+};
+
 function makeToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -476,6 +592,8 @@ describe("MainAgent orchestration integration", () => {
     }
     delete process.env.GITHUB_PAT;
     delete process.env.EXA_API_KEY;
+    delete process.env.HF_TOKEN;
+    vi.unstubAllGlobals();
   });
 
   it("runs main-agent -> frontend-agent -> set_theme tool end-to-end", async () => {
@@ -496,5 +614,19 @@ describe("MainAgent orchestration integration", () => {
 
   it("runs main-agent -> data-analyst-agent -> analyze_csv_data tool end-to-end", async () => {
     await expectDelegationScenario(DATA_ANALYST_SCENARIO);
+  });
+
+  // --- Demo prompt coverage: arXiv + HuggingFace + cyberpunk ---
+
+  it("runs main-agent -> search-agent -> academic_search (arXiv) tool end-to-end", async () => {
+    await expectDelegationScenario(ACADEMIC_SEARCH_SCENARIO);
+  });
+
+  it("runs main-agent -> huggingface-agent -> model_search tool end-to-end", async () => {
+    await expectDelegationScenario(HUGGINGFACE_SCENARIO);
+  });
+
+  it("runs main-agent -> frontend-agent -> apply_preset_theme (cyberpunk) tool end-to-end", async () => {
+    await expectDelegationScenario(FRONTEND_CYBERPUNK_SCENARIO);
   });
 });
